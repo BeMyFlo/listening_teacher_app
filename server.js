@@ -113,6 +113,14 @@ function registerRoutes(basePath, dirPath) {
 console.log("Loading API routes...");
 registerRoutes("/api", path.join(__dirname, "api"));
 
+// --- Clean URL routes ---
+app.get("/teacher", (req, res) => {
+  res.sendFile(path.join(__dirname, "teacher.html"));
+});
+app.get("/student", (req, res) => {
+  res.sendFile(path.join(__dirname, "student.html"));
+});
+
 // --- SPA fallback: serve index.html for unknown routes ---
 app.get("/{*path}", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
