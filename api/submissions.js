@@ -1,9 +1,9 @@
-const { connectDB } = require("../../lib/db");
-const { requireStudent } = require("../../lib/auth");
-const Test = require("../../lib/models/Test");
-const Student = require("../../lib/models/Student");
-const Submission = require("../../lib/models/Submission");
-const { gradeSubmission } = require("../../lib/grade");
+const { connectDB } = require("../lib/db");
+const { requireStudent } = require("../lib/auth");
+const Test = require("../lib/models/Test");
+const Student = require("../lib/models/Student");
+const Submission = require("../lib/models/Submission");
+const { gradeSubmission } = require("../lib/grade");
 
 async function handler(req, res) {
   if (req.method !== "POST") {

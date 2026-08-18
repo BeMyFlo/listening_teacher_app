@@ -66,35 +66,35 @@ const Api = (function () {
     clearStudentToken,
 
     login: (password) => request("/api/auth/login", { method: "POST", body: { password } }),
-    studentRegister: (data) => request("/api/auth/student/register", { method: "POST", body: data }),
-    studentLogin: (data) => request("/api/auth/student/login", { method: "POST", body: data }),
+    studentRegister: (data) => request("/api/auth/student?action=register", { method: "POST", body: data }),
+    studentLogin: (data) => request("/api/auth/student?action=login", { method: "POST", body: data }),
 
     listTests: (params) => {
       const qs = new URLSearchParams(params || {}).toString();
       return request("/api/tests" + (qs ? "?" + qs : ""));
     },
-    getTest: (id) => request("/api/tests/" + id),
+    getTest: (id) => request("/api/tests?id=" + id),
     submit: (payload) => request("/api/submissions", { method: "POST", body: payload, auth: "student" }),
 
     admin: {
       listAudio: () => request("/api/admin/audio", { auth: "teacher" }),
       uploadAudio: (formData) => request("/api/admin/audio", { method: "POST", body: formData, auth: "teacher", isForm: true }),
-      renameAudio: (id, data) => request("/api/admin/audio/" + id, { method: "PUT", body: data, auth: "teacher" }),
-      deleteAudio: (id) => request("/api/admin/audio/" + id, { method: "DELETE", auth: "teacher" }),
+      renameAudio: (id, data) => request("/api/admin/audio?id=" + id, { method: "PUT", body: data, auth: "teacher" }),
+      deleteAudio: (id) => request("/api/admin/audio?id=" + id, { method: "DELETE", auth: "teacher" }),
 
       listImages: () => request("/api/admin/images", { auth: "teacher" }),
       uploadImage: (formData) => request("/api/admin/images", { method: "POST", body: formData, auth: "teacher", isForm: true }),
-      deleteImage: (id) => request("/api/admin/images/" + id, { method: "DELETE", auth: "teacher" }),
+      deleteImage: (id) => request("/api/admin/images?id=" + id, { method: "DELETE", auth: "teacher" }),
 
       listStudents: () => request("/api/admin/students", { auth: "teacher" }),
-      deleteStudent: (id) => request("/api/admin/students/" + id, { method: "DELETE", auth: "teacher" }),
-      resetStudentPassword: (id, password) => request("/api/admin/students/" + id, { method: "PUT", body: { password }, auth: "teacher" }),
+      deleteStudent: (id) => request("/api/admin/students?id=" + id, { method: "DELETE", auth: "teacher" }),
+      resetStudentPassword: (id, password) => request("/api/admin/students?id=" + id, { method: "PUT", body: { password }, auth: "teacher" }),
 
       listTests: () => request("/api/admin/tests", { auth: "teacher" }),
-      getTest: (id) => request("/api/admin/tests/" + id, { auth: "teacher" }),
+      getTest: (id) => request("/api/admin/tests?id=" + id, { auth: "teacher" }),
       createTest: (data) => request("/api/admin/tests", { method: "POST", body: data, auth: "teacher" }),
-      updateTest: (id, data) => request("/api/admin/tests/" + id, { method: "PUT", body: data, auth: "teacher" }),
-      deleteTest: (id) => request("/api/admin/tests/" + id, { method: "DELETE", auth: "teacher" }),
+      updateTest: (id, data) => request("/api/admin/tests?id=" + id, { method: "PUT", body: data, auth: "teacher" }),
+      deleteTest: (id) => request("/api/admin/tests?id=" + id, { method: "DELETE", auth: "teacher" }),
 
       listSubmissions: (params) => {
         const qs = new URLSearchParams(params || {}).toString();
