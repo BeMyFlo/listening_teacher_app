@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Giáo viên – IELTS with Ms Nhi</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <script src="assets/icons.js"></script>
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo">MN</div>
+      <div>
+        IELTS with Ms Nhi
+        <div class="sub">Khu vực giáo viên</div>
+      </div>
+    </div>
+    <nav>
+      <a href="index.html"><svg class="icon"><use href="#icon-arrow-left"></use></svg> Trang chủ</a>
+      <a href="#" id="btnLogout" style="display:none;"><svg class="icon"><use href="#icon-logout"></use></svg> Đăng xuất</a>
+    </nav>
+  </div>
+
+  <div class="wrap">
+
+    <!-- Đăng nhập -->
+    <section id="step-login" class="card">
+      <h2>Đăng nhập giáo viên</h2>
+      <div class="form-row">
+        <label for="pw">Mật khẩu</label>
+        <input type="password" id="pw" placeholder="Nhập mật khẩu" />
+      </div>
+      <button class="btn" id="btnLogin">Đăng nhập</button>
+      <p id="loginError" class="notice error" style="display:none; margin-top:14px;"></p>
+    </section>
+
+    <!-- Dashboard -->
+    <section id="step-dashboard" style="display:none;">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="overview"><svg class="icon"><use href="#icon-chart-bar"></use></svg> Tổng quan</button>
+        <button class="tab-btn" data-tab="audio"><svg class="icon"><use href="#icon-headphones"></use></svg> Bài nghe</button>
+        <button class="tab-btn" data-tab="images"><svg class="icon"><use href="#icon-image"></use></svg> Thư viện ảnh</button>
+        <button class="tab-btn" data-tab="tests"><svg class="icon"><use href="#icon-clipboard"></use></svg> Bài kiểm tra</button>
+        <button class="tab-btn" data-tab="submissions"><svg class="icon"><use href="#icon-list"></use></svg> Bài nộp</button>
+        <button class="tab-btn" data-tab="students"><svg class="icon"><use href="#icon-student"></use></svg> Học viên</button>
+      </div>
+
+      <!-- Tổng quan -->
+      <div class="tab-panel active" id="panel-overview">
+        <div id="overviewStatus" class="notice info">Đang tải số liệu...</div>
+        <div id="overviewContent" style="display:none;">
+          <div class="stat-grid" id="statGrid"></div>
+          <div class="card">
+            <h3>Theo từng bài kiểm tra</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Bài</th><th>Môn học</th><th>Số lượt nộp</th><th>Điểm TB</th></tr></thead>
+                <tbody id="byTestBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Nộp bài gần đây</h3>
+            <div id="recentList"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bài nghe -->
+      <div class="tab-panel" id="panel-audio">
+        <div class="card">
+          <h3>Tải lên bài nghe mới</h3>
+          <div class="form-row">
+            <label for="audioTitle">Tiêu đề</label>
+            <input type="text" id="audioTitle" placeholder="Ví dụ: Listening 2A – Đăng ký khóa học" />
+          </div>
+          <div class="form-row">
+            <label for="audioUnit">Unit (tuỳ chọn)</label>
+            <input type="text" id="audioUnit" placeholder="Ví dụ: Unit 2" />
+          </div>
+          <div class="form-row">
+            <label for="audioFile">File âm thanh (mp3, wav...)</label>
+            <input type="file" id="audioFile" accept="audio/*" />
+          </div>
+          <button class="btn" id="btnUploadAudio"><svg class="icon"><use href="#icon-upload"></use></svg> Tải lên</button>
+          <p id="audioUploadStatus" class="notice info" style="display:none; margin-top:14px;"></p>
+        </div>
+        <div class="card">
+          <h3>Thư viện bài nghe</h3>
+          <div id="audioListStatus" class="notice info">Đang tải...</div>
+          <div id="audioList"></div>
+        </div>
+      </div>
+
+      <!-- Thư viện ảnh -->
+      <div class="tab-panel" id="panel-images">
+        <div class="card">
+          <h3>Tải lên ảnh minh hoạ mới (cho sơ đồ / bản đồ)</h3>
+          <div class="form-row">
+            <label for="imageTitle">Tiêu đề ảnh</label>
+            <input type="text" id="imageTitle" placeholder="Ví dụ: Diagram Section 3 – Map of the library" />
+          </div>
+          <div class="form-row">
+            <label for="imageUnit">Unit (tuỳ chọn)</label>
+            <input type="text" id="imageUnit" placeholder="Ví dụ: Unit 2" />
+          </div>
+          <div class="form-row">
+            <label for="imageFile">File hình ảnh (png, jpg, jpeg, gif...)</label>
+            <input type="file" id="imageFile" accept="image/*" />
+          </div>
+          <button class="btn" id="btnUploadImage"><svg class="icon"><use href="#icon-upload"></use></svg> Tải lên</button>
+          <p id="imageUploadStatus" class="notice info" style="display:none; margin-top:14px;"></p>
+        </div>
+        <div class="card">
+          <h3>Thư viện ảnh minh hoạ</h3>
+          <div id="imageListStatus" class="notice info">Đang tải...</div>
+          <div id="imageList"></div>
+        </div>
+      </div>
+
+      <!-- Bài kiểm tra -->
+      <div class="tab-panel" id="panel-tests">
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="margin:0;">Danh sách bài kiểm tra</h3>
+            <button class="btn" id="btnNewTest"><svg class="icon"><use href="#icon-plus"></use></svg> Tạo bài kiểm tra</button>
+          </div>
+          <div id="testsListStatus" class="notice info" style="margin-top:14px;">Đang tải...</div>
+          <div id="testsList" style="margin-top:14px;"></div>
+        </div>
+
+        <div class="card" id="testBuilder" style="display:none;">
+          <h3 id="builderHeading">Tạo bài kiểm tra mới</h3>
+          
+          <div class="form-row">
+            <label>Kỹ năng (Subject)</label>
+            <div class="subject-toggle" id="builderSubjectToggle">
+              <button type="button" class="active" data-subject="listening"><svg class="icon"><use href="#icon-headphones"></use></svg> Nghe (Listening)</button>
+              <button type="button" data-subject="reading"><svg class="icon"><use href="#icon-book-open"></use></svg> Đọc (Reading)</button>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label for="tbTitle">Tên bài kiểm tra</label>
+            <input type="text" id="tbTitle" placeholder="Ví dụ: Listening 2A – Đăng ký khóa học" />
+          </div>
+          <div class="form-row">
+            <label for="tbUnit">Unit (tuỳ chọn)</label>
+            <input type="text" id="tbUnit" placeholder="Ví dụ: Unit 2" />
+          </div>
+          <div class="form-row">
+            <label for="tbInstructions">Hướng dẫn làm bài</label>
+            <input type="text" id="tbInstructions" placeholder="Ví dụ: Nghe đoạn hội thoại và điền vào chỗ trống..." />
+          </div>
+
+          <h4 style="margin-top:22px;">Các phần (Sections)</h4>
+          <div id="tbSections"></div>
+          <button class="btn secondary" id="btnAddSection" style="margin-top:6px;"><svg class="icon"><use href="#icon-plus"></use></svg> Thêm phần (Section)</button>
+
+          <p id="builderStatus" class="notice error" style="display:none; margin-top:16px;"></p>
+
+          <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn secondary" id="btnSaveDraft">Lưu nháp</button>
+            <button class="btn" id="btnPublish">Lưu & công bố</button>
+            <button class="btn secondary" id="btnCancelBuilder">Huỷ</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bài nộp -->
+      <div class="tab-panel" id="panel-submissions">
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <h2 style="margin:0;">Kết quả học sinh</h2>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items: center;">
+              <select id="filterSubject" class="select-inline">
+                <option value="">Tất cả kỹ năng</option>
+                <option value="listening">Nghe (Listening)</option>
+                <option value="reading">Đọc (Reading)</option>
+              </select>
+              <select id="filterTest" class="select-inline"><option value="">Tất cả bài kiểm tra</option></select>
+              <input type="text" id="searchBox" placeholder="Tìm theo tên học sinh..." style="padding:9px 12px; border:1px solid var(--border); border-radius:8px;" />
+              <button class="btn secondary" id="btnRefresh"><svg class="icon"><use href="#icon-refresh"></use></svg> Tải lại</button>
+            </div>
+          </div>
+          <div id="summaryBox" style="margin-top:14px; color:var(--muted); font-size:.9rem;"></div>
+        </div>
+
+        <div class="card">
+          <div id="loadStatus" class="notice info">Đang tải dữ liệu...</div>
+          <div class="table-wrap">
+            <table id="resultsTable" style="display:none;">
+              <thead>
+                <tr>
+                  <th>Thời gian</th>
+                  <th>Họ tên</th>
+                  <th>Bài</th>
+                  <th>Điểm</th>
+                  <th>Số lần nghe</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="resultsBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Học viên -->
+      <div class="tab-panel" id="panel-students">
+        <div class="card">
+          <h3>Danh sách tài khoản học viên</h3>
+          <div id="studentsListStatus" class="notice info">Đang tải...</div>
+          <div class="table-wrap">
+            <table id="studentsTable" style="display:none;">
+              <thead>
+                <tr>
+                  <th>Họ và tên</th>
+                  <th>Tên đăng nhập</th>
+                  <th>Ngày đăng ký</th>
+                  <th>Số bài đã nộp</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody id="studentsBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <script src="assets/api.js"></script>
+  <script src="assets/teacher.js"></script>
+</body>
+</html>

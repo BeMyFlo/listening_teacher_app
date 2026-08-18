@@ -1,0 +1,52 @@
+// ============================================================
+//  BỘ ICON SVG DÙNG CHUNG
+//  Chèn 1 sprite <svg> ẩn chứa các <symbol>, rồi dùng
+//  <svg class="icon"><use href="#icon-ten"></use></svg> ở bất kỳ đâu,
+//  hoặc gọi Icon("ten") từ JS để lấy chuỗi HTML tương ứng.
+// ============================================================
+(function () {
+  const SYMBOLS = {
+    headphones: '<path d="M4 13v-1a8 8 0 0 1 16 0v1"/><rect x="3" y="13" width="4" height="7" rx="1.5"/><rect x="17" y="13" width="4" height="7" rx="1.5"/>',
+    student: '<path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-5.5"/><path d="M22 8v6"/>',
+    teacher: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8"/><path d="M12 16v4"/><path d="M7 8.5l3 3 3-4 4 5"/>',
+    "arrow-left": '<path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/>',
+    refresh: '<path d="M3 12a9 9 0 0 1 15.3-6.3L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.3 6.3L3 16"/><path d="M3 21v-5h5"/>',
+    wave: '<path d="M7 11V5a1.5 1.5 0 0 1 3 0v6"/><path d="M10 10.5V4a1.5 1.5 0 0 1 3 0v7"/><path d="M13 11V6a1.5 1.5 0 0 1 3 0v7"/><path d="M16 12v-3a1.5 1.5 0 0 1 3 0v6c0 3.3-2.7 6-6 6h-1.5c-2 0-3.9-1-5-2.7L4.3 14.8a1.3 1.3 0 0 1 2.1-1.5L8 15"/>',
+    clipboard: '<rect x="6" y="4" width="12" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="3" rx="1"/><path d="M9 11h6"/><path d="M9 15h6"/>',
+    speaker: '<path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 7a7.5 7.5 0 0 1 0 10"/>',
+    warning: '<path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/>',
+    "check-circle": '<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.5 2.5 5-5.5"/>',
+    check: '<path d="m5 13 4 4L19 7"/>',
+    cross: '<path d="M6 6l12 12"/><path d="M18 6 6 18"/>',
+    upload: '<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+    trash: '<path d="M4 7h16"/><path d="M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7"/><path d="M6 7l1 13a2 2 0 0 0 2 1.8h6a2 2 0 0 0 2-1.8l1-13"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+    edit: '<path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M13.5 6.5l3 3"/>',
+    plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+    logout: '<path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+    "chart-bar": '<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
+    list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+    "book-open": '<path d="M12 6.5c-1.8-1.3-4.2-2-6.5-2A2.5 2.5 0 0 0 3 7v11c2.3 0 4.7.7 6.5 2 .5.4 1.5.4 2 0 1.8-1.3 4.2-2 6.5-2A2.5 2.5 0 0 0 21 15.5V7c0-1.4-1.1-2.5-2.5-2.5-2.3 0-4.7.7-6.5 2Z"/><path d="M12 6.5V20"/>',
+    image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m4 17 5-5 4.5 4.5"/><path d="m13 15 2.5-2.5L20 17"/>',
+    lock: '<rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>',
+    "user-plus": '<path d="M6 20.5V19a5 5 0 0 1 5-5h1.5"/><circle cx="10.5" cy="8" r="4"/><path d="M18 9v6"/><path d="M15 12h6"/>'
+  };
+
+  const spriteHtml =
+    '<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">' +
+    Object.keys(SYMBOLS)
+      .map((name) => `<symbol id="icon-${name}" viewBox="0 0 24 24">${SYMBOLS[name]}</symbol>`)
+      .join("") +
+    "</svg>";
+
+  if (document.currentScript) {
+    document.currentScript.insertAdjacentHTML("afterend", spriteHtml);
+  } else {
+    document.write(spriteHtml);
+  }
+
+  // Dùng trong JS: Icon("check-circle", "extra-class") -> chuỗi HTML <svg>...
+  window.Icon = function (name, extraClass) {
+    return `<svg class="icon${extraClass ? " " + extraClass : ""}"><use href="#icon-${name}"></use></svg>`;
+  };
+})();

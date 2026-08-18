@@ -1,0 +1,19 @@
+{
+  "name": "ielts-with-ms-nhi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IELTS with Ms Nhi — static frontend + Vercel serverless API + MongoDB + Cloudinary",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.5.1",
+    "formidable": "^3.5.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.5"
+  },
+  "devDependencies": {
+    "vercel": "^37.14.0"
+  }
+}
