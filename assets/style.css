@@ -939,6 +939,14 @@ tr:hover td { background: #fafcfe; }
 .sidebar-user .user-name { font-weight: 700; font-size: .9rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-user .user-role { font-size: .74rem; color: var(--muted); }
 
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(11,20,32,.45);
+  z-index: 55;
+}
+
 .avatar {
   width: 34px; height: 34px;
   border-radius: 50%;
@@ -1731,13 +1739,6 @@ tr:hover td { background: #fafcfe; }
     box-shadow: none;
   }
   .app-shell.collapsed .sidebar { transform: translateX(0); }
-  .sidebar-backdrop {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(11,20,32,.45);
-    z-index: 55;
-  }
   .app-shell.collapsed .sidebar-backdrop { display: block; }
   .app-shell.collapsed .sidebar .sidebar-group-label,
   .app-shell.collapsed .sidebar .link-label,
