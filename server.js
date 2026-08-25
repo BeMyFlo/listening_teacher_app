@@ -7,14 +7,25 @@ require("dotenv").config({ path: require("path").join(__dirname, ".env.local") }
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
-const formidable = require("formidable").formidable;
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // --- Middleware ---
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Skip body-parsing for multipart/form-data — those routes' handlers call
+// formidable() themselves directly on the raw request stream (matching
+// Vercel's actual `bodyParser: false` runtime behavior). If express.json()/
+// urlencoded() ran first AND something else also pre-parsed the stream,
+// the handler's own formidable().parse(req) would hang forever waiting on
+// a stream that was already fully consumed — exactly the bug this avoids.
+app.use((req, res, next) => {
+  if ((req.headers["content-type"] || "").startsWith("multipart/form-data")) return next();
+  express.json()(req, res, next);
+});
+app.use((req, res, next) => {
+  if ((req.headers["content-type"] || "").startsWith("multipart/form-data")) return next();
+  express.urlencoded({ extended: true })(req, res, next);
+});
 
 // --- Static files ---
 app.use(express.static(__dirname));
@@ -27,23 +38,6 @@ function loadHandler(filePath) {
     console.error("Failed to load handler:", filePath, e.message);
     return null;
   }
-}
-
-function wrapFormidable(handler) {
-  return (req, res) => {
-    const form = formidable({ multiples: true, keepExtensions: true });
-    form.parse(req, (err, fields, files) => {
-      if (err) {
-        return res.status(400).json({ ok: false, error: err.message });
-      }
-      // Merge fields into req.body (keep existing JSON body if any)
-      req.body = { ...(req.body || {}), ...fields };
-      req.files = files;
-      // Vercel compat: merge route params into req.query
-      Object.assign(req.query, req.params);
-      handler(req, res);
-    });
-  };
 }
 
 // --- Register API routes ---
@@ -76,10 +70,6 @@ function registerRoutes(basePath, dirPath) {
       // Ensure route starts with /
       if (!routePath.startsWith("/")) routePath = "/" + routePath;
 
-      // Check if handler uses formidable (file upload endpoints)
-      const usesFormidable =
-        routePath.includes("/admin/audio") || routePath.includes("/admin/images");
-
       // Vercel compat: merge route params into req.query
       // Express 5 req.query is a getter that re-parses URL,
       // so we inject params by modifying req.url directly.
@@ -91,19 +81,7 @@ function registerRoutes(basePath, dirPath) {
         handler(req, res);
       };
 
-      const compatFormidable = (req, res) => {
-        if (Object.keys(req.params).length > 0) {
-          const qs = new URLSearchParams(req.params).toString();
-          req.url = req.url.includes("?") ? req.url + "&" + qs : req.url + "?" + qs;
-        }
-        wrapFormidable(handler)(req, res);
-      };
-
-      if (usesFormidable) {
-        app.all(routePath, compatFormidable);
-      } else {
-        app.all(routePath, compatHandler);
-      }
+      app.all(routePath, compatHandler);
 
       console.log("  Route:", routePath, "<-", fullPath);
     }

@@ -3,14 +3,18 @@
 // ============================================================
 (function () {
   let studentName = "";
+  let studentLevel = 1;
   let currentSubject = ""; // 'listening' | 'reading'
   let currentTest = null; // full test detail from API (public shape, no answers)
   let testReplayCount = 0;
+  let countdownTimer = null; // Phase 4 — đồng hồ đếm ngược khi test có durationMinutes
+  let shell = null; // dashboard shell (Phase 2)
 
-  const sections = ["step-auth", "step-subject", "step-picker", "step-test", "step-result"];
+  const sections = ["step-lessons", "step-subject", "step-picker", "step-test", "step-result"];
 
   function show(id) {
     sections.forEach((s) => (document.getElementById(s).style.display = s === id ? "block" : "none"));
+    if (shell) shell.setActive(id === "step-lessons" ? "lessons" : "tests");
     window.scrollTo(0, 0);
   }
 
@@ -34,120 +38,50 @@
   }
 
   // Kiểm tra quyền và trạng thái đăng nhập học sinh
+  // (đăng nhập đã chuyển sang trang chủ / — không còn form nhúng ở đây)
   function checkAuth() {
     const token = Api.getStudentToken();
     if (!token) {
-      document.getElementById("studentNavInfo").style.display = "none";
-      document.getElementById("btnStudentLogout").style.display = "none";
-      show("step-auth");
+      location.href = "/";
       return;
     }
-
     const payload = decodeJwt(token);
     if (!payload || payload.role !== "student") {
       Api.clearStudentToken();
-      document.getElementById("studentNavInfo").style.display = "none";
-      document.getElementById("btnStudentLogout").style.display = "none";
-      show("step-auth");
+      location.href = "/";
       return;
     }
-
     studentName = payload.name || payload.username;
-    document.getElementById("studentNavName").textContent = studentName;
-    document.getElementById("studentNavInfo").style.display = "inline";
-    document.getElementById("btnStudentLogout").style.display = "inline";
+    studentLevel = payload.level || 1;
 
-    if (!currentSubject) {
-      show("step-subject");
-    } else {
-      show("step-picker");
-    }
+    // Mount sidebar + topbar (Phase 2 shell)
+    shell = Shell.mount({
+      root: document.getElementById("appShell"),
+      navGroups: [
+        { label: "MAIN", items: [{ key: "lessons", label: "Lessons", icon: "book-open" }] },
+        { label: "PRACTICE", items: [{ key: "tests", label: "Mock Tests", icon: "clipboard" }] }
+      ],
+      activeKey: "tests",
+      userName: studentName,
+      roleLabel: "STUDENT",
+      userSub: "Level " + studentLevel,
+      searchPlaceholder: "Search lessons, mock tests...",
+      onNavigate: (key) => {
+        if (key === "lessons") {
+          show("step-lessons");
+        } else {
+          show(currentSubject ? "step-picker" : "step-subject");
+        }
+      },
+      onLogout: () => {
+        Api.clearStudentToken();
+        location.href = "/";
+      }
+    });
+
+    loadLessons();
+    if (!currentSubject) show("step-subject"); else show("step-picker");
   }
-
-  // ---------- XỬ LÝ AUTHENTICATION (Đăng nhập / Đăng ký) ----------
-  const tabBtnLogin = document.getElementById("tabBtnLogin");
-  const tabBtnRegister = document.getElementById("tabBtnRegister");
-  const formLogin = document.getElementById("form-login");
-  const formRegister = document.getElementById("form-register");
-  const authError = document.getElementById("authError");
-
-  tabBtnLogin.addEventListener("click", () => {
-    tabBtnLogin.classList.add("active");
-    tabBtnRegister.classList.remove("active");
-    formLogin.style.display = "block";
-    formRegister.style.display = "none";
-    authError.style.display = "none";
-  });
-
-  tabBtnRegister.addEventListener("click", () => {
-    tabBtnRegister.classList.add("active");
-    tabBtnLogin.classList.remove("active");
-    formLogin.style.display = "none";
-    formRegister.style.display = "block";
-    authError.style.display = "none";
-  });
-
-  // Đăng nhập
-  document.getElementById("btnLoginSubmit").addEventListener("click", async () => {
-    authError.style.display = "none";
-    const username = document.getElementById("loginUsername").value.trim();
-    const password = document.getElementById("loginPassword").value;
-
-    if (!username || !password) {
-      authError.textContent = "Vui lòng điền đầy đủ tên đăng nhập và mật khẩu.";
-      authError.style.display = "block";
-      return;
-    }
-
-    try {
-      const res = await Api.studentLogin({ username, password });
-      Api.setStudentToken(res.token);
-      checkAuth();
-    } catch (err) {
-      authError.textContent = err.message;
-      authError.style.display = "block";
-    }
-  });
-
-  // Đăng ký
-  document.getElementById("btnRegisterSubmit").addEventListener("click", async () => {
-    authError.style.display = "none";
-    const name = document.getElementById("regName").value.trim();
-    const username = document.getElementById("regUsername").value.trim();
-    const password = document.getElementById("regPassword").value;
-
-    if (!name || !username || !password) {
-      authError.textContent = "Vui lòng điền đầy đủ thông tin.";
-      authError.style.display = "block";
-      return;
-    }
-
-    if (password.length < 6) {
-      authError.textContent = "Mật khẩu phải tối thiểu 6 ký tự.";
-      authError.style.display = "block";
-      return;
-    }
-
-    try {
-      await Api.studentRegister({ name, username, password });
-      // Đăng ký xong tự động đăng nhập luôn
-      const res = await Api.studentLogin({ username, password });
-      Api.setStudentToken(res.token);
-      checkAuth();
-    } catch (err) {
-      authError.textContent = err.message;
-      authError.style.display = "block";
-    }
-  });
-
-  // Đăng xuất
-  document.getElementById("btnStudentLogout").addEventListener("click", (e) => {
-    e.preventDefault();
-    Api.clearStudentToken();
-    currentSubject = "";
-    currentTest = null;
-    checkAuth();
-  });
 
   // ---------- CHỌN KỸ NĂNG (SUBJECT PICKER) ----------
   document.getElementById("btnChooseListening").addEventListener("click", (e) => {
@@ -164,18 +98,22 @@
     show("step-picker");
   });
 
-  document.getElementById("backToSubject").addEventListener("click", () => {
+  document.getElementById("backToSubject").addEventListener("click", (e) => {
+    e.preventDefault();
     currentSubject = "";
     show("step-subject");
   });
 
-  document.getElementById("backToPickerFromTest").addEventListener("click", () => show("step-picker"));
+  document.getElementById("backToPickerFromTest").addEventListener("click", () => {
+    stopCountdown();
+    show("step-picker");
+  });
   document.getElementById("btnBackList").addEventListener("click", () => show("step-picker"));
 
   // ---------- DANH SÁCH BÀI KIỂM TRA (TEST LIST) ----------
   function renderPicker() {
     const pickerSubjectText = document.getElementById("pickerSubjectText");
-    pickerSubjectText.textContent = currentSubject === "listening" ? "(Nghe - Listening)" : "(Đọc - Reading)";
+    pickerSubjectText.textContent = currentSubject === "listening" ? "(Listening)" : "(Reading)";
     renderTestList();
   }
 
@@ -185,14 +123,14 @@
     testList.innerHTML = "";
     statusEl.style.display = "block";
     statusEl.className = "notice info";
-    statusEl.textContent = "Đang tải danh sách bài kiểm tra...";
+    statusEl.textContent = "Loading mock test list...";
 
     Api.listTests({ subject: currentSubject })
       .then((data) => {
         const rows = data.rows || [];
         statusEl.style.display = "none";
         if (!rows.length) {
-          testList.innerHTML = '<div class="empty-state">Giáo viên chưa công bố bài kiểm tra nào cho kỹ năng này.</div>';
+          testList.innerHTML = '<div class="empty-state">No tests published yet for this skill.</div>';
           return;
         }
         rows.forEach((test) => {
@@ -201,23 +139,23 @@
           item.innerHTML = `
             <div class="meta">
               <h4>${escapeHtml(test.unit)} · ${escapeHtml(test.title)}</h4>
-              <p>${test.totalQuestions} câu · Thời gian làm bài linh hoạt</p>
+              <p>${test.totalQuestions} questions · Flexible time limit</p>
             </div>
-            <button class="btn">Làm bài</button>`;
+            <button class="btn">Take Test</button>`;
           item.querySelector("button").addEventListener("click", () => startTest(test.id));
           testList.appendChild(item);
         });
       })
       .catch((err) => {
         statusEl.className = "notice error";
-        statusEl.innerHTML = Icon("warning") + " Không tải được danh sách bài kiểm tra: " + escapeHtml(err.message);
+        statusEl.innerHTML = Icon("warning") + " Failed to load mock test list: " + escapeHtml(err.message);
       });
   }
 
-  // ---------- LÀM BÀI KIỂM TRA (TESTING FLOW) ----------
+  // ---------- TESTING FLOW ----------
   function startTest(testId) {
     const formEl = document.getElementById("testForm");
-    formEl.innerHTML = '<div class="notice info">Đang tải bài kiểm tra...</div>';
+    formEl.innerHTML = '<div class="notice info">Loading test...</div>';
     show("step-test");
 
     Api.getTest(testId)
@@ -225,9 +163,14 @@
         currentTest = data.test;
         testReplayCount = 0;
         renderTestForm(currentTest);
+        if (currentTest.durationMinutes) {
+          startCountdown(Number(currentTest.durationMinutes));
+        } else {
+          stopCountdown();
+        }
       })
       .catch((err) => {
-        formEl.innerHTML = `<div class="notice error">${Icon("warning")} Không tải được bài kiểm tra: ${escapeHtml(err.message)}</div>`;
+        formEl.innerHTML = `<div class="notice error">${Icon("warning")} Failed to load test: ${escapeHtml(err.message)}</div>`;
       });
   }
 
@@ -242,12 +185,16 @@
     const formEl = document.getElementById("testForm");
     formEl.innerHTML = "";
 
-    test.sections.forEach((sec, secIdx) => {
-      // Wrapper cho mỗi Section
-      const secWrapper = document.createElement("div");
-      secWrapper.style.marginBottom = "30px";
+    test.sections.forEach((sec, secIdx) => renderSectionBlock(sec, secIdx, test.subject, formEl));
+  }
 
-      if (test.subject === "reading") {
+  // Render 1 section (layout Nghe hoặc Đọc) — dùng chung cho cả Test lẫn
+  // Exercise trong Bài học (Phase 3, tái dùng thay vì viết lại UI).
+  function renderSectionBlock(sec, secIdx, subject, parentEl) {
+    const secWrapper = document.createElement("div");
+    secWrapper.style.marginBottom = "30px";
+
+    if (subject === "reading") {
         // Layout Đọc: Chia đôi màn hình (bên trái đoạn văn/ảnh, bên phải câu hỏi)
         secWrapper.className = "reading-layout";
 
@@ -300,7 +247,7 @@
           player.innerHTML = `
             <svg class="icon"><use href="#icon-speaker"></use></svg>
             <audio controls src="${sec.audioUrl}"></audio>
-            <span class="replay-count" id="${replayId}">Đã nghe: 0 lần</span>
+            <span class="replay-count" id="${replayId}">Listened: 0 times</span>
           `;
           
           // Audio error handling
@@ -311,7 +258,7 @@
           audioEl.addEventListener("play", () => {
             secCount++;
             testReplayCount++;
-            replayEl.textContent = "Đã nghe: " + secCount + " lần";
+            replayEl.textContent = "Listened: " + secCount + " times";
           });
 
           audioEl.addEventListener("error", () => {
@@ -320,7 +267,7 @@
               errNotice.className = "notice error";
               errNotice.style.marginTop = "8px";
               errNotice.style.width = "100%";
-              errNotice.innerHTML = Icon("warning") + " Lỗi: Không tải được file âm thanh này. Vui lòng báo lại giáo viên.";
+              errNotice.innerHTML = Icon("warning") + " Error: Unable to load audio file. Please notify your teacher.";
               player.parentNode.insertBefore(errNotice, player.nextSibling);
             }
           });
@@ -341,8 +288,7 @@
         renderSectionFields(sec, secIdx, secWrapper);
       }
 
-      formEl.appendChild(secWrapper);
-    });
+    parentEl.appendChild(secWrapper);
   }
 
   // Hàm render các field câu hỏi cho Section
@@ -381,7 +327,7 @@
           <div style="flex:1;">
             <div class="label" style="margin-bottom:6px;">
               ${escapeHtml(f.label)}
-              ${selectCount > 1 ? `<span class="select-hint">(Chọn tối đa ${selectCount} đáp án)</span>` : ""}
+              ${selectCount > 1 ? `<span class="select-hint">(Select up to ${selectCount} answers)</span>` : ""}
             </div>
             <div style="display:flex; flex-direction:column; gap:4px;">${optionsHtml}</div>
           </div>
@@ -437,6 +383,38 @@
 
   document.getElementById("btnSubmitTest").addEventListener("click", submitTest);
 
+  // Phase 4 — đếm ngược client-side; hết giờ tự động gọi nộp bài.
+  function startCountdown(minutes) {
+    stopCountdown();
+    const timerEl = document.getElementById("testTimer");
+    let remaining = Math.max(1, minutes) * 60;
+    timerEl.style.display = "flex";
+    const tick = () => {
+      const m = Math.floor(remaining / 60);
+      const s = remaining % 60;
+      timerEl.innerHTML = Icon("clock") + " Time remaining: " + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+      timerEl.classList.toggle("urgent", remaining <= 60);
+      if (remaining <= 0) {
+        stopCountdown();
+        submitTest();
+        return;
+      }
+      remaining--;
+    };
+    tick();
+    countdownTimer = setInterval(tick, 1000);
+  }
+
+  function stopCountdown() {
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = null;
+    const timerEl = document.getElementById("testTimer");
+    if (timerEl) {
+      timerEl.style.display = "none";
+      timerEl.classList.remove("urgent");
+    }
+  }
+
   function submitTest() {
     const test = currentTest;
     if (!test) return;
@@ -453,21 +431,24 @@
       replayCount: testReplayCount
     })
       .then((res) => {
+        stopCountdown();
         renderResult(test, answers, res);
       })
       .catch((err) => {
-        alert("Nộp bài thất bại: " + err.message);
+        alert("Submission failed: " + err.message);
       })
       .finally(() => {
         btn.disabled = false;
       });
   }
 
-  function renderResult(test, answers, res) {
+  // Đánh dấu đúng/sai trực tiếp lên các row câu hỏi đang hiển thị —
+  // dùng chung cho Test và Exercise (Phase 3).
+  function markRowsInline(sections, detail) {
     const detailById = {};
-    (res.detail || []).forEach((d) => (detailById[d.id] = d));
+    (detail || []).forEach((d) => (detailById[d.id] = d));
 
-    test.sections.forEach((sec) => {
+    sections.forEach((sec) => {
       sec.fields.forEach((f) => {
         const d = detailById[f.id];
         const row = document.getElementById("row-" + f.id);
@@ -490,15 +471,19 @@
           if (!note) {
             note = document.createElement("div");
             note.className = "correct-answer-note";
-            // Chèn vào cuối hàng
             row.appendChild(note);
           }
-          note.textContent = "Đáp án đúng: " + (d.answer || "");
+          note.textContent = "Correct answer: " + (d.answer || "");
         } else if (note) {
           note.remove();
         }
       });
     });
+    return detailById;
+  }
+
+  function renderResult(test, answers, res) {
+    const detailById = markRowsInline(test.sections, res.detail);
 
     document.getElementById("resultTitle").textContent = `${test.unit} · ${test.title} — ${studentName}`;
     document.getElementById("scoreValue").textContent = res.score;
@@ -521,15 +506,15 @@
         if (!d) return;
         
         const submittedVal = answers[f.id];
-        const shown = answerLabel(f, submittedVal, sec) || "(bỏ trống)";
+        const shown = answerLabel(f, submittedVal, sec) || "(blank)";
         
         const row = document.createElement("div");
         row.className = "field-row " + (d.correct ? "correct" : "wrong");
         row.innerHTML = `
           <span class="num">${f.id}.</span>
           <span class="label">${escapeHtml(f.label)}</span>
-          <span class="tail" style="flex:1;">Bạn chọn/viết: <b>${escapeHtml(shown)}</b>
-          ${!d.correct ? " · Đáp án đúng: <b>" + escapeHtml(d.answer || "") + "</b>" : ""}</span>
+          <span class="tail" style="flex:1;">Your answer: <b>${escapeHtml(shown)}</b>
+          ${!d.correct ? " · Correct answer: <b>" + escapeHtml(d.answer || "") + "</b>" : ""}</span>
           <span class="result-mark ${d.correct ? "correct" : "wrong"}">${d.correct ? Icon("check") : Icon("cross")}</span>
         `;
         secWrapper.appendChild(row);
@@ -539,7 +524,7 @@
 
     const statusEl = document.getElementById("submitStatus");
     statusEl.className = "notice success";
-    statusEl.innerHTML = Icon("check-circle") + " Đã gửi kết quả cho giáo viên thành công.";
+    statusEl.innerHTML = Icon("check-circle") + " Test results submitted to teacher successfully.";
     show("step-result");
   }
 
@@ -567,6 +552,401 @@
   }
 
   document.getElementById("btnRetake").addEventListener("click", () => startTest(currentTest.id));
+
+  // ============================================================
+  //  BÀI HỌC (LESSONS — Phase 3)
+  // ============================================================
+  const LESSON_CAT_LABELS = {
+    grammar: "Grammar",
+    vocabulary: "Vocabulary",
+    listening: "Listening",
+    reading: "Reading",
+    writing: "Writing",
+    speaking: "Speaking"
+  };
+  const LESSON_CAT_ICONS = {
+    grammar: "grammar",
+    vocabulary: "vocabulary",
+    listening: "headphones",
+    reading: "book-open",
+    writing: "writing",
+    speaking: "mic"
+  };
+
+  let currentUnit = null;
+  let lessonCatKey = "grammar";
+  let mySubmissionsCache = [];
+  let openExerciseId = null;
+
+  document.getElementById("backToUnitsList").addEventListener("click", () => {
+    document.getElementById("lessonsDetail").style.display = "none";
+    document.getElementById("lessonsList").style.display = "block";
+    openExerciseId = null;
+  });
+
+  function refreshMySubmissions() {
+    return Api.mySubmissions()
+      .then((d) => {
+        mySubmissionsCache = d.rows || [];
+        renderStudentStats();
+      })
+      .catch(() => {});
+  }
+
+  // Phase 4 — stat cards cho dashboard học sinh (đồng bộ style Phase 2).
+  function renderStudentStats() {
+    const grid = document.getElementById("studentStatGrid");
+    if (!grid) return;
+    const testSubs = mySubmissionsCache.filter((s) => (s.kind || "test") === "test");
+    const pending = mySubmissionsCache.filter((s) => (s.kind === "writing" || s.kind === "speaking") && s.gradingStatus !== "graded").length;
+    const avg = testSubs.length
+      ? Math.round(testSubs.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / testSubs.length)
+      : null;
+    if (!testSubs.length && !pending) {
+      grid.style.display = "none";
+      return;
+    }
+    const card = (icon, value, label, tone) =>
+      `<div class="stat-card-v2${tone ? " tone-" + tone : ""}"><div class="stat-top"><span class="label">${label}</span><span class="stat-icon">${Icon(icon)}</span></div><div class="value">${value}</div></div>`;
+    grid.style.display = "grid";
+    grid.innerHTML =
+      card("clipboard", testSubs.length, "Mock Tests Taken") +
+      card("chart-bar", avg != null ? avg + "%" : "-", "Average Score", "success") +
+      card("warning", pending, "Pending Teacher Review", pending > 0 ? "warn" : "");
+  }
+
+  function loadLessons() {
+    refreshMySubmissions();
+    const statusEl = document.getElementById("unitsStatus");
+    const listEl = document.getElementById("unitsList");
+    listEl.innerHTML = "";
+    statusEl.style.display = "block";
+    statusEl.className = "notice info";
+    statusEl.textContent = "Loading lesson units...";
+
+    Api.listUnits()
+      .then((data) => {
+        const rows = data.rows || [];
+        statusEl.style.display = "none";
+        if (!rows.length) {
+          listEl.innerHTML = '<div class="empty-state">No lesson units available for your level.</div>';
+          return;
+        }
+        rows.forEach((u) => {
+          const item = document.createElement("div");
+          item.className = "list-item";
+          item.innerHTML = `
+            <div class="meta">
+              <h4>${escapeHtml(u.name)}</h4>
+              <p>Grammar · Vocabulary · Listening · Reading · Writing · Speaking</p>
+            </div>
+            <button class="btn">Start Lesson</button>`;
+          item.querySelector("button").addEventListener("click", () => openUnit(u.id));
+          listEl.appendChild(item);
+        });
+      })
+      .catch((err) => {
+        statusEl.className = "notice error";
+        statusEl.innerHTML = Icon("warning") + " Failed to load lesson units: " + escapeHtml(err.message);
+      });
+  }
+
+  function openUnit(unitId) {
+    document.getElementById("unitsStatus").style.display = "block";
+    document.getElementById("unitsStatus").className = "notice info";
+    document.getElementById("unitsStatus").textContent = "Loading lesson...";
+
+    Api.getUnit(unitId)
+      .then((data) => {
+        currentUnit = data.unit;
+        lessonCatKey = "grammar";
+        openExerciseId = null;
+        document.getElementById("unitsStatus").style.display = "none";
+        document.getElementById("lessonsList").style.display = "none";
+        document.getElementById("lessonsDetail").style.display = "block";
+        document.getElementById("lessonUnitTitle").textContent = currentUnit.name;
+        renderLessonCatTabs();
+        renderLessonCatContent();
+        window.scrollTo(0, 0);
+      })
+      .catch((err) => {
+        const statusEl = document.getElementById("unitsStatus");
+        statusEl.className = "notice error";
+        statusEl.innerHTML = Icon("warning") + " Failed to load lesson: " + escapeHtml(err.message);
+      });
+  }
+
+  function renderLessonCatTabs() {
+    const wrap = document.getElementById("lessonCatTabs");
+    wrap.innerHTML = "";
+    Object.keys(LESSON_CAT_LABELS).forEach((key) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "unit-cat-tab" + (key === lessonCatKey ? " active" : "");
+      btn.innerHTML = Icon(LESSON_CAT_ICONS[key]) + " " + LESSON_CAT_LABELS[key];
+      btn.addEventListener("click", () => {
+        lessonCatKey = key;
+        openExerciseId = null;
+        renderLessonCatTabs();
+        renderLessonCatContent();
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  function currentLessonCategory() {
+    if (!currentUnit) return null;
+    return currentUnit.categories.find((c) => c.key === lessonCatKey) || null;
+  }
+
+  function renderLessonCatContent() {
+    const wrap = document.getElementById("lessonCatContent");
+    wrap.innerHTML = "";
+    const cat = currentLessonCategory();
+    if (!cat) return;
+
+    // Theory
+    const theoryBox = document.createElement("div");
+    const hasTheory = (cat.theory.html || "").trim() || cat.theory.audioUrl || cat.theory.imageUrl;
+    theoryBox.innerHTML = `<h3 style="margin-top:6px;">Theory</h3>` + (
+      hasTheory
+        ? `
+          ${(cat.theory.html || "").trim() ? `<div class="lesson-text">${escapeHtml(cat.theory.html)}</div>` : ""}
+          ${cat.theory.audioUrl ? `<audio controls src="${cat.theory.audioUrl}" style="width:100%; margin:10px 0;"></audio>` : ""}
+          ${cat.theory.imageUrl ? `<img src="${cat.theory.imageUrl}" class="diagram-image" />` : ""}
+        `
+        : '<div class="empty-state">No theory content available for this section.</div>'
+    );
+    wrap.appendChild(theoryBox);
+
+    if (lessonCatKey === "writing" || lessonCatKey === "speaking") {
+      renderLessonPrompts(wrap, cat);
+    } else {
+      renderLessonExercises(wrap, cat);
+    }
+  }
+
+  function latestSubmissionOf(match) {
+    return mySubmissionsCache.find(match) || null;
+  }
+
+  function renderLessonExercises(wrap, cat) {
+    if (!cat.exercises.length) {
+      wrap.insertAdjacentHTML("beforeend", '<div class="empty-state">No exercises available for this section.</div>');
+      return;
+    }
+    cat.exercises.forEach((ex) => {
+      const last = latestSubmissionOf((s) => s.kind === "exercise" && String(s.exerciseId) === String(ex.id));
+      const box = document.createElement("div");
+      box.className = "lesson-block";
+      box.innerHTML = `
+        <div class="lesson-block-head">
+          <h4 style="margin:0;">${escapeHtml(ex.title || "Exercise")} <span style="color:var(--muted); font-weight:400;">· ${ex.totalQuestions} questions</span></h4>
+          <button class="btn" style="padding:8px 16px;">${openExerciseId === ex.id ? "In Progress" : "Start Exercise"}</button>
+        </div>
+        ${last ? `<p style="margin:8px 0 0; color:var(--muted);">Last attempt: <b>${last.score}/${last.total}</b> correct</p>` : ""}
+        <div class="lesson-ex-form" style="display:${openExerciseId === ex.id ? "block" : "none"}; margin-top:16px;"></div>
+      `;
+
+      const formSlot = box.querySelector(".lesson-ex-form");
+      if (openExerciseId === ex.id) {
+        ex.sections.forEach((sec, secIdx) => {
+          renderSectionBlock(sec, secIdx, cat.key === "reading" ? "reading" : "other", formSlot);
+        });
+        const submitBtn = document.createElement("button");
+        submitBtn.className = "btn";
+        submitBtn.textContent = "Submit Exercise";
+        submitBtn.addEventListener("click", () => submitExercise(ex, cat, submitBtn));
+        formSlot.appendChild(submitBtn);
+      }
+
+      box.querySelector(".lesson-block-head button").addEventListener("click", () => {
+        openExerciseId = openExerciseId === ex.id ? null : ex.id;
+        renderLessonCatContent();
+      });
+      wrap.appendChild(box);
+    });
+  }
+
+  function submitExercise(ex, cat, btn) {
+    const answers = {};
+    ex.sections.forEach((sec) => sec.fields.forEach((f) => (answers[f.id] = getFieldValue(f))));
+    btn.disabled = true;
+
+    Api.submit({
+      kind: "exercise",
+      unitId: currentUnit.id,
+      categoryKey: cat.key,
+      exerciseId: ex.id,
+      answers
+    })
+      .then((res) => {
+        markRowsInline(ex.sections, res.detail);
+        alert(`Score: ${res.score}/${res.total} correct.`);
+        refreshMySubmissions();
+      })
+      .catch((err) => alert("Submission failed: " + err.message))
+      .finally(() => {
+        btn.disabled = false;
+        openExerciseId = null;
+      });
+  }
+
+  function renderLessonPrompts(wrap, cat) {
+    if (!cat.prompts.length) {
+      wrap.insertAdjacentHTML("beforeend", '<div class="empty-state">No prompts available for this section.</div>');
+      return;
+    }
+    cat.prompts.forEach((p) => {
+      const last = latestSubmissionOf((s) => (s.kind === "writing" || s.kind === "speaking") && String(s.promptId) === String(p.id));
+      const box = document.createElement("div");
+      box.className = "lesson-block";
+      box.innerHTML = `
+        <h4 style="margin:0 0 8px;">${escapeHtml(p.title || "Prompt")}</h4>
+        ${p.instructions ? `<div class="lesson-text">${escapeHtml(p.instructions)}</div>` : ""}
+        ${p.imageUrl ? `<img src="${p.imageUrl}" class="diagram-image" style="margin:10px 0;" />` : ""}
+        <div class="prompt-work" style="margin-top:12px;"></div>
+        <div class="prompt-status" style="margin-top:12px;"></div>
+      `;
+      const statusEl = box.querySelector(".prompt-status");
+      if (last) {
+        statusEl.innerHTML =
+          last.gradingStatus === "graded"
+            ? `<div class="notice success">${Icon("check-circle")} Graded: <b>${last.manualScore} pts</b>${last.manualFeedback ? " — Feedback: " + escapeHtml(last.manualFeedback) : ""}</div>`
+            : '<div class="notice info">Submitted — pending teacher review.</div>';
+      }
+      const work = box.querySelector(".prompt-work");
+      if (cat.key === "writing") {
+        wireWritingPrompt(work, p, cat);
+      } else {
+        wireSpeakingPrompt(work, p, cat);
+      }
+      wrap.appendChild(box);
+    });
+  }
+
+  function wireWritingPrompt(work, p, cat) {
+    work.innerHTML = `
+      <textarea rows="8" class="essay-input" placeholder="Type your essay here..." style="width:100%;"></textarea>
+      <button class="btn btn-essay-submit" style="margin-top:10px;">Submit Essay</button>
+    `;
+    const ta = work.querySelector(".essay-input");
+    const btn = work.querySelector(".btn-essay-submit");
+    btn.addEventListener("click", () => {
+      const essayText = ta.value.trim();
+      if (!essayText) {
+        alert("Please type your essay before submitting.");
+        return;
+      }
+      btn.disabled = true;
+      Api.submit({
+        kind: "writing",
+        unitId: currentUnit.id,
+        categoryKey: cat.key,
+        promptId: p.id,
+        essayText
+      })
+        .then((res) => {
+          ta.value = "";
+          void res;
+          return refreshMySubmissions();
+        })
+        .then(() => renderLessonCatContent())
+        .catch((err) => alert("Submission failed: " + err.message))
+        .finally(() => (btn.disabled = false));
+    });
+  }
+
+  // ---------- Speaking recording (MediaRecorder → Cloudinary unsigned) ----------
+  let activeRecorder = null; // { mediaRecorder, chunks, stream, blob, promptId }
+
+  function stopActiveRecorder() {
+    if (activeRecorder && activeRecorder.mediaRecorder && activeRecorder.mediaRecorder.state !== "inactive") {
+      activeRecorder.mediaRecorder.stop();
+    }
+  }
+
+  function wireSpeakingPrompt(work, p, cat) {
+    work.innerHTML = `
+      <button class="btn btn-rec-toggle">${Icon("mic")} Start Recording</button>
+      <span class="rec-hint" style="margin-left:10px; color:var(--muted); font-size:.85rem;"></span>
+      <div class="rec-preview" style="display:none; margin-top:12px;">
+        <audio controls class="rec-audio" style="width:100%;"></audio>
+        <button class="btn btn-rec-submit" style="margin-top:10px;">Submit Recording</button>
+      </div>
+    `;
+    const toggleBtn = work.querySelector(".btn-rec-toggle");
+    const hint = work.querySelector(".rec-hint");
+    const preview = work.querySelector(".rec-preview");
+    const audioEl = work.querySelector(".rec-audio");
+    const submitBtn = work.querySelector(".btn-rec-submit");
+
+    toggleBtn.addEventListener("click", () => {
+      if (activeRecorder && activeRecorder.promptId === p.id && activeRecorder.mediaRecorder && activeRecorder.mediaRecorder.state === "recording") {
+        activeRecorder.mediaRecorder.stop();
+        return;
+      }
+      stopActiveRecorder();
+      if (!navigator.mediaDevices || !window.MediaRecorder) {
+        alert("Your browser does not support audio recording.");
+        return;
+      }
+      navigator.mediaDevices
+        .getUserMedia({ audio: true })
+        .then((stream) => {
+          const mr = new MediaRecorder(stream);
+          const state = { mediaRecorder: mr, chunks: [], stream, blob: null, promptId: p.id };
+          activeRecorder = state;
+          mr.ondataavailable = (e) => {
+            if (e.data && e.data.size) state.chunks.push(e.data);
+          };
+          mr.onstop = () => {
+            stream.getTracks().forEach((t) => t.stop());
+            state.blob = new Blob(state.chunks, { type: mr.mimeType || "audio/webm" });
+            audioEl.src = URL.createObjectURL(state.blob);
+            preview.style.display = "block";
+            toggleBtn.innerHTML = Icon("mic") + " Record Again";
+            hint.textContent = "";
+          };
+          mr.start();
+          toggleBtn.innerHTML = Icon("cross") + " Stop Recording";
+          hint.textContent = "Recording...";
+          preview.style.display = "none";
+        })
+        .catch((err) => alert("Unable to access microphone: " + err.message));
+    });
+
+    submitBtn.addEventListener("click", () => {
+      const blob = activeRecorder && activeRecorder.blob;
+      if (!blob) {
+        alert("Please record audio before submitting.");
+        return;
+      }
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Uploading...";
+      Api.uploadSpeakingAudio(blob)
+        .then(({ audioUrl, audioPublicId }) =>
+          Api.submit({
+            kind: "speaking",
+            unitId: currentUnit.id,
+            categoryKey: cat.key,
+            promptId: p.id,
+            audioUrl,
+            audioPublicId
+          })
+        )
+        .then(() => {
+          activeRecorder = null;
+          return refreshMySubmissions();
+        })
+        .then(() => renderLessonCatContent())
+        .catch((err) => {
+          alert("Submission failed: " + err.message);
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Submit Recording";
+        });
+    });
+  }
 
   // Khởi tạo chạy ban đầu
   checkAuth();

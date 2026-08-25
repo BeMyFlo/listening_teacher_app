@@ -1,8 +1,6 @@
-const { formidable } = require("formidable");
-const fs = require("fs");
 const { connectDB } = require("../../lib/db");
 const { requireAuth } = require("../../lib/auth");
-const { uploadImageFile, deleteImageFile } = require("../../lib/cloudinary");
+const { deleteImageFile } = require("../../lib/cloudinary");
 const Image = require("../../lib/models/Image");
 const Test = require("../../lib/models/Test");
 
@@ -15,41 +13,23 @@ async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    let fields, files;
-    try {
-      const form = formidable({ maxFileSize: 15 * 1024 * 1024 });
-      [fields, files] = await form.parse(req);
-    } catch (err) {
-      return res.status(400).json({ ok: false, error: "Không đọc được file gửi lên" });
-    }
+    // The file itself is uploaded straight from the browser to Cloudinary
+    // (see assets/api.js Api.uploadToCloudinary) — Vercel Serverless
+    // Functions hard-cap the request body at ~4.5MB, so this endpoint only
+    // ever receives a small JSON body.
+    const title = String((req.body && req.body.title) || "").trim();
+    const unit = String((req.body && req.body.unit) || "").trim();
+    const cloudinaryUrl = req.body && req.body.cloudinaryUrl;
+    const cloudinaryPublicId = req.body && req.body.cloudinaryPublicId;
 
-    const file = Array.isArray(files.image) ? files.image[0] : files.image;
-    if (!file) {
-      return res.status(400).json({ ok: false, error: "Thiếu file ảnh" });
-    }
-
-    const title = String((Array.isArray(fields.title) ? fields.title[0] : fields.title) || "").trim();
-    const unit = String((Array.isArray(fields.unit) ? fields.unit[0] : fields.unit) || "").trim();
     if (!title) {
-      return res.status(400).json({ ok: false, error: "Thiếu tiêu đề ảnh" });
+      return res.status(400).json({ ok: false, error: "Missing image title" });
+    }
+    if (!cloudinaryUrl || !cloudinaryPublicId) {
+      return res.status(400).json({ ok: false, error: "Missing uploaded file information" });
     }
 
-    let uploadResult;
-    try {
-      uploadResult = await uploadImageFile(file.filepath);
-    } catch (err) {
-      return res.status(502).json({ ok: false, error: "Tải ảnh lên Cloudinary thất bại" });
-    } finally {
-      fs.unlink(file.filepath, () => {});
-    }
-
-    const image = await Image.create({
-      title,
-      unit,
-      cloudinaryUrl: uploadResult.secure_url,
-      cloudinaryPublicId: uploadResult.public_id
-    });
-
+    const image = await Image.create({ title, unit, cloudinaryUrl, cloudinaryPublicId });
     return res.status(201).json({ ok: true, image });
   }
 
@@ -59,10 +39,10 @@ async function handler(req, res) {
     try {
       image = await Image.findById(id);
     } catch (err) {
-      return res.status(404).json({ ok: false, error: "Không tìm thấy ảnh" });
+      return res.status(404).json({ ok: false, error: "Image not found" });
     }
     if (!image) {
-      return res.status(404).json({ ok: false, error: "Không tìm thấy ảnh" });
+      return res.status(404).json({ ok: false, error: "Image not found" });
     }
 
     if (req.method === "PUT") {
@@ -78,7 +58,7 @@ async function handler(req, res) {
     if (inUse) {
       return res.status(409).json({
         ok: false,
-        error: "Ảnh này đang được dùng trong một bài kiểm tra, không thể xoá."
+        error: "This image is currently used in a mock test and cannot be deleted."
       });
     }
     try {
@@ -94,10 +74,4 @@ async function handler(req, res) {
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
-const handlerWithAuth = requireAuth(handler);
-module.exports = handlerWithAuth;
-module.exports.config = {
-  api: {
-    bodyParser: false
-  }
-};
+module.exports = requireAuth(handler);

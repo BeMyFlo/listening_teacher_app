@@ -2,6 +2,7 @@ const { connectDB } = require("../../lib/db");
 const { requireAuth } = require("../../lib/auth");
 const Submission = require("../../lib/models/Submission");
 const Test = require("../../lib/models/Test");
+const Unit = require("../../lib/models/Unit");
 const Audio = require("../../lib/models/Audio");
 
 async function handler(req, res) {
@@ -12,10 +13,12 @@ async function handler(req, res) {
 
   await connectDB();
 
-  const [totalTests, publishedTests, totalAudio, submissions, byTest, recent] = await Promise.all([
+  const [totalTests, publishedTests, totalAudio, totalUnits, pendingGrading, submissions, byTest, recent] = await Promise.all([
     Test.countDocuments(),
     Test.countDocuments({ status: "published" }),
     Audio.countDocuments(),
+    Unit.countDocuments(),
+    Submission.countDocuments({ kind: { $in: ["writing", "speaking"] }, gradingStatus: "submitted" }),
     Submission.find().lean(),
     Submission.aggregate([
       {
@@ -32,6 +35,8 @@ async function handler(req, res) {
 
   const totalSubmissions = submissions.length;
   const uniqueStudents = new Set(submissions.map((s) => s.studentName.trim().toLowerCase())).size;
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const submissionsThisWeek = submissions.filter((s) => new Date(s.submittedAt).getTime() >= weekAgo).length;
   const avgScorePct = totalSubmissions
     ? submissions.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / totalSubmissions
     : 0;
@@ -42,7 +47,10 @@ async function handler(req, res) {
       totalTests,
       publishedTests,
       totalAudio,
+      totalUnits,
+      pendingGrading,
       totalSubmissions,
+      submissionsThisWeek,
       uniqueStudents,
       avgScorePct: Math.round(avgScorePct)
     },

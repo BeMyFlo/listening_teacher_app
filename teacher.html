@@ -1,239 +1,408 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Giáo viên – IELTS with Ms Nhi</title>
+<title>Teacher – IELTS with Ms Nhi</title>
 <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
   <script src="assets/icons.js"></script>
-  <div class="topbar">
-    <div class="brand">
-      <div class="logo">MN</div>
-      <div>
-        IELTS with Ms Nhi
-        <div class="sub">Khu vực giáo viên</div>
-      </div>
-    </div>
-    <nav>
-      <a href="/"><svg class="icon"><use href="#icon-arrow-left"></use></svg> Trang chủ</a>
-      <a href="#" id="btnLogout" style="display:none;"><svg class="icon"><use href="#icon-logout"></use></svg> Đăng xuất</a>
-    </nav>
-  </div>
 
-  <div class="wrap">
+  <div class="app-shell" id="appShell">
+    <aside class="sidebar" id="sidebarRoot"></aside>
+    <div class="main-area">
+      <header class="topbar-v2" id="topbarRoot"></header>
 
-    <!-- Đăng nhập -->
-    <section id="step-login" class="card">
-      <h2>Đăng nhập giáo viên</h2>
-      <div class="form-row">
-        <label for="pw">Mật khẩu</label>
-        <input type="password" id="pw" placeholder="Nhập mật khẩu" />
-      </div>
-      <button class="btn" id="btnLogin">Đăng nhập</button>
-      <p id="loginError" class="notice error" style="display:none; margin-top:14px;"></p>
-    </section>
+      <main class="content">
+      <section id="step-dashboard">
 
-    <!-- Dashboard -->
-    <section id="step-dashboard" style="display:none;">
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="overview"><svg class="icon"><use href="#icon-chart-bar"></use></svg> Tổng quan</button>
-        <button class="tab-btn" data-tab="audio"><svg class="icon"><use href="#icon-headphones"></use></svg> Bài nghe</button>
-        <button class="tab-btn" data-tab="images"><svg class="icon"><use href="#icon-image"></use></svg> Thư viện ảnh</button>
-        <button class="tab-btn" data-tab="tests"><svg class="icon"><use href="#icon-clipboard"></use></svg> Bài kiểm tra</button>
-        <button class="tab-btn" data-tab="submissions"><svg class="icon"><use href="#icon-list"></use></svg> Bài nộp</button>
-        <button class="tab-btn" data-tab="students"><svg class="icon"><use href="#icon-student"></use></svg> Học viên</button>
-      </div>
+        <!-- Overview -->
+        <div class="tab-panel active" id="panel-overview">
+          <div class="hero-banner">
+            <div class="hero-banner-text">
+              <div class="hero-banner-greet">Welcome back, <span id="heroGreetName">Teacher</span>! 👋</div>
+              <h2>Today is a great day to make a difference!</h2>
+              <p>Track student learning progress and inspire your class.</p>
+              <button class="btn" id="btnHeroCreate"><svg class="icon"><use href="#icon-plus"></use></svg> Create New</button>
+            </div>
+            <div class="hero-illustration">
+              <svg viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <g fill="#ffd35c"><path d="M172 18l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"/></g>
+                <g fill="#9b8afb"><path d="M18 108l2.5 5.5 5.5 2.5-5.5 2.5-2.5 5.5-2.5-5.5-5.5-2.5 5.5-2.5z"/></g>
+                <g transform="translate(10,22) rotate(-9)">
+                  <rect width="50" height="42" rx="10" fill="#fff" stroke="#e3e7fb"/>
+                  <rect x="10" y="24" width="6" height="10" rx="2" fill="#8b7cf6"/>
+                  <rect x="19" y="18" width="6" height="16" rx="2" fill="#6a5bd6"/>
+                  <rect x="28" y="12" width="6" height="22" rx="2" fill="#4b3fc4"/>
+                </g>
+                <g transform="translate(138,88) rotate(8)">
+                  <rect width="50" height="42" rx="10" fill="#fff" stroke="#e3e7fb"/>
+                  <circle cx="25" cy="21" r="13" fill="#e6f6ea"/>
+                  <path d="M18 21l5 5 9-10" stroke="#1e8e3e" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                </g>
+                <ellipse cx="100" cy="150" rx="44" ry="7" fill="#4b3fc4" opacity=".12"/>
+                <path d="M64 150c0-40 12-58 36-58s36 18 36 58z" fill="#4b3fc4"/>
+                <path d="M80 150c0-30 8-42 20-42s20 12 20 42z" fill="#6a5bd6"/>
+                <rect x="90" y="118" width="20" height="14" rx="2" fill="#fff" opacity=".9"/>
+                <circle cx="100" cy="64" r="24" fill="#ffd9b0"/>
+                <path d="M76 60a24 24 0 0 1 48 0c0-16-11-26-24-26s-24 10-24 26z" fill="#2b2440"/>
+              </svg>
+            </div>
+          </div>
 
-      <!-- Tổng quan -->
-      <div class="tab-panel active" id="panel-overview">
-        <div id="overviewStatus" class="notice info">Đang tải số liệu...</div>
-        <div id="overviewContent" style="display:none;">
-          <div class="stat-grid" id="statGrid"></div>
+          <div id="overviewStatus" class="notice info">Loading stats...</div>
+          <div id="overviewContent" style="display:none;">
+            <div class="stat-card-grid" id="statGrid"></div>
+            <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:20px; align-items:start;">
+              <div class="card">
+                <div class="card-head-v2">
+                  <div class="head-left">
+                    <span class="icon-chip"><svg class="icon"><use href="#icon-clipboard"></use></svg></span>
+                    <h3>By Mock Test</h3>
+                  </div>
+                </div>
+                <div class="table-wrap" id="byTestTableWrap" style="display:none;">
+                  <table class="data-table">
+                    <thead><tr><th>Test Title</th><th>Skill</th><th>Submissions</th><th>Avg Score</th><th>Action</th></tr></thead>
+                    <tbody id="byTestBody"></tbody>
+                  </table>
+                </div>
+                <div class="empty-state-v2" id="byTestEmpty">
+                  <div class="empty-icon-circle"><svg class="icon"><use href="#icon-inbox"></use></svg></div>
+                  <h4>No data available</h4>
+                  <p>Create and publish tests to view statistics here.</p>
+                  <button type="button" class="btn" id="btnEmptyCreateTest">Create Test</button>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-head-v2">
+                  <div class="head-left">
+                    <span class="icon-chip"><svg class="icon"><use href="#icon-clock"></use></svg></span>
+                    <h3>Recent Submissions</h3>
+                  </div>
+                  <a href="#" class="view-all" id="linkViewAllSubmissions">View All <svg class="icon flip"><use href="#icon-arrow-left"></use></svg></a>
+                </div>
+                <div id="recentList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lessons (Units by level — Phase 3) -->
+        <div class="tab-panel" id="panel-lessons">
+          <div class="page-head">
+            <div class="head-left">
+              <div class="page-head-icon"><svg class="icon"><use href="#icon-book-open"></use></svg></div>
+              <div>
+                <h1>Lessons</h1>
+                <p class="page-sub">Units by level — Grammar, Vocabulary, Listening, Reading, Writing, Speaking</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" id="unitListCard">
+            <h3>Create New Unit</h3>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px;">
+              <div class="form-row" style="margin-bottom:0;">
+                <label for="newUnitName">Unit Name</label>
+                <input type="text" id="newUnitName" placeholder="e.g. UNIT 1" />
+              </div>
+              <div class="form-row" style="margin-bottom:0;">
+                <label for="newUnitLevel">Level</label>
+                <input type="number" id="newUnitLevel" min="1" step="1" value="1" />
+              </div>
+            </div>
+            <button class="btn" id="btnCreateUnit" style="margin-top:14px;"><svg class="icon"><use href="#icon-plus"></use></svg> Create Unit</button>
+            <p id="createUnitStatus" class="notice" style="display:none; margin-top:14px;"></p>
+
+            <h3 style="margin-top:24px;">Unit List</h3>
+            <div id="unitsListStatus" class="notice info">Loading...</div>
+            <div id="unitsList" style="margin-top:14px;"></div>
+          </div>
+
+          <div class="card" id="unitEditor" style="display:none;">
+            <div class="builder-toolbar">
+              <h3 id="unitEditorHeading">Edit Unit</h3>
+              <button type="button" class="btn secondary" id="btnPreviewUnit"><svg class="icon"><use href="#icon-eye"></use></svg> Preview</button>
+            </div>
+            <div class="unit-cat-tabs" id="unitCatTabs"></div>
+            <div class="unit-subtabs" id="unitSubTabs"></div>
+            <div id="unitCatContent"></div>
+            <p id="unitEditorStatus" class="notice error" style="display:none; margin-top:16px;"></p>
+            <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn" id="btnSaveUnit">Save</button>
+              <button class="btn" id="btnPublishUnit">Save &amp; Publish</button>
+              <button class="btn secondary" id="btnCancelUnit">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Audio Library -->
+        <div class="tab-panel" id="panel-audio">
+          <div class="page-head">
+            <div class="head-left">
+              <div class="page-head-icon"><svg class="icon"><use href="#icon-headphones"></use></svg></div>
+              <div>
+                <h1>Audio Library</h1>
+                <p class="page-sub">Upload and manage audio files for Listening tests</p>
+              </div>
+            </div>
+          </div>
           <div class="card">
-            <h3>Theo từng bài kiểm tra</h3>
+            <h3>Upload New Audio Track</h3>
+            <div class="form-row">
+              <label for="audioTitle">Title</label>
+              <input type="text" id="audioTitle" placeholder="e.g. Listening 2A – Course Registration" />
+            </div>
+            <div class="form-row">
+              <label for="audioUnit">Unit (optional)</label>
+              <input type="text" id="audioUnit" placeholder="e.g. Unit 2" />
+            </div>
+            <div class="form-row">
+              <label for="audioFile">Audio file (mp3, wav...)</label>
+              <input type="file" id="audioFile" accept="audio/*" />
+            </div>
+            <button class="btn" id="btnUploadAudio"><svg class="icon"><use href="#icon-upload"></use></svg> Upload</button>
+            <p id="audioUploadStatus" class="notice info" style="display:none; margin-top:14px;"></p>
+          </div>
+          <div class="card">
+            <h3>Audio Library</h3>
+            <div id="audioListStatus" class="notice info">Loading...</div>
+            <div id="audioList"></div>
+          </div>
+        </div>
+
+        <!-- Image Library -->
+        <div class="tab-panel" id="panel-images">
+          <div class="page-head">
+            <div class="head-left">
+              <div class="page-head-icon"><svg class="icon"><use href="#icon-image"></use></svg></div>
+              <div>
+                <h1>Image Library</h1>
+                <p class="page-sub">Diagram and map images for labelling tasks</p>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Upload New Image (for Diagrams / Maps)</h3>
+            <div class="form-row">
+              <label for="imageTitle">Image Title</label>
+              <input type="text" id="imageTitle" placeholder="e.g. Section 3 – Library Map" />
+            </div>
+            <div class="form-row">
+              <label for="imageUnit">Unit (optional)</label>
+              <input type="text" id="imageUnit" placeholder="e.g. Unit 2" />
+            </div>
+            <div class="form-row">
+              <label for="imageFile">Image file (png, jpg, jpeg, gif...)</label>
+              <input type="file" id="imageFile" accept="image/*" />
+            </div>
+            <button class="btn" id="btnUploadImage"><svg class="icon"><use href="#icon-upload"></use></svg> Upload</button>
+            <p id="imageUploadStatus" class="notice info" style="display:none; margin-top:14px;"></p>
+          </div>
+          <div class="card">
+            <h3>Image Library</h3>
+            <div id="imageListStatus" class="notice info">Loading...</div>
+            <div id="imageList"></div>
+          </div>
+        </div>
+
+        <!-- Mock Tests -->
+        <div class="tab-panel" id="panel-tests">
+          <div class="page-head">
+            <div class="head-left">
+              <div class="page-head-icon"><svg class="icon"><use href="#icon-clipboard"></use></svg></div>
+              <div>
+                <h1>Mock Tests</h1>
+                <p class="page-sub">Create and publish Listening &amp; Reading tests by level</p>
+              </div>
+            </div>
+            <button class="btn" id="btnNewTest"><svg class="icon"><use href="#icon-plus"></use></svg> Create Test</button>
+          </div>
+          <div class="card">
+            <div id="testsListStatus" class="notice info">Loading...</div>
+            <div id="testsList" style="margin-top:14px;"></div>
+          </div>
+
+          <div class="card" id="testBuilder" style="display:none;">
+            <div class="builder-toolbar">
+              <h3 id="builderHeading">Create New Test</h3>
+              <button type="button" class="btn secondary" id="btnPreviewTest"><svg class="icon"><use href="#icon-eye"></use></svg> Preview</button>
+            </div>
+
+            <div class="form-row">
+              <label>Skill (Subject)</label>
+              <div class="subject-toggle" id="builderSubjectToggle">
+                <button type="button" class="active" data-subject="listening"><svg class="icon"><use href="#icon-headphones"></use></svg> Listening</button>
+                <button type="button" data-subject="reading"><svg class="icon"><use href="#icon-book-open"></use></svg> Reading</button>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <label for="tbTitle">Test Title</label>
+              <input type="text" id="tbTitle" placeholder="e.g. Listening 2A – Course Registration" />
+            </div>
+            <div class="form-row">
+              <label for="tbUnit">Unit (optional)</label>
+              <input type="text" id="tbUnit" placeholder="e.g. Unit 2" />
+            </div>
+            <div class="form-row">
+              <label for="tbLevel">Level</label>
+              <input type="number" id="tbLevel" min="1" step="1" value="1" style="width:120px; padding:11px 12px; border:1px solid var(--border); border-radius:8px; font-size:1rem;" />
+            </div>
+            <div class="form-row">
+              <label for="tbInstructions">Test Instructions</label>
+              <input type="text" id="tbInstructions" placeholder="e.g. Listen to the conversation and fill in the blanks..." />
+            </div>
+
+            <h4 style="margin-top:22px;">Schedule (optional)</h4>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+              <div class="form-row" style="margin-bottom:0;">
+                <label for="tbOpensAt">Opening Time</label>
+                <input type="datetime-local" id="tbOpensAt" />
+              </div>
+              <div class="form-row" style="margin-bottom:0;">
+                <label for="tbClosesAt">Closing Time</label>
+                <input type="datetime-local" id="tbClosesAt" />
+              </div>
+              <div class="form-row" style="margin-bottom:0;">
+                <label for="tbDuration">Time Limit (minutes)</label>
+                <input type="number" id="tbDuration" min="1" step="1" placeholder="Unlimited" />
+              </div>
+            </div>
+            <p style="color:var(--muted); font-size:.82rem; margin-top:6px;">Leave blank = open indefinitely. Students can only view and submit within the active window.</p>
+
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:22px;">
+              <h4 style="margin:0;">Sections</h4>
+              <button type="button" class="btn secondary" id="btnImportSpreadsheet" style="padding:8px 14px; font-size:.85rem;"><svg class="icon"><use href="#icon-upload"></use></svg> Import from spreadsheet</button>
+            </div>
+            <div id="tbSections"></div>
+            <button type="button" class="dashed-add-btn" id="btnAddSection" style="margin-top:8px;"><svg class="icon"><use href="#icon-plus"></use></svg> Add Section</button>
+
+            <p id="builderStatus" class="notice error" style="display:none; margin-top:16px;"></p>
+
+            <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn secondary" id="btnSaveDraft">Save Draft</button>
+              <button class="btn" id="btnPublish">Save &amp; Publish</button>
+              <button class="btn secondary" id="btnCancelBuilder">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submissions -->
+        <div class="tab-panel" id="panel-submissions">
+          <div class="page-head">
+            <div class="head-left">
+              <div class="page-head-icon"><svg class="icon"><use href="#icon-list"></use></svg></div>
+              <div>
+                <h1>Submissions</h1>
+                <p class="page-sub">Student test submissions and results</p>
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items: center;">
+              <select id="filterKind" class="select-inline">
+                <option value="">All Submission Types</option>
+                <option value="test">Mock Test</option>
+                <option value="exercise">Lesson Exercise</option>
+                <option value="writing">Writing (Manual Grading)</option>
+                <option value="speaking">Speaking (Manual Grading)</option>
+              </select>
+              <select id="filterSubject" class="select-inline">
+                <option value="">All Skills</option>
+                <option value="listening">Listening</option>
+                <option value="reading">Reading</option>
+              </select>
+              <select id="filterTest" class="select-inline"><option value="">All Mock Tests</option></select>
+              <input type="text" id="searchBox" placeholder="Search student name..." style="padding:9px 12px; border:1px solid var(--border); border-radius:8px;" />
+              <button class="btn secondary" id="btnRefresh"><svg class="icon"><use href="#icon-refresh"></use></svg> Refresh</button>
+            </div>
+          </div>
+          <div id="summaryBox" style="margin-top:0; margin-bottom:14px; color:var(--muted); font-size:.9rem;"></div>
+
+          <div class="card">
+            <div id="loadStatus" class="notice info">Loading data...</div>
             <div class="table-wrap">
-              <table>
-                <thead><tr><th>Bài</th><th>Môn học</th><th>Số lượt nộp</th><th>Điểm TB</th></tr></thead>
-                <tbody id="byTestBody"></tbody>
+              <table id="resultsTable" class="data-table" style="display:none;">
+                <thead>
+                  <tr>
+                    <th>Date &amp; Time</th>
+                    <th>Student Name</th>
+                    <th>Test / Exercise</th>
+                    <th>Type</th>
+                    <th>Score</th>
+                    <th>Listen Count</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="resultsBody"></tbody>
               </table>
             </div>
           </div>
+        </div>
+
+        <!-- Students -->
+        <div class="tab-panel" id="panel-students">
+          <div class="page-head">
+            <div class="head-left">
+              <div class="page-head-icon"><svg class="icon"><use href="#icon-student"></use></svg></div>
+              <div>
+                <h1>Students</h1>
+                <p class="page-sub">Create student accounts and manage levels</p>
+              </div>
+            </div>
+          </div>
           <div class="card">
-            <h3>Nộp bài gần đây</h3>
-            <div id="recentList"></div>
+            <h3>Create New Student Account</h3>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px;">
+              <div class="form-row" style="margin-bottom:0;">
+                <label for="newStudentName">Full Name</label>
+                <input type="text" id="newStudentName" placeholder="e.g. John Doe" />
+              </div>
+              <div class="form-row" style="margin-bottom:0;">
+                <label for="newStudentUsername">Username</label>
+                <input type="text" id="newStudentUsername" placeholder="lowercase, numbers, ._ (3-30 chars)" />
+              </div>
+              <div class="form-row" style="margin-bottom:0;">
+                <label for="newStudentPassword">Password</label>
+                <input type="text" id="newStudentPassword" placeholder="At least 4 characters" />
+              </div>
+              <div class="form-row" style="margin-bottom:0;">
+                <label for="newStudentLevel">Level</label>
+                <input type="number" id="newStudentLevel" min="1" step="1" value="1" />
+              </div>
+            </div>
+            <button class="btn" id="btnCreateStudent" style="margin-top:14px;"><svg class="icon"><use href="#icon-user-plus"></use></svg> Create Student</button>
+            <p id="createStudentStatus" class="notice" style="display:none; margin-top:14px;"></p>
           </div>
-        </div>
-      </div>
-
-      <!-- Bài nghe -->
-      <div class="tab-panel" id="panel-audio">
-        <div class="card">
-          <h3>Tải lên bài nghe mới</h3>
-          <div class="form-row">
-            <label for="audioTitle">Tiêu đề</label>
-            <input type="text" id="audioTitle" placeholder="Ví dụ: Listening 2A – Đăng ký khóa học" />
-          </div>
-          <div class="form-row">
-            <label for="audioUnit">Unit (tuỳ chọn)</label>
-            <input type="text" id="audioUnit" placeholder="Ví dụ: Unit 2" />
-          </div>
-          <div class="form-row">
-            <label for="audioFile">File âm thanh (mp3, wav...)</label>
-            <input type="file" id="audioFile" accept="audio/*" />
-          </div>
-          <button class="btn" id="btnUploadAudio"><svg class="icon"><use href="#icon-upload"></use></svg> Tải lên</button>
-          <p id="audioUploadStatus" class="notice info" style="display:none; margin-top:14px;"></p>
-        </div>
-        <div class="card">
-          <h3>Thư viện bài nghe</h3>
-          <div id="audioListStatus" class="notice info">Đang tải...</div>
-          <div id="audioList"></div>
-        </div>
-      </div>
-
-      <!-- Thư viện ảnh -->
-      <div class="tab-panel" id="panel-images">
-        <div class="card">
-          <h3>Tải lên ảnh minh hoạ mới (cho sơ đồ / bản đồ)</h3>
-          <div class="form-row">
-            <label for="imageTitle">Tiêu đề ảnh</label>
-            <input type="text" id="imageTitle" placeholder="Ví dụ: Diagram Section 3 – Map of the library" />
-          </div>
-          <div class="form-row">
-            <label for="imageUnit">Unit (tuỳ chọn)</label>
-            <input type="text" id="imageUnit" placeholder="Ví dụ: Unit 2" />
-          </div>
-          <div class="form-row">
-            <label for="imageFile">File hình ảnh (png, jpg, jpeg, gif...)</label>
-            <input type="file" id="imageFile" accept="image/*" />
-          </div>
-          <button class="btn" id="btnUploadImage"><svg class="icon"><use href="#icon-upload"></use></svg> Tải lên</button>
-          <p id="imageUploadStatus" class="notice info" style="display:none; margin-top:14px;"></p>
-        </div>
-        <div class="card">
-          <h3>Thư viện ảnh minh hoạ</h3>
-          <div id="imageListStatus" class="notice info">Đang tải...</div>
-          <div id="imageList"></div>
-        </div>
-      </div>
-
-      <!-- Bài kiểm tra -->
-      <div class="tab-panel" id="panel-tests">
-        <div class="card">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3 style="margin:0;">Danh sách bài kiểm tra</h3>
-            <button class="btn" id="btnNewTest"><svg class="icon"><use href="#icon-plus"></use></svg> Tạo bài kiểm tra</button>
-          </div>
-          <div id="testsListStatus" class="notice info" style="margin-top:14px;">Đang tải...</div>
-          <div id="testsList" style="margin-top:14px;"></div>
-        </div>
-
-        <div class="card" id="testBuilder" style="display:none;">
-          <h3 id="builderHeading">Tạo bài kiểm tra mới</h3>
-          
-          <div class="form-row">
-            <label>Kỹ năng (Subject)</label>
-            <div class="subject-toggle" id="builderSubjectToggle">
-              <button type="button" class="active" data-subject="listening"><svg class="icon"><use href="#icon-headphones"></use></svg> Nghe (Listening)</button>
-              <button type="button" data-subject="reading"><svg class="icon"><use href="#icon-book-open"></use></svg> Đọc (Reading)</button>
+          <div class="card">
+            <h3>Student Account List</h3>
+            <div id="studentsListStatus" class="notice info">Loading...</div>
+            <div class="table-wrap">
+              <table id="studentsTable" class="data-table" style="display:none;">
+                <thead>
+                  <tr>
+                    <th>Full Name</th>
+                    <th>Username</th>
+                    <th>Level</th>
+                    <th>Date Registered</th>
+                    <th>Submissions</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="studentsBody"></tbody>
+              </table>
             </div>
           </div>
-
-          <div class="form-row">
-            <label for="tbTitle">Tên bài kiểm tra</label>
-            <input type="text" id="tbTitle" placeholder="Ví dụ: Listening 2A – Đăng ký khóa học" />
-          </div>
-          <div class="form-row">
-            <label for="tbUnit">Unit (tuỳ chọn)</label>
-            <input type="text" id="tbUnit" placeholder="Ví dụ: Unit 2" />
-          </div>
-          <div class="form-row">
-            <label for="tbInstructions">Hướng dẫn làm bài</label>
-            <input type="text" id="tbInstructions" placeholder="Ví dụ: Nghe đoạn hội thoại và điền vào chỗ trống..." />
-          </div>
-
-          <h4 style="margin-top:22px;">Các phần (Sections)</h4>
-          <div id="tbSections"></div>
-          <button class="btn secondary" id="btnAddSection" style="margin-top:6px;"><svg class="icon"><use href="#icon-plus"></use></svg> Thêm phần (Section)</button>
-
-          <p id="builderStatus" class="notice error" style="display:none; margin-top:16px;"></p>
-
-          <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn secondary" id="btnSaveDraft">Lưu nháp</button>
-            <button class="btn" id="btnPublish">Lưu & công bố</button>
-            <button class="btn secondary" id="btnCancelBuilder">Huỷ</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Bài nộp -->
-      <div class="tab-panel" id="panel-submissions">
-        <div class="card">
-          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-            <h2 style="margin:0;">Kết quả học sinh</h2>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items: center;">
-              <select id="filterSubject" class="select-inline">
-                <option value="">Tất cả kỹ năng</option>
-                <option value="listening">Nghe (Listening)</option>
-                <option value="reading">Đọc (Reading)</option>
-              </select>
-              <select id="filterTest" class="select-inline"><option value="">Tất cả bài kiểm tra</option></select>
-              <input type="text" id="searchBox" placeholder="Tìm theo tên học sinh..." style="padding:9px 12px; border:1px solid var(--border); border-radius:8px;" />
-              <button class="btn secondary" id="btnRefresh"><svg class="icon"><use href="#icon-refresh"></use></svg> Tải lại</button>
-            </div>
-          </div>
-          <div id="summaryBox" style="margin-top:14px; color:var(--muted); font-size:.9rem;"></div>
         </div>
 
-        <div class="card">
-          <div id="loadStatus" class="notice info">Đang tải dữ liệu...</div>
-          <div class="table-wrap">
-            <table id="resultsTable" style="display:none;">
-              <thead>
-                <tr>
-                  <th>Thời gian</th>
-                  <th>Họ tên</th>
-                  <th>Bài</th>
-                  <th>Điểm</th>
-                  <th>Số lần nghe</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="resultsBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- Học viên -->
-      <div class="tab-panel" id="panel-students">
-        <div class="card">
-          <h3>Danh sách tài khoản học viên</h3>
-          <div id="studentsListStatus" class="notice info">Đang tải...</div>
-          <div class="table-wrap">
-            <table id="studentsTable" style="display:none;">
-              <thead>
-                <tr>
-                  <th>Họ và tên</th>
-                  <th>Tên đăng nhập</th>
-                  <th>Ngày đăng ký</th>
-                  <th>Số bài đã nộp</th>
-                  <th>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody id="studentsBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-    </section>
-
+      </section>
+      </main>
+    </div>
   </div>
 
   <script src="assets/api.js"></script>
+  <script src="assets/shell.js"></script>
   <script src="assets/teacher.js"></script>
 </body>
 </html>

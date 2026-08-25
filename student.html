@@ -1,130 +1,133 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Học sinh – IELTS with Ms Nhi</title>
+<title>Student – IELTS with Ms Nhi</title>
 <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
   <script src="assets/icons.js"></script>
-  <div class="topbar">
-    <div class="brand">
-      <div class="logo">MN</div>
-      <div>
-        IELTS with Ms Nhi
-        <div class="sub">Khu vực học sinh</div>
-      </div>
+
+  <div class="app-shell" id="appShell">
+    <aside class="sidebar" id="sidebarRoot"></aside>
+    <div class="main-area">
+      <header class="topbar-v2" id="topbarRoot"></header>
+
+      <main class="content">
+
+        <!-- Lessons (Phase 3) -->
+        <section id="step-lessons" style="display:none;">
+          <div class="page-head">
+            <div class="head-left">
+              <div class="page-head-icon"><svg class="icon"><use href="#icon-book-open"></use></svg></div>
+              <div>
+                <h1>Lessons</h1>
+                <p class="page-sub">Units by level — Grammar, Vocabulary, Listening, Reading, Writing, Speaking</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="lessonsList">
+            <div class="card">
+              <div id="unitsStatus" class="notice info">Loading lesson units...</div>
+              <div id="unitsList"></div>
+            </div>
+          </div>
+
+          <div id="lessonsDetail" style="display:none;">
+            <div class="card">
+              <p class="back-link" id="backToUnitsList"><svg class="icon"><use href="#icon-arrow-left"></use></svg> Back to lesson list</p>
+              <h2 id="lessonUnitTitle"></h2>
+              <div class="unit-cat-tabs" id="lessonCatTabs"></div>
+              <div id="lessonCatContent"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- STEP: Skill picker (Subject picker) -->
+        <section id="step-subject" style="display:none;">
+          <div class="page-head">
+            <div class="head-left">
+              <div class="page-head-icon"><svg class="icon"><use href="#icon-clipboard"></use></svg></div>
+              <div>
+                <h1>Mock Tests</h1>
+                <p class="page-sub">Select the skill you want to practice today</p>
+              </div>
+            </div>
+          </div>
+          <div class="stat-card-grid" id="studentStatGrid" style="display:none;"></div>
+          <div class="card">
+            <h2>Select Practice Skill <svg class="icon"><use href="#icon-wave"></use></svg></h2>
+            <div class="subject-grid">
+              <a href="#" class="choice-card" id="btnChooseListening">
+                <svg class="icon"><use href="#icon-headphones"></use></svg>
+                <h2>Listening</h2>
+                <p>Practice listening sections with audio recordings</p>
+              </a>
+              <a href="#" class="choice-card" id="btnChooseReading">
+                <svg class="icon"><use href="#icon-book-open"></use></svg>
+                <h2>Reading</h2>
+                <p>Practice reading skills with passages and side-by-side questions</p>
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <!-- STEP: Select test -->
+        <section id="step-picker" style="display:none;">
+          <div class="page-head">
+            <div class="head-left">
+              <div class="page-head-icon"><svg class="icon"><use href="#icon-list"></use></svg></div>
+              <div>
+                <h1>Mock Test List <span id="pickerSubjectText"></span></h1>
+                <p class="page-sub"><a href="#" class="back-link-inline" id="backToSubject"><svg class="icon"><use href="#icon-arrow-left"></use></svg> Change skill</a></p>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div id="testStatus" class="notice info">Loading test list...</div>
+            <div id="testList"></div>
+          </div>
+        </section>
+
+        <!-- STEP: Take test -->
+        <section id="step-test" style="display:none;">
+          <div class="card">
+            <p class="back-link" id="backToPickerFromTest"><svg class="icon"><use href="#icon-arrow-left"></use></svg> Back to test list</p>
+            <div class="test-timer" id="testTimer" style="display:none;"></div>
+            <span class="badge test" id="testSubjectBadge">Mock Test</span>
+            <h2 id="testTitle"></h2>
+            <p id="testInstructions" style="color:var(--muted); margin-bottom: 20px;"></p>
+
+            <div id="testForm"></div>
+
+            <button class="btn" id="btnSubmitTest" style="margin-top:20px;">Submit Test</button>
+          </div>
+        </section>
+
+        <!-- STEP: Test Results -->
+        <section id="step-result" style="display:none;">
+          <div class="card">
+            <div class="score-box">
+              <div style="color:var(--muted); font-weight:600;" id="resultTitle"></div>
+              <div class="big"><span id="scoreValue">0</span><span> / <span id="scoreTotal">10</span></span></div>
+              <p id="submitStatus" class="notice info" style="display:inline-block;"></p>
+            </div>
+            <div id="resultDetail"></div>
+            <div style="text-align:center; margin-top:20px;">
+              <button class="btn secondary" id="btnRetake">Retake Test</button>
+              <button class="btn" id="btnBackList">Back to Test List</button>
+            </div>
+          </div>
+        </section>
+
+      </main>
     </div>
-    <nav>
-      <a href="/"><svg class="icon"><use href="#icon-arrow-left"></use></svg> Trang chủ</a>
-      <span id="studentNavInfo" style="display:none; margin-left:18px; font-size:.92rem; opacity:.9;">
-        Chào, <b id="studentNavName"></b>
-      </span>
-      <a href="#" id="btnStudentLogout" style="display:none; margin-left: 18px;"><svg class="icon"><use href="#icon-logout"></use></svg> Đăng xuất</a>
-    </nav>
-  </div>
-
-  <div class="wrap">
-
-    <!-- STEP 1: Đăng ký / Đăng nhập học sinh -->
-    <section id="step-auth" class="card">
-      <div class="tabs" style="margin-bottom:20px;">
-        <button class="tab-btn active" id="tabBtnLogin">Đăng nhập</button>
-        <button class="tab-btn" id="tabBtnRegister">Đăng ký tài khoản</button>
-      </div>
-
-      <!-- Form Đăng nhập -->
-      <div id="form-login">
-        <h2>Học sinh đăng nhập</h2>
-        <div class="form-row">
-          <label for="loginUsername">Tên đăng nhập</label>
-          <input type="text" id="loginUsername" placeholder="Nhập tên đăng nhập" autocomplete="username" />
-        </div>
-        <div class="form-row">
-          <label for="loginPassword">Mật khẩu</label>
-          <input type="password" id="loginPassword" placeholder="Nhập mật khẩu" autocomplete="current-password" />
-        </div>
-        <button class="btn" id="btnLoginSubmit">Đăng nhập</button>
-      </div>
-
-      <!-- Form Đăng ký -->
-      <div id="form-register" style="display:none;">
-        <h2>Đăng ký tài khoản mới</h2>
-        <div class="form-row">
-          <label for="regName">Họ và tên</label>
-          <input type="text" id="regName" placeholder="Ví dụ: Nguyễn Văn A" autocomplete="name" />
-        </div>
-        <div class="form-row">
-          <label for="regUsername">Tên đăng nhập (viết liền không dấu, không viết hoa)</label>
-          <input type="text" id="regUsername" placeholder="Ví dụ: nguyenvana" autocomplete="username" />
-        </div>
-        <div class="form-row">
-          <label for="regPassword">Mật khẩu</label>
-          <input type="password" id="regPassword" placeholder="Tối thiểu 6 ký tự" autocomplete="new-password" />
-        </div>
-        <button class="btn" id="btnRegisterSubmit">Đăng ký</button>
-      </div>
-
-      <p id="authError" class="notice error" style="display:none; margin-top:14px;"></p>
-    </section>
-
-    <!-- STEP 2: Chọn kỹ năng (Subject picker) -->
-    <section id="step-subject" class="card" style="display:none;">
-      <h2>Chọn kỹ năng luyện tập <svg class="icon"><use href="#icon-wave"></use></svg></h2>
-      <p>Vui lòng chọn kỹ năng bạn muốn làm bài hôm nay:</p>
-      <div class="subject-grid">
-        <a href="#" class="choice-card" id="btnChooseListening">
-          <svg class="icon"><use href="#icon-headphones"></use></svg>
-          <h2>Nghe (Listening)</h2>
-          <p>Luyện tập các phần nghe với file âm thanh thực tế</p>
-        </a>
-        <a href="#" class="choice-card" id="btnChooseReading">
-          <svg class="icon"><use href="#icon-book-open"></use></svg>
-          <h2>Đọc (Reading)</h2>
-          <p>Luyện tập kỹ năng đọc với các đoạn văn song song câu hỏi</p>
-        </a>
-      </div>
-    </section>
-
-    <!-- STEP 3: chọn bài -->
-    <section id="step-picker" class="card" style="display:none;">
-      <p class="back-link" id="backToSubject"><svg class="icon"><use href="#icon-arrow-left"></use></svg> Đổi kỹ năng</p>
-      <h2>Danh sách bài kiểm tra <span id="pickerSubjectText"></span></h2>
-
-      <div id="testStatus" class="notice info">Đang tải danh sách bài kiểm tra...</div>
-      <div id="testList"></div>
-    </section>
-
-    <!-- STEP 4: làm bài test có chấm điểm -->
-    <section id="step-test" class="card" style="display:none;">
-      <p class="back-link" id="backToPickerFromTest"><svg class="icon"><use href="#icon-arrow-left"></use></svg> Quay lại danh sách</p>
-      <span class="badge test" id="testSubjectBadge">Bài kiểm tra</span>
-      <h2 id="testTitle"></h2>
-      <p id="testInstructions" style="color:var(--muted); margin-bottom: 20px;"></p>
-
-      <div id="testForm"></div>
-
-      <button class="btn" id="btnSubmitTest" style="margin-top:20px;">Nộp bài</button>
-    </section>
-
-    <!-- STEP 5: kết quả -->
-    <section id="step-result" class="card" style="display:none;">
-      <div class="score-box">
-        <div style="color:var(--muted); font-weight:600;" id="resultTitle"></div>
-        <div class="big"><span id="scoreValue">0</span><span> / <span id="scoreTotal">10</span></span></div>
-        <p id="submitStatus" class="notice info" style="display:inline-block;"></p>
-      </div>
-      <div id="resultDetail"></div>
-      <div style="text-align:center; margin-top:20px;">
-        <button class="btn secondary" id="btnRetake">Làm lại bài này</button>
-        <button class="btn" id="btnBackList">Về danh sách bài</button>
-      </div>
-    </section>
-
   </div>
 
   <script src="assets/api.js"></script>
+  <script src="assets/shell.js"></script>
   <script src="assets/student.js"></script>
 </body>
 </html>
