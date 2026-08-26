@@ -4,13 +4,15 @@
 (function () {
   let studentName = "";
   let studentLevel = 1;
-  let currentSubject = ""; // 'listening' | 'reading'
   let currentTest = null; // full test detail from API (public shape, no answers)
+  let currentSkill = null; // 'listening' | 'reading' — kỹ năng đang làm trong step-test
   let testReplayCount = 0;
   let countdownTimer = null; // Phase 4 — đồng hồ đếm ngược khi test có durationMinutes
   let shell = null; // dashboard shell (Phase 2)
+  let testRowsCache = []; // danh sách rút gọn từ /api/tests (không có nội dung câu hỏi/đề bài)
+  let testDetailCache = {}; // testId -> full test detail (lấy khi mở rộng 1 kỹ năng), cache tránh gọi lại API
 
-  const sections = ["step-lessons", "step-subject", "step-picker", "step-test", "step-result"];
+  const sections = ["step-lessons", "step-picker", "step-test", "step-result"];
 
   function show(id) {
     sections.forEach((s) => (document.getElementById(s).style.display = s === id ? "block" : "none"));
@@ -70,7 +72,8 @@
         if (key === "lessons") {
           show("step-lessons");
         } else {
-          show(currentSubject ? "step-picker" : "step-subject");
+          show("step-picker");
+          renderTestList();
         }
       },
       onLogout: () => {
@@ -80,43 +83,28 @@
     });
 
     loadLessons();
-    if (!currentSubject) show("step-subject"); else show("step-picker");
+    show("step-picker");
+    renderTestList();
   }
-
-  // ---------- CHỌN KỸ NĂNG (SUBJECT PICKER) ----------
-  document.getElementById("btnChooseListening").addEventListener("click", (e) => {
-    e.preventDefault();
-    currentSubject = "listening";
-    renderPicker();
-    show("step-picker");
-  });
-
-  document.getElementById("btnChooseReading").addEventListener("click", (e) => {
-    e.preventDefault();
-    currentSubject = "reading";
-    renderPicker();
-    show("step-picker");
-  });
-
-  document.getElementById("backToSubject").addEventListener("click", (e) => {
-    e.preventDefault();
-    currentSubject = "";
-    show("step-subject");
-  });
 
   document.getElementById("backToPickerFromTest").addEventListener("click", () => {
     stopCountdown();
     show("step-picker");
-  });
-  document.getElementById("btnBackList").addEventListener("click", () => show("step-picker"));
-
-  // ---------- DANH SÁCH BÀI KIỂM TRA (TEST LIST) ----------
-  function renderPicker() {
-    const pickerSubjectText = document.getElementById("pickerSubjectText");
-    pickerSubjectText.textContent = currentSubject === "listening" ? "(Listening)" : "(Reading)";
     renderTestList();
-  }
+  });
+  document.getElementById("btnBackList").addEventListener("click", () => {
+    show("step-picker");
+    renderTestList();
+  });
 
+  const SKILL_TABS = [
+    { key: "listening", label: "Listening", icon: "headphones" },
+    { key: "reading", label: "Reading", icon: "book-open" },
+    { key: "writing", label: "Writing", icon: "writing" },
+    { key: "speaking", label: "Speaking", icon: "mic" }
+  ];
+
+  // ---------- DANH SÁCH MOCK TEST (4 kỹ năng, khoá tới khi opensAt) ----------
   function renderTestList() {
     const statusEl = document.getElementById("testStatus");
     const testList = document.getElementById("testList");
@@ -125,26 +113,15 @@
     statusEl.className = "notice info";
     statusEl.textContent = "Loading mock test list...";
 
-    Api.listTests({ subject: currentSubject })
+    Api.listTests()
       .then((data) => {
-        const rows = data.rows || [];
+        testRowsCache = data.rows || [];
         statusEl.style.display = "none";
-        if (!rows.length) {
-          testList.innerHTML = '<div class="empty-state">No tests published yet for this skill.</div>';
+        if (!testRowsCache.length) {
+          testList.innerHTML = '<div class="empty-state">No mock tests published yet.</div>';
           return;
         }
-        rows.forEach((test) => {
-          const item = document.createElement("div");
-          item.className = "list-item";
-          item.innerHTML = `
-            <div class="meta">
-              <h4>${escapeHtml(test.unit)} · ${escapeHtml(test.title)}</h4>
-              <p>${test.totalQuestions} questions · Flexible time limit</p>
-            </div>
-            <button class="btn">Take Test</button>`;
-          item.querySelector("button").addEventListener("click", () => startTest(test.id));
-          testList.appendChild(item);
-        });
+        testRowsCache.forEach((row) => testList.appendChild(renderTestCard(row)));
       })
       .catch((err) => {
         statusEl.className = "notice error";
@@ -152,19 +129,167 @@
       });
   }
 
-  // ---------- TESTING FLOW ----------
-  function startTest(testId) {
+  function renderTestCard(row) {
+    const card = document.createElement("div");
+    card.className = "test-exam-card" + (row.locked ? " locked" : "");
+
+    if (row.locked) {
+      const opensText = row.opensAt ? new Date(row.opensAt).toLocaleString("en-US") : "";
+      card.innerHTML = `
+        <div class="meta">
+          <h4>${Icon("lock")} ${escapeHtml(row.unit ? row.unit + " · " : "") + escapeHtml(row.title)}</h4>
+          <p>Locked — opens ${escapeHtml(opensText)}</p>
+        </div>
+      `;
+      return card;
+    }
+
+    const summaryLine = examResultSummary(row);
+    card.innerHTML = `
+      <div class="meta">
+        <h4>${escapeHtml(row.unit ? row.unit + " · " : "") + escapeHtml(row.title)}${row.closed ? ' <span class="pill pill-muted">Closed</span>' : ""}</h4>
+        ${summaryLine ? `<p class="exam-result-summary">${summaryLine}</p>` : ""}
+      </div>
+      <div class="exam-skill-grid"></div>
+    `;
+    const grid = card.querySelector(".exam-skill-grid");
+    SKILL_TABS.forEach((tab) => {
+      const skillMeta = row.skills && row.skills[tab.key];
+      if (!skillMeta || !skillMeta.present) return;
+      grid.appendChild(renderExamSkillBox(row, tab));
+    });
+    return card;
+  }
+
+  // Dòng tóm tắt kết quả chung hiện trên đầu thẻ — gộp từ mySubmissionsCache,
+  // chỉ hiện khi đã có ít nhất 1 kỹ năng có kết quả.
+  function examResultSummary(row) {
+    const bits = [];
+    SKILL_TABS.forEach((tab) => {
+      const sub = latestExamSubmission(row.id, tab.key);
+      if (!sub) return;
+      if (tab.key === "listening" || tab.key === "reading") {
+        bits.push(`${tab.label}: ${sub.score}/${sub.total}`);
+      } else if (sub.gradingStatus === "graded") {
+        bits.push(`${tab.label}: ${sub.manualScore} pts`);
+      }
+    });
+    return bits.length ? "Results — " + escapeHtml(bits.join(" · ")) : "";
+  }
+
+  function latestExamSubmission(testId, skill) {
+    return mySubmissionsCache.find((s) => String(s.testId) === String(testId) && s.testSkill === skill) || null;
+  }
+
+  function renderExamSkillBox(row, tab) {
+    const box = document.createElement("div");
+    box.className = "exam-skill-box";
+    const sub = latestExamSubmission(row.id, tab.key);
+    const isQuestionSkill = tab.key === "listening" || tab.key === "reading";
+    const skillMeta = row.skills[tab.key];
+
+    let statusHtml;
+    let ctaLabel;
+    if (!sub) {
+      statusHtml = isQuestionSkill ? `<span class="muted">0/${skillMeta.count} questions done</span>` : `<span class="muted">Not started</span>`;
+      ctaLabel = "Start";
+    } else if (isQuestionSkill) {
+      statusHtml = `<span class="muted">${skillMeta.count}/${skillMeta.count} questions done</span><br><b>Score: ${sub.score}/${sub.total}</b>`;
+      ctaLabel = "Retake";
+    } else if (sub.gradingStatus === "graded") {
+      statusHtml = `<b>Graded: ${sub.manualScore} pts</b>`;
+      ctaLabel = "Redo";
+    } else {
+      statusHtml = `<span class="muted">Submitted — pending review</span>`;
+      ctaLabel = "Redo";
+    }
+
+    box.innerHTML = `
+      <div class="exam-skill-head">${Icon(tab.icon)} <b>${tab.label}</b></div>
+      <div class="exam-skill-status">${statusHtml}</div>
+      <button type="button" class="btn secondary exam-skill-cta" style="margin-top:8px; padding:6px 14px; font-size:.82rem;">${ctaLabel}</button>
+      <div class="exam-skill-work" style="display:none; margin-top:12px;"></div>
+    `;
+
+    const ctaBtn = box.querySelector(".exam-skill-cta");
+    const workEl = box.querySelector(".exam-skill-work");
+    ctaBtn.addEventListener("click", () => {
+      if (isQuestionSkill) {
+        startTest(row.id, tab.key);
+        return;
+      }
+      // Writing/Speaking: mở rộng form ngay trong thẻ, giống Lesson prompts.
+      const opening = workEl.style.display === "none";
+      workEl.style.display = opening ? "block" : "none";
+      if (opening) loadExamPrompts(workEl, row.id, tab.key);
+    });
+
+    return box;
+  }
+
+  function loadExamPrompts(workEl, testId, skill) {
+    workEl.innerHTML = '<div class="notice info">Loading...</div>';
+    const ready = testDetailCache[testId]
+      ? Promise.resolve(testDetailCache[testId])
+      : Api.getTest(testId).then((data) => {
+          testDetailCache[testId] = data.test;
+          return data.test;
+        });
+    ready
+      .then((test) => {
+        const skillData = test.skills[skill];
+        workEl.innerHTML = "";
+        if (!skillData.prompts.length) {
+          workEl.innerHTML = '<div class="empty-state">No prompts available.</div>';
+          return;
+        }
+        skillData.prompts.forEach((p) => {
+          const last = mySubmissionsCache.find((s) => String(s.promptId) === String(p.id) && String(s.testId) === String(testId));
+          const box = document.createElement("div");
+          box.className = "lesson-block";
+          box.innerHTML = `
+            <h4 style="margin:0 0 8px;">${escapeHtml(p.title || "Prompt")}</h4>
+            ${p.instructions ? `<div class="lesson-text">${escapeHtml(p.instructions)}</div>` : ""}
+            ${p.imageUrl ? `<img src="${p.imageUrl}" class="diagram-image" style="margin:10px 0;" />` : ""}
+            <div class="prompt-work" style="margin-top:12px;"></div>
+            <div class="prompt-status" style="margin-top:12px;"></div>
+          `;
+          const statusEl = box.querySelector(".prompt-status");
+          if (last) {
+            statusEl.innerHTML =
+              last.gradingStatus === "graded"
+                ? `<div class="notice success">${Icon("check-circle")} Graded: <b>${last.manualScore} pts</b>${last.manualFeedback ? " — Feedback: " + escapeHtml(last.manualFeedback) : ""}</div>`
+                : '<div class="notice info">Submitted — pending teacher review.</div>';
+          }
+          const work = box.querySelector(".prompt-work");
+          const submitContext = { testId, skill };
+          const onSubmitted = () => renderTestList();
+          if (skill === "writing") wireWritingPrompt(work, p, submitContext, onSubmitted);
+          else wireSpeakingPrompt(work, p, submitContext, onSubmitted);
+          workEl.appendChild(box);
+        });
+      })
+      .catch((err) => {
+        workEl.innerHTML = `<div class="notice error">${Icon("warning")} ${escapeHtml(err.message)}</div>`;
+      });
+  }
+
+  // ---------- TESTING FLOW (Listening/Reading — câu hỏi tự chấm) ----------
+  function startTest(testId, skill) {
     const formEl = document.getElementById("testForm");
     formEl.innerHTML = '<div class="notice info">Loading test...</div>';
+    currentSkill = skill;
     show("step-test");
 
     Api.getTest(testId)
       .then((data) => {
         currentTest = data.test;
+        testDetailCache[testId] = data.test;
         testReplayCount = 0;
-        renderTestForm(currentTest);
-        if (currentTest.durationMinutes) {
-          startCountdown(Number(currentTest.durationMinutes));
+        renderTestForm(currentTest, skill);
+        const skillData = currentTest.skills[skill];
+        if (skillData.durationMinutes) {
+          startCountdown(Number(skillData.durationMinutes));
         } else {
           stopCountdown();
         }
@@ -174,22 +299,48 @@
       });
   }
 
-  function renderTestForm(test) {
+  function renderTestForm(test, skill) {
+    const skillData = test.skills[skill];
+    const tabInfo = SKILL_TABS.find((t) => t.key === skill);
     document.getElementById("testTitle").textContent = `${test.unit} · ${test.title}`;
-    document.getElementById("testInstructions").textContent = test.instructions;
+    document.getElementById("testInstructions").textContent = skillData.instructions;
 
     const testSubjectBadge = document.getElementById("testSubjectBadge");
-    testSubjectBadge.textContent = test.subject === "listening" ? "Listening Test" : "Reading Test";
-    testSubjectBadge.className = "badge test " + (test.subject === "listening" ? "listening" : "reading");
+    testSubjectBadge.textContent = tabInfo.label + " Test";
+    testSubjectBadge.className = "badge test " + skill;
 
     const formEl = document.getElementById("testForm");
     formEl.innerHTML = "";
 
-    test.sections.forEach((sec, secIdx) => renderSectionBlock(sec, secIdx, test.subject, formEl));
+    skillData.sections.forEach((sec, secIdx) => renderSectionBlock(sec, secIdx, skill, formEl));
   }
 
   // Render 1 section (layout Nghe hoặc Đọc) — dùng chung cho cả Test lẫn
   // Exercise trong Bài học (Phase 3, tái dùng thay vì viết lại UI).
+  // Ảnh sơ đồ/map cho câu hỏi labelling — nếu section có labelPoints thì
+  // bọc ảnh trong khung position:relative và vẽ số thứ tự câu hỏi tại vị
+  // trí pin (%) đã giáo viên đặt. Chỉ mang tính minh hoạ, không click để
+  // trả lời — học sinh vẫn chọn đáp án ở danh sách câu hỏi bên dưới.
+  function renderDiagramImage(sec) {
+    const img = document.createElement("img");
+    img.src = sec.imageUrl;
+    img.className = "diagram-image";
+    if (!sec.labelPoints || !sec.labelPoints.length) return img;
+
+    const wrap = document.createElement("div");
+    wrap.className = "diagram-pin-wrap";
+    wrap.appendChild(img);
+    sec.labelPoints.forEach((lp) => {
+      const marker = document.createElement("span");
+      marker.className = "pin-marker";
+      marker.style.left = lp.x + "%";
+      marker.style.top = lp.y + "%";
+      marker.textContent = lp.fieldId;
+      wrap.appendChild(marker);
+    });
+    return wrap;
+  }
+
   function renderSectionBlock(sec, secIdx, subject, parentEl) {
     const secWrapper = document.createElement("div");
     secWrapper.style.marginBottom = "30px";
@@ -210,10 +361,7 @@
 
         // Ảnh diagram/map nếu có
         if (sec.imageUrl) {
-          const img = document.createElement("img");
-          img.src = sec.imageUrl;
-          img.className = "diagram-image";
-          passagePane.appendChild(img);
+          passagePane.appendChild(renderDiagramImage(sec));
         }
 
         // Nội dung đoạn văn
@@ -277,11 +425,9 @@
 
         // Sơ đồ hoặc hình vẽ phụ trợ bài nghe (nếu có)
         if (sec.imageUrl) {
-          const img = document.createElement("img");
-          img.src = sec.imageUrl;
-          img.className = "diagram-image";
-          img.style.margin = "0 auto 16px";
-          secWrapper.appendChild(img);
+          const diagramEl = renderDiagramImage(sec);
+          diagramEl.style.margin = "0 auto 16px";
+          secWrapper.appendChild(diagramEl);
         }
 
         // Render các field câu hỏi trực tiếp vào wrapper
@@ -328,6 +474,7 @@
             <div class="label" style="margin-bottom:6px;">
               ${escapeHtml(f.label)}
               ${selectCount > 1 ? `<span class="select-hint">(Select up to ${selectCount} answers)</span>` : ""}
+              ${f.hint ? `<span class="field-hint">${escapeHtml(f.hint)}</span>` : ""}
             </div>
             <div style="display:flex; flex-direction:column; gap:4px;">${optionsHtml}</div>
           </div>
@@ -355,7 +502,7 @@
         // Điền ô trống
         row.innerHTML = `
           <span class="num">${f.id}.</span>
-          <span class="label">${escapeHtml(f.label)}${f.pre ? ": " + escapeHtml(f.pre) : ""}</span>
+          <span class="label">${escapeHtml(f.label)}${f.pre ? ": " + escapeHtml(f.pre) : ""}${f.hint ? ` <span class="field-hint">${escapeHtml(f.hint)}</span>` : ""}</span>
           <input type="text" id="ans-${f.id}" autocomplete="off" />
           <span class="tail">${escapeHtml(f.post || "")}</span>
         `;
@@ -417,22 +564,27 @@
 
   function submitTest() {
     const test = currentTest;
-    if (!test) return;
+    const skill = currentSkill;
+    if (!test || !skill) return;
+    const sections = test.skills[skill].sections;
 
     const answers = {};
-    test.sections.forEach((sec) => sec.fields.forEach((f) => (answers[f.id] = getFieldValue(f))));
+    sections.forEach((sec) => sec.fields.forEach((f) => (answers[f.id] = getFieldValue(f))));
 
     const btn = document.getElementById("btnSubmitTest");
     btn.disabled = true;
 
     Api.submit({
+      kind: "test",
       testId: test.id,
+      skill,
       answers,
       replayCount: testReplayCount
     })
       .then((res) => {
         stopCountdown();
-        renderResult(test, answers, res);
+        refreshMySubmissions();
+        renderResult(test, skill, answers, res);
       })
       .catch((err) => {
         alert("Submission failed: " + err.message);
@@ -482,17 +634,19 @@
     return detailById;
   }
 
-  function renderResult(test, answers, res) {
-    const detailById = markRowsInline(test.sections, res.detail);
+  function renderResult(test, skill, answers, res) {
+    const sections = test.skills[skill].sections;
+    const detailById = markRowsInline(sections, res.detail);
 
-    document.getElementById("resultTitle").textContent = `${test.unit} · ${test.title} — ${studentName}`;
+    const tabInfo = SKILL_TABS.find((t) => t.key === skill);
+    document.getElementById("resultTitle").textContent = `${test.unit} · ${test.title} — ${tabInfo.label} — ${studentName}`;
     document.getElementById("scoreValue").textContent = res.score;
     document.getElementById("scoreTotal").textContent = res.total;
 
     const detail = document.getElementById("resultDetail");
     detail.innerHTML = "";
 
-    test.sections.forEach((sec) => {
+    sections.forEach((sec) => {
       const secWrapper = document.createElement("div");
       secWrapper.style.marginBottom = "24px";
 
@@ -551,7 +705,7 @@
       .replace(/>/g, "&gt;");
   }
 
-  document.getElementById("btnRetake").addEventListener("click", () => startTest(currentTest.id));
+  document.getElementById("btnRetake").addEventListener("click", () => startTest(currentTest.id, currentSkill));
 
   // ============================================================
   //  BÀI HỌC (LESSONS — Phase 3)
@@ -816,16 +970,19 @@
             : '<div class="notice info">Submitted — pending teacher review.</div>';
       }
       const work = box.querySelector(".prompt-work");
+      const submitContext = { unitId: currentUnit.id, categoryKey: cat.key };
       if (cat.key === "writing") {
-        wireWritingPrompt(work, p, cat);
+        wireWritingPrompt(work, p, submitContext, () => renderLessonCatContent());
       } else {
-        wireSpeakingPrompt(work, p, cat);
+        wireSpeakingPrompt(work, p, submitContext, () => renderLessonCatContent());
       }
       wrap.appendChild(box);
     });
   }
 
-  function wireWritingPrompt(work, p, cat) {
+  // submitContext: {unitId, categoryKey} khi prompt thuộc Lesson Unit, hoặc
+  // {testId, skill:"writing"} khi thuộc Mock Test — dùng chung 1 form.
+  function wireWritingPrompt(work, p, submitContext, onSubmitted) {
     work.innerHTML = `
       <textarea rows="8" class="essay-input" placeholder="Type your essay here..." style="width:100%;"></textarea>
       <button class="btn btn-essay-submit" style="margin-top:10px;">Submit Essay</button>
@@ -841,8 +998,7 @@
       btn.disabled = true;
       Api.submit({
         kind: "writing",
-        unitId: currentUnit.id,
-        categoryKey: cat.key,
+        ...submitContext,
         promptId: p.id,
         essayText
       })
@@ -851,7 +1007,7 @@
           void res;
           return refreshMySubmissions();
         })
-        .then(() => renderLessonCatContent())
+        .then(() => onSubmitted())
         .catch((err) => alert("Submission failed: " + err.message))
         .finally(() => (btn.disabled = false));
     });
@@ -866,7 +1022,7 @@
     }
   }
 
-  function wireSpeakingPrompt(work, p, cat) {
+  function wireSpeakingPrompt(work, p, submitContext, onSubmitted) {
     work.innerHTML = `
       <button class="btn btn-rec-toggle">${Icon("mic")} Start Recording</button>
       <span class="rec-hint" style="margin-left:10px; color:var(--muted); font-size:.85rem;"></span>
@@ -928,8 +1084,7 @@
         .then(({ audioUrl, audioPublicId }) =>
           Api.submit({
             kind: "speaking",
-            unitId: currentUnit.id,
-            categoryKey: cat.key,
+            ...submitContext,
             promptId: p.id,
             audioUrl,
             audioPublicId
@@ -939,7 +1094,7 @@
           activeRecorder = null;
           return refreshMySubmissions();
         })
-        .then(() => renderLessonCatContent())
+        .then(() => onSubmitted())
         .catch((err) => {
           alert("Submission failed: " + err.message);
           submitBtn.disabled = false;

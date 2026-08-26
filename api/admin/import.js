@@ -1,7 +1,29 @@
 const { formidable } = require("formidable");
 const fs = require("fs");
 const { requireAuth } = require("../../lib/auth");
-const { parseCsv, rowsToSections } = require("../../lib/csvImport");
+const { parseCsv, parseContentCsv, rowsToSections } = require("../../lib/csvImport");
+
+// Đọc + validate 1 file CSV đã upload qua formidable, trả về text nội dung.
+// Dùng chung cho cả file câu hỏi (bắt buộc) và file nội dung (tuỳ chọn).
+function readUploadedCsv(file) {
+  const name = String(file.originalFilename || "").toLowerCase();
+  if (!name.endsWith(".csv") && file.mimetype && !file.mimetype.includes("csv") && !file.mimetype.includes("text")) {
+    fs.unlink(file.filepath, () => {});
+    return { error: "Please upload a .csv file (export your spreadsheet as CSV first)." };
+  }
+  let text;
+  try {
+    text = fs.readFileSync(file.filepath, "utf8");
+  } catch (err) {
+    return { error: "Unable to read the uploaded file" };
+  } finally {
+    fs.unlink(file.filepath, () => {});
+  }
+  if (text.length > 2 * 1024 * 1024) {
+    return { error: "File is too large" };
+  }
+  return { text };
+}
 
 // Chỉ đọc & chuẩn hoá file CSV giáo viên tải lên thành dữ liệu sections/
 // questions đúng shape editor phía client — KHÔNG ghi gì vào DB ở đây.
@@ -30,27 +52,25 @@ async function handler(req, res) {
     return res.status(400).json({ ok: false, error: "Missing file" });
   }
 
-  const name = String(file.originalFilename || "").toLowerCase();
-  if (!name.endsWith(".csv") && file.mimetype && !file.mimetype.includes("csv") && !file.mimetype.includes("text")) {
-    fs.unlink(file.filepath, () => {});
-    return res.status(400).json({ ok: false, error: "Please upload a .csv file (export your spreadsheet as CSV first)." });
+  const questionsResult = readUploadedCsv(file);
+  if (questionsResult.error) {
+    return res.status(400).json({ ok: false, error: questionsResult.error });
   }
 
-  let text;
-  try {
-    text = fs.readFileSync(file.filepath, "utf8");
-  } catch (err) {
-    return res.status(400).json({ ok: false, error: "Unable to read the uploaded file" });
-  } finally {
-    fs.unlink(file.filepath, () => {});
+  // File nội dung (Passage_ID/Track_ID + Tieu_de + Noi_dung) là tuỳ chọn —
+  // dùng để tự điền passageText cho section khi join khớp cột "Section".
+  let contentMap;
+  const contentFile = Array.isArray(files.contentFile) ? files.contentFile[0] : files.contentFile;
+  if (contentFile) {
+    const contentResult = readUploadedCsv(contentFile);
+    if (contentResult.error) {
+      return res.status(400).json({ ok: false, error: "Content file: " + contentResult.error });
+    }
+    contentMap = parseContentCsv(parseCsv(contentResult.text));
   }
 
-  if (text.length > 2 * 1024 * 1024) {
-    return res.status(400).json({ ok: false, error: "File is too large" });
-  }
-
-  const rows = parseCsv(text);
-  const { sections, warnings } = rowsToSections(rows);
+  const rows = parseCsv(questionsResult.text);
+  const { sections, warnings } = rowsToSections(rows, contentMap);
 
   return res.status(200).json({ ok: true, sections, warnings });
 }

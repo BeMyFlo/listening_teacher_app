@@ -6,9 +6,33 @@
   let imagesCache = [];
   let testsCache = [];
   let allSubmissions = [];
-  let builderSections = []; // state for the test being created/edited
+  // Mock Test giờ luôn đủ 4 kỹ năng trong 1 lần soạn — builderSkills là
+  // state cho cả 4 tab cùng lúc, builderActiveSkill chỉ quyết định tab nào
+  // đang hiển thị (không loại trừ nhau như subject cũ).
+  let builderSkills = null;
+  let builderActiveSkill = "listening";
   let editingTestId = null;
-  let builderSubject = "listening"; // 'listening' | 'reading'
+
+  const TEST_SKILL_TABS = [
+    { key: "listening", label: "Listening", icon: "headphones" },
+    { key: "reading", label: "Reading", icon: "book-open" },
+    { key: "writing", label: "Writing", icon: "writing" },
+    { key: "speaking", label: "Speaking", icon: "mic" }
+  ];
+  const TEST_QUESTION_SKILLS = ["listening", "reading"];
+
+  function emptyBuilderSkills() {
+    return {
+      listening: { sections: [], instructions: "", durationMinutes: null },
+      reading: { sections: [], instructions: "", durationMinutes: null },
+      writing: { prompts: [], instructions: "", durationMinutes: null },
+      speaking: { prompts: [], instructions: "", durationMinutes: null }
+    };
+  }
+
+  function skillHasBuilderContent(skill, key) {
+    return TEST_QUESTION_SKILLS.includes(key) ? skill.sections.length > 0 : skill.prompts.length > 0;
+  }
 
   // ---------- Đăng nhập / Đăng xuất ----------
   // Đăng nhập đã chuyển sang trang chủ (/) — ở đây chỉ kiểm tra token có sẵn.
@@ -155,7 +179,7 @@
     if (f.kind === "fill") {
       return String(f.answersText || "").split(/[\n,]/).map((a) => a.trim()).filter(Boolean).join(", ") || "—";
     }
-    if (f.kind === "matching") {
+    if (f.kind === "matching" || f.kind === "labelling") {
       const bank = sec.matchBank || [];
       const item = bank.find((b) => b.id === f.matchingAnswerId);
       return item ? item.text || "(untitled)" : "—";
@@ -265,11 +289,10 @@
     emptyEl.style.display = "none";
     body.innerHTML = rows
       .map((r) => {
-        const test = testsCache.find((t) => t._id === r.testId || t.title === r.testTitle);
-        const subText = test ? (test.subject === "listening" ? "Listening" : "Reading") : "—";
+        const skillLabel = r.testSkill ? r.testSkill[0].toUpperCase() + r.testSkill.slice(1) : "—";
         return `<tr>
           <td><span class="cell-title">${escapeHtml(r.testTitle)}</span></td>
-          <td><span class="pill pill-info">${subText}</span></td>
+          <td><span class="pill pill-info">${escapeHtml(skillLabel)}</span></td>
           <td>${r.submissions}</td>
           <td>${scorePill(r.avgScorePct)}</td>
           <td><button type="button" class="icon-btn" data-goto="submissions" title="View submissions">${Icon("external")}</button></td>
@@ -494,34 +517,121 @@
   }
 
   // ============================================================
-  //  BÀI KIỂM TRA (TEST BUILDER)
+  //  BÀI KIỂM TRA (TEST BUILDER) — 4 kỹ năng soạn chung 1 lần, khoá/mở
+  //  cùng 1 lịch. Listening/Reading dùng lại renderSectionsEditor (câu hỏi
+  //  tự chấm); Writing/Speaking dùng renderPromptsEditor (đề bài, chấm tay).
   // ============================================================
   document.getElementById("btnNewTest").addEventListener("click", () => openBuilder(null));
   document.getElementById("btnCancelBuilder").addEventListener("click", closeBuilder);
-  document.getElementById("btnAddSection").addEventListener("click", () => {
-    builderSections.push(emptySection());
-    renderBuilder();
-  });
-  document.getElementById("btnImportSpreadsheet").addEventListener("click", () => {
-    openSpreadsheetImportModal(builderSections, renderBuilder);
-  });
   document.getElementById("btnSaveDraft").addEventListener("click", () => saveTest("draft"));
   document.getElementById("btnPublish").addEventListener("click", () => saveTest("published"));
   document.getElementById("btnPreviewTest").addEventListener("click", () => {
     const title = document.getElementById("tbTitle").value.trim() || "(untitled test)";
-    showModal(title, previewSectionsHtml(builderSections));
+    showModal(title, previewTestSkillsHtml(builderSkills));
   });
 
-  // Subject selector inside builder
-  const subjectToggleButtons = document.querySelectorAll("#builderSubjectToggle button");
-  subjectToggleButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      subjectToggleButtons.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      builderSubject = btn.dataset.subject;
-      renderBuilder();
+  function previewTestSkillsHtml(skills) {
+    return TEST_SKILL_TABS.map((tab) => {
+      const skill = skills[tab.key];
+      const body = TEST_QUESTION_SKILLS.includes(tab.key)
+        ? previewSectionsHtml(skill.sections)
+        : (skill.prompts.length
+          ? skill.prompts.map((p) => `<div class="preview-q">
+              <div class="pq-label">${escapeHtml(p.title) || "<em>(untitled prompt)</em>"}</div>
+              <div class="pq-meta" style="white-space:pre-line; color:var(--ink);">${escapeHtml(p.instructions)}</div>
+            </div>`).join("")
+          : '<div class="empty-state">No prompts yet.</div>');
+      return `<div class="preview-section-title">${tab.label}</div>${body}`;
+    }).join("");
+  }
+
+  function renderSkillTabs() {
+    const wrap = document.getElementById("tbSkillTabs");
+    wrap.innerHTML = TEST_SKILL_TABS.map((tab) => {
+      const has = skillHasBuilderContent(builderSkills[tab.key], tab.key);
+      return `<button type="button" class="${tab.key === builderActiveSkill ? "active" : ""}" data-skill="${tab.key}">
+        ${Icon(tab.icon)} ${tab.label}${has ? ` <span class="cat-done">${Icon("check")}</span>` : ""}
+      </button>`;
+    }).join("");
+    wrap.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        builderActiveSkill = btn.dataset.skill;
+        renderBuilder();
+      });
     });
-  });
+  }
+
+  function renderSkillPanel() {
+    const wrap = document.getElementById("tbSkillPanels");
+    wrap.innerHTML = "";
+    const key = builderActiveSkill;
+    const skill = builderSkills[key];
+    const tabInfo = TEST_SKILL_TABS.find((t) => t.key === key);
+
+    const head = document.createElement("div");
+    head.className = "builder-2col";
+    head.innerHTML = `
+      <div class="form-row" style="margin-bottom:0;">
+        <label>${tabInfo.label} instructions</label>
+        <input type="text" class="skill-instructions" value="${escapeHtml(skill.instructions)}" placeholder="e.g. Listen to the conversation and fill in the blanks..." />
+      </div>
+      <div class="form-row" style="margin-bottom:0;">
+        <label>Time limit for this skill (minutes)</label>
+        <input type="number" class="skill-duration" min="1" step="1" value="${skill.durationMinutes || ""}" placeholder="Unlimited" />
+      </div>
+    `;
+    head.querySelector(".skill-instructions").addEventListener("input", (e) => (skill.instructions = e.target.value));
+    head.querySelector(".skill-duration").addEventListener("input", (e) => (skill.durationMinutes = e.target.value ? Number(e.target.value) : null));
+    wrap.appendChild(head);
+
+    if (TEST_QUESTION_SKILLS.includes(key)) {
+      const toolbar = document.createElement("div");
+      toolbar.style.cssText = "display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:22px;";
+      toolbar.innerHTML = `<h4 style="margin:0;">Sections</h4><button type="button" class="btn secondary btn-skill-import" style="padding:8px 14px; font-size:.85rem;">${Icon("upload")} Import from spreadsheet</button>`;
+      wrap.appendChild(toolbar);
+
+      const sectionsWrap = document.createElement("div");
+      wrap.appendChild(sectionsWrap);
+      const rerenderSections = () => {
+        renderSectionsEditor(sectionsWrap, skill.sections, key);
+        renderSkillTabs();
+      };
+      rerenderSections();
+
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "dashed-add-btn";
+      addBtn.style.marginTop = "8px";
+      addBtn.innerHTML = Icon("plus") + " Add Section";
+      addBtn.addEventListener("click", () => {
+        skill.sections.push(emptySection());
+        rerenderSections();
+      });
+      wrap.appendChild(addBtn);
+
+      toolbar.querySelector(".btn-skill-import").addEventListener("click", () => {
+        openSpreadsheetImportModal(skill.sections, rerenderSections);
+      });
+    } else {
+      const heading = document.createElement("h4");
+      heading.style.marginTop = "22px";
+      heading.textContent = "Prompts";
+      wrap.appendChild(heading);
+
+      const promptsWrap = document.createElement("div");
+      wrap.appendChild(promptsWrap);
+      const rerenderPrompts = () => {
+        renderPromptsEditor(promptsWrap, skill.prompts, rerenderPrompts);
+        renderSkillTabs();
+      };
+      rerenderPrompts();
+    }
+  }
+
+  function renderBuilder() {
+    renderSkillTabs();
+    renderSkillPanel();
+  }
 
   function loadTestsList() {
     const statusEl = document.getElementById("testsListStatus");
@@ -550,20 +660,24 @@
     }
     listEl.innerHTML = "";
     testsCache.forEach((t) => {
-      const totalQuestions = (t.sections || []).reduce((n, s) => n + (s.fields || []).length, 0);
+      const skills = t.skills || {};
+      const skillLabels = TEST_SKILL_TABS
+        .filter((tab) => {
+          const s = skills[tab.key] || {};
+          return TEST_QUESTION_SKILLS.includes(tab.key) ? (s.sections || []).length > 0 : (s.prompts || []).length > 0;
+        })
+        .map((tab) => tab.label);
       const scheduleBits = [];
       if (t.opensAt) scheduleBits.push("Opens: " + new Date(t.opensAt).toLocaleString("en-US"));
       if (t.closesAt) scheduleBits.push("Closes: " + new Date(t.closesAt).toLocaleString("en-US"));
-      if (t.durationMinutes) scheduleBits.push(t.durationMinutes + " min");
       const row = document.createElement("div");
       row.className = "test-item";
-      const subLabel = t.subject === "reading" ? "Reading" : "Listening";
       row.innerHTML = `
         <div class="meta">
           <h4>${escapeHtml(t.unit ? t.unit + " · " : "") + escapeHtml(t.title)}
             <span class="status-pill ${t.status}">${t.status === "published" ? "Published" : "Draft"}</span>
           </h4>
-          <p>${subLabel} · Level ${t.level != null ? t.level : "-"} · ${(t.sections || []).length} sections · ${totalQuestions} questions${scheduleBits.length ? " · " + scheduleBits.join(" · ") : ""}</p>
+          <p>Level ${t.level != null ? t.level : "-"} · Skills: ${skillLabels.length ? escapeHtml(skillLabels.join(", ")) : "none yet"}${scheduleBits.length ? " · " + scheduleBits.join(" · ") : ""}</p>
         </div>
         <div class="actions">
           <button class="icon-btn" title="Edit"><svg class="icon"><use href="#icon-edit"></use></svg></button>
@@ -584,6 +698,30 @@
       .catch((err) => alert("Failed to delete: " + err.message));
   }
 
+  // Chuyển 1 khối skill từ API (raw, có thể thiếu nếu test cũ mới migrate)
+  // sang dạng editor.
+  function promptSkillToEditor(raw) {
+    raw = raw || {};
+    return {
+      prompts: (raw.prompts || []).map((p) => ({
+        _id: p._id,
+        title: p.title || "",
+        instructions: p.instructions || "",
+        imageId: p.imageId && (p.imageId._id || p.imageId)
+      })),
+      instructions: raw.instructions || "",
+      durationMinutes: raw.durationMinutes || null
+    };
+  }
+  function questionSkillToEditor(raw) {
+    raw = raw || {};
+    return {
+      sections: sectionsToEditor(raw.sections),
+      instructions: raw.instructions || "",
+      durationMinutes: raw.durationMinutes || null
+    };
+  }
+
   function openBuilder(testId) {
     editingTestId = testId;
     document.getElementById("testBuilder").style.display = "block";
@@ -594,16 +732,10 @@
       document.getElementById("tbTitle").value = "";
       document.getElementById("tbUnit").value = "";
       document.getElementById("tbLevel").value = 1;
-      document.getElementById("tbInstructions").value = "";
       document.getElementById("tbOpensAt").value = "";
       document.getElementById("tbClosesAt").value = "";
-      document.getElementById("tbDuration").value = "";
-      subjectToggleButtons.forEach((b) => {
-        if (b.dataset.subject === "listening") b.classList.add("active");
-        else b.classList.remove("active");
-      });
-      builderSubject = "listening";
-      builderSections = [];
+      builderSkills = emptyBuilderSkills();
+      builderActiveSkill = "listening";
       renderBuilder();
       document.getElementById("testBuilder").scrollIntoView({ behavior: "smooth" });
       return;
@@ -616,18 +748,17 @@
         document.getElementById("tbTitle").value = t.title || "";
         document.getElementById("tbUnit").value = t.unit || "";
         document.getElementById("tbLevel").value = t.level || 1;
-        document.getElementById("tbInstructions").value = t.instructions || "";
         document.getElementById("tbOpensAt").value = toDatetimeLocalValue(t.opensAt);
         document.getElementById("tbClosesAt").value = toDatetimeLocalValue(t.closesAt);
-        document.getElementById("tbDuration").value = t.durationMinutes || "";
-        
-        builderSubject = t.subject || "listening";
-        subjectToggleButtons.forEach((b) => {
-          if (b.dataset.subject === builderSubject) b.classList.add("active");
-          else b.classList.remove("active");
-        });
 
-        builderSections = sectionsToEditor(t.sections);
+        const ts = t.skills || {};
+        builderSkills = {
+          listening: questionSkillToEditor(ts.listening),
+          reading: questionSkillToEditor(ts.reading),
+          writing: promptSkillToEditor(ts.writing),
+          speaking: promptSkillToEditor(ts.speaking)
+        };
+        builderActiveSkill = "listening";
         renderBuilder();
         document.getElementById("testBuilder").scrollIntoView({ behavior: "smooth" });
       })
@@ -652,10 +783,6 @@
     const ids = sectionsArr.flatMap((s) => s.fields.map((f) => Number(f.id) || 0));
     return ids.length ? Math.max(...ids) + 1 : 1;
   }
-  function nextFieldId() {
-    return nextFieldIdFor(builderSections);
-  }
-
   let optionIdSeq = 0;
   function newOptionId() {
     optionIdSeq += 1;
@@ -670,8 +797,9 @@
   // giáo viên không bao giờ phải gõ cú pháp value|label thủ công.
   function emptyField(id) {
     return {
-      id, label: "", kind: "fill", pre: "", post: "", score: 1,
-      answersText: "", options: [], correctOptionIds: [], matchingAnswerId: "", selectCount: 1
+      id, label: "", kind: "fill", pre: "", post: "", hint: "", score: 1,
+      answersText: "", options: [], correctOptionIds: [], matchingAnswerId: "", selectCount: 1,
+      pinX: null, pinY: null
     };
   }
 
@@ -681,6 +809,20 @@
       { id: "false", text: "False" },
       { id: "ng", text: "Not Given" }
     ];
+  }
+
+  function ynngOptions() {
+    return [
+      { id: "yes", text: "Yes" },
+      { id: "no", text: "No" },
+      { id: "ng", text: "Not Given" }
+    ];
+  }
+
+  // true nếu options hiện tại đúng là bộ id của tfng hoặc ynng — dùng để
+  // tránh ghi đè mất dữ liệu khi giáo viên đổi kind đi rồi đổi lại.
+  function isFixedChoiceShape(options, ids) {
+    return options.length === 3 && options.every((o) => ids.includes(o.id));
   }
 
   function renderAudioSelectOptions(root) {
@@ -840,9 +982,6 @@
     });
   }
 
-  function renderBuilder() {
-    renderSectionsEditor(document.getElementById("tbSections"), builderSections, builderSubject);
-  }
 
   // Kho đáp án dùng chung cho câu hỏi dạng "Matching" trong 1 section —
   // giáo viên chỉ gõ nội dung từng đáp án, không cần đặt mã/value.
@@ -881,7 +1020,9 @@
     fill: "Fill in the blank",
     mcq: "Multiple choice",
     tfng: "True / False / Not Given",
-    matching: "Matching (section answer bank)"
+    ynng: "Yes / No / Not Given",
+    matching: "Matching (section answer bank)",
+    labelling: "Diagram/Map Labelling"
   };
 
   function renderFieldRow(sec, f, fIdx, rerender) {
@@ -901,20 +1042,29 @@
         <input type="text" class="f-id" value="${escapeHtml(String(f.id))}" title="Order / Question No." />
         <button type="button" class="icon-btn danger f-remove" title="Delete question"><svg class="icon"><use href="#icon-trash"></use></svg></button>
       </div>
+      <div class="question-hint-row">
+        <input type="text" class="f-hint" value="${escapeHtml(f.hint || "")}" placeholder="Hint / instruction (optional), e.g. NO MORE THAN TWO WORDS" />
+      </div>
       <div class="question-detail"></div>
     `;
 
     row.querySelector(".f-id").addEventListener("input", (e) => (f.id = e.target.value));
     row.querySelector(".f-label").addEventListener("input", (e) => (f.label = e.target.value));
     row.querySelector(".f-score").addEventListener("input", (e) => (f.score = Number(e.target.value) || 1));
+    row.querySelector(".f-hint").addEventListener("input", (e) => (f.hint = e.target.value));
     row.querySelector(".f-kind").addEventListener("change", (e) => {
-      const isTfngShape = f.options.length === 3 && f.options.every((o) => ["true", "false", "ng"].includes(o.id));
+      const isTfngShape = isFixedChoiceShape(f.options, ["true", "false", "ng"]);
+      const isYnngShape = isFixedChoiceShape(f.options, ["yes", "no", "ng"]);
       f.kind = e.target.value;
       if (f.kind === "tfng" && !isTfngShape) {
         f.options = tfngOptions();
         f.correctOptionIds = [];
       }
-      if (f.kind === "mcq" && (!f.options.length || isTfngShape)) {
+      if (f.kind === "ynng" && !isYnngShape) {
+        f.options = ynngOptions();
+        f.correctOptionIds = [];
+      }
+      if (f.kind === "mcq" && (!f.options.length || isTfngShape || isYnngShape)) {
         f.options = [];
         f.correctOptionIds = [];
       }
@@ -928,6 +1078,29 @@
     renderQuestionDetail(row.querySelector(".question-detail"), sec, f, rerender);
 
     return row;
+  }
+
+  // Dùng chung cho tfng và ynng — chỉ khác bộ 3 lựa chọn cố định truyền vào.
+  function renderFixedChoiceDetail(el, f, fixedOptions) {
+    if (!isFixedChoiceShape(f.options, fixedOptions.map((o) => o.id))) f.options = fixedOptions;
+    el.innerHTML = `<div class="question-detail-inner"></div>`;
+    const inner = el.querySelector(".question-detail-inner");
+    f.options.forEach((o) => {
+      const row = document.createElement("div");
+      row.className = "option-row";
+      row.innerHTML = `
+        <input type="radio" name="fixedchoice-${f.id}" ${f.correctOptionIds[0] === o.id ? "checked" : ""} />
+        <span class="tfng-label">${escapeHtml(o.text)}</span>
+      `;
+      row.querySelector("input").addEventListener("change", () => {
+        f.correctOptionIds = [o.id];
+      });
+      inner.appendChild(row);
+    });
+    const hint = document.createElement("div");
+    hint.className = "kind-hint" + (f.correctOptionIds.length ? " ok" : " warn");
+    hint.textContent = f.correctOptionIds.length ? "Correct answer selected." : "Pick the correct answer above.";
+    el.appendChild(hint);
   }
 
   // Phần chi tiết bên dưới mỗi câu hỏi — nội dung khác nhau tuỳ "kind",
@@ -951,26 +1124,8 @@
       return;
     }
 
-    if (f.kind === "tfng") {
-      if (f.options.length !== 3) f.options = tfngOptions();
-      el.innerHTML = `<div class="question-detail-inner"></div>`;
-      const inner = el.querySelector(".question-detail-inner");
-      f.options.forEach((o) => {
-        const row = document.createElement("div");
-        row.className = "option-row";
-        row.innerHTML = `
-          <input type="radio" name="tfng-${f.id}" ${f.correctOptionIds[0] === o.id ? "checked" : ""} />
-          <span class="tfng-label">${escapeHtml(o.text)}</span>
-        `;
-        row.querySelector("input").addEventListener("change", () => {
-          f.correctOptionIds = [o.id];
-        });
-        inner.appendChild(row);
-      });
-      const hint = document.createElement("div");
-      hint.className = "kind-hint" + (f.correctOptionIds.length ? " ok" : " warn");
-      hint.textContent = f.correctOptionIds.length ? "Correct answer selected." : "Pick the correct answer above.";
-      el.appendChild(hint);
+    if (f.kind === "tfng" || f.kind === "ynng") {
+      renderFixedChoiceDetail(el, f, f.kind === "tfng" ? tfngOptions() : ynngOptions());
       return;
     }
 
@@ -1029,22 +1184,70 @@
       return;
     }
 
-    // matching
+    // matching / labelling — cùng cách chọn đáp án đúng từ answer bank của
+    // section, labelling chỉ có thêm widget đặt pin lên ảnh sơ đồ bên dưới.
     const bank = sec.matchBank || [];
     if (!bank.length) {
       el.innerHTML = `<div class="kind-hint warn">This section has no shared answer bank yet — add answers above first, then come back here to pick one.</div>`;
+    } else {
+      el.innerHTML = `
+        <div class="f-group">
+          <label>Correct answer</label>
+          <select class="f-matching-answer" style="min-width:240px;">
+            <option value="">— Select the correct answer —</option>
+            ${bank.map((b) => `<option value="${escapeHtml(b.id)}" ${f.matchingAnswerId === b.id ? "selected" : ""}>${escapeHtml(b.text) || "(untitled)"}</option>`).join("")}
+          </select>
+        </div>
+      `;
+      el.querySelector(".f-matching-answer").addEventListener("change", (e) => (f.matchingAnswerId = e.target.value));
+    }
+    if (f.kind === "labelling") {
+      const pinWrap = document.createElement("div");
+      pinWrap.className = "label-pin-wrap";
+      el.appendChild(pinWrap);
+      renderLabelPointPicker(pinWrap, sec, f, rerender);
+    }
+  }
+
+  // Widget đặt pin lên ảnh sơ đồ cho câu hỏi dạng labelling — click vào
+  // ảnh để đặt vị trí pin (lưu dạng % để không phụ thuộc độ phân giải).
+  function renderLabelPointPicker(container, sec, f, rerender) {
+    const img = sec.imageId ? imagesCache.find((i) => i._id === sec.imageId) : null;
+    if (!img) {
+      container.innerHTML = `<div class="kind-hint warn">Add a diagram/map image to this section first (see "Illustration" above).</div>`;
       return;
     }
-    el.innerHTML = `
+    container.innerHTML = `
       <div class="f-group">
-        <label>Correct answer</label>
-        <select class="f-matching-answer" style="min-width:240px;">
-          <option value="">— Select the correct answer —</option>
-          ${bank.map((b) => `<option value="${escapeHtml(b.id)}" ${f.matchingAnswerId === b.id ? "selected" : ""}>${escapeHtml(b.text) || "(untitled)"}</option>`).join("")}
-        </select>
+        <label>Pin position — click on the image where this question's numbered label should sit</label>
+        <div class="label-pin-imgwrap"><img src="${img.cloudinaryUrl}" draggable="false" /></div>
       </div>
     `;
-    el.querySelector(".f-matching-answer").addEventListener("change", (e) => (f.matchingAnswerId = e.target.value));
+    const wrap = container.querySelector(".label-pin-imgwrap");
+    const imgEl = wrap.querySelector("img");
+
+    function drawMarkers() {
+      wrap.querySelectorAll(".pin-marker").forEach((m) => m.remove());
+      (sec.fields || []).forEach((other) => {
+        if (other.kind !== "labelling" || other.pinX == null || other.pinY == null) return;
+        const marker = document.createElement("span");
+        marker.className = "pin-marker" + (other.id === f.id ? " current" : "");
+        marker.style.left = other.pinX + "%";
+        marker.style.top = other.pinY + "%";
+        marker.textContent = other.id;
+        wrap.appendChild(marker);
+      });
+    }
+
+    wrap.addEventListener("click", (e) => {
+      const rect = imgEl.getBoundingClientRect();
+      f.pinX = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+      f.pinY = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
+      drawMarkers();
+    });
+
+    if (imgEl.complete) drawMarkers();
+    else imgEl.addEventListener("load", drawMarkers);
   }
 
   // Nhập nhanh nhiều câu hỏi dạng "fill in the blank" cùng lúc: mỗi dòng
@@ -1075,7 +1278,7 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
     });
   }
 
-  const QUESTION_KIND_BADGE = { fill: "Fill", mcq: "MCQ", tfng: "TFNG", matching: "Matching" };
+  const QUESTION_KIND_BADGE = { fill: "Fill", mcq: "MCQ", tfng: "TFNG", ynng: "YNNG", matching: "Matching", labelling: "Labelling" };
 
   // Import hàng loạt section + câu hỏi từ file CSV giáo viên tải lên. Chỉ
   // parse & xem trước ở đây (gọi api/admin/import, KHÔNG ghi DB) — sau khi
@@ -1086,16 +1289,22 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
     showModal("Import from spreadsheet (CSV)", `
       <p style="color:var(--muted); font-size:.86rem; margin-top:0;">
         Upload a CSV file to create several sections and questions at once. Each row is one question.
-        Columns: <code>Section, Question, Type, Option 1-5, Correct Answer, Score</code>.
-        <b>Type</b> is one of <code>Fill</code>, <code>MCQ</code>, <code>TFNG</code>, <code>Matching</code> — see the sample for exact examples of each.
+        Columns: <code>Section, Question, Type, Option 1-8, Correct Answer, Score</code>.
+        <b>Type</b> is one of <code>Fill</code>, <code>MCQ</code>, <code>TFNG</code>, <code>YNNG</code>, <code>Matching</code>, <code>Labelling</code> — see the sample for exact examples of each.
       </p>
       <p style="color:var(--muted); font-size:.86rem;">
-        This only imports questions — for a <b>Listening</b> or <b>Reading</b> mock test, remember to still pick an audio track / paste the passage text on each imported section afterwards (required before you can publish).
+        This only imports questions — for a <b>Listening</b> or <b>Reading</b> mock test, remember to still pick an audio track / paste the passage text on each imported section afterwards (required before you can publish),
+        unless you also attach a content file below.
       </p>
       <a href="assets/templates/question-import-template.csv" download class="btn secondary" style="display:inline-flex;"><svg class="icon"><use href="#icon-upload"></use></svg> Download sample template</a>
       <div class="form-row" style="margin-top:16px; margin-bottom:0;">
-        <label>CSV file</label>
+        <label>CSV file (questions)</label>
         <input type="file" id="importCsvFile" accept=".csv,text/csv" />
+      </div>
+      <div class="form-row" style="margin-top:12px; margin-bottom:0;">
+        <label>Content file (optional) — passage text / track info</label>
+        <input type="file" id="importContentCsvFile" accept=".csv,text/csv" />
+        <span style="color:var(--muted); font-size:.8rem;">Columns: <code>Passage_ID/Track_ID, Tieu_de, Noi_dung</code> (Reading) — join by matching the <b>Section</b> column above to this file's ID column.</span>
       </div>
       <div id="importCsvStatus" class="notice error" style="display:none; margin-top:14px;"></div>
       <div style="margin-top:16px; text-align:right;">
@@ -1105,8 +1314,10 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
 
     document.getElementById("btnImportCsvUpload").addEventListener("click", async () => {
       const fileInput = document.getElementById("importCsvFile");
+      const contentFileInput = document.getElementById("importContentCsvFile");
       const statusEl = document.getElementById("importCsvStatus");
       const file = fileInput.files[0];
+      const contentFile = contentFileInput.files[0];
       statusEl.style.display = "none";
       if (!file) {
         statusEl.textContent = "Please choose a CSV file first.";
@@ -1119,8 +1330,9 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
       try {
         const fd = new FormData();
         fd.append("file", file);
+        if (contentFile) fd.append("contentFile", contentFile);
         const data = await Api.admin.importQuestions(fd);
-        renderImportReview(data.sections || [], data.warnings || [], sectionsArr, rerender);
+        renderImportReview(data.sections || [], data.warnings || [], sectionsArr, rerender, !!contentFile);
       } catch (err) {
         statusEl.textContent = err.message;
         statusEl.style.display = "block";
@@ -1130,17 +1342,24 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
     });
   }
 
-  function renderImportReview(sections, warnings, sectionsArr, rerender) {
+  function renderImportReview(sections, warnings, sectionsArr, rerender, contentFileUsed) {
     const totalQuestions = sections.reduce((n, s) => n + s.fields.length, 0);
     const warnHtml = warnings.length
       ? `<div class="notice error" style="margin-top:0;"><b>${warnings.length} warning(s):</b><br>${warnings.map((w) => escapeHtml(w)).join("<br>")}</div>`
       : "";
     const listHtml = sections
-      .map((s) => `<div class="preview-section-title">${escapeHtml(s.name)}</div>` +
+      .map((s) => {
+        const passageBadge = contentFileUsed
+          ? (s.passageText
+            ? '<span class="pill pill-ok">Passage text auto-filled</span>'
+            : '<span class="pill pill-warn">Attach manually</span>')
+          : "";
+        return `<div class="preview-section-title">${escapeHtml(s.name)} ${passageBadge}</div>` +
         s.fields.map((f) => `<div class="preview-q">
           <div class="pq-label">${escapeHtml(f.label)}</div>
           <div class="pq-meta"><span class="pill pill-info">${QUESTION_KIND_BADGE[f.kind] || f.kind}</span><span>Score: ${f.score}</span></div>
-        </div>`).join(""))
+        </div>`).join("");
+      })
       .join("");
 
     const modalBody = document.querySelector(".modal-body");
@@ -1165,7 +1384,7 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
         const matchBank = (s.matchBankTexts || []).map((text) => ({ id: newOptionId(), text }));
         const fields = s.fields.map((f) => {
           const field = { ...f, id: nextId++ };
-          if (f.kind === "matching") {
+          if (f.kind === "matching" || f.kind === "labelling") {
             const bankEntry = matchBank.find((b) => b.text.toLowerCase() === (f.matchingBankText || "").toLowerCase());
             field.matchingAnswerId = bankEntry ? bankEntry.id : "";
           }
@@ -1174,6 +1393,7 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
         });
         const sec = emptySection();
         sec.name = s.name;
+        sec.passageText = s.passageText || "";
         sec.matchBank = matchBank;
         sec.fields = fields;
         sectionsArr.push(sec);
@@ -1189,6 +1409,7 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
     const base = {
       id: Number(f.id),
       label: f.label,
+      hint: f.hint || "",
       score: Math.max(1, Number(f.score) || 1)
     };
     if (f.kind === "fill") {
@@ -1205,7 +1426,7 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
           .filter(Boolean)
       };
     }
-    if (f.kind === "matching") {
+    if (f.kind === "matching" || f.kind === "labelling") {
       return {
         ...base,
         type: "choice",
@@ -1231,30 +1452,41 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
   }
 
   // Chuyển 1 field từ API về dạng editor — tự suy luận kind từ shape dữ
-  // liệu (0 options -> matching; đúng 3 options true/false/ng -> tfng;
-  // ngược lại -> mcq) để tương thích ngược với dữ liệu đã lưu trước đây.
-  function fieldFromServer(f) {
+  // liệu (0 options -> matching/labelling tuỳ labelPoints; đúng 3 options
+  // true/false/ng hoặc yes/no/ng -> tfng/ynng; ngược lại -> mcq) để tương
+  // thích ngược với dữ liệu đã lưu trước đây. `s` (section) cần để tra
+  // labelPoints — labelPoints nằm ở section, không phải ở field.
+  function fieldFromServer(f, s) {
     const type = f.type || "fill";
     const score = f.score || 1;
     if (type === "fill") {
       return {
-        id: f.id, label: f.label || "", kind: "fill", pre: f.pre || "", post: f.post || "", score,
-        answersText: (f.answers || []).join("\n"), options: [], correctOptionIds: [], matchingAnswerId: "", selectCount: 1
+        id: f.id, label: f.label || "", kind: "fill", pre: f.pre || "", post: f.post || "", hint: f.hint || "", score,
+        answersText: (f.answers || []).join("\n"), options: [], correctOptionIds: [], matchingAnswerId: "", selectCount: 1,
+        pinX: null, pinY: null
       };
     }
     const opts = f.options || [];
     if (opts.length === 0) {
+      // Phân biệt matching / labelling bằng tra cứu chính xác theo fieldId
+      // trong labelPoints của section — không đoán theo shape vì cả hai
+      // đều lưu cùng dạng {type:"choice", options:[]}.
+      const labelPoint = (s && s.labelPoints || []).find((lp) => String(lp.fieldId) === String(f.id));
       return {
-        id: f.id, label: f.label || "", kind: "matching", pre: "", post: "", score,
-        answersText: "", options: [], correctOptionIds: [], matchingAnswerId: (f.answers || [])[0] || "", selectCount: f.selectCount || 1
+        id: f.id, label: f.label || "", kind: labelPoint ? "labelling" : "matching", pre: "", post: "", hint: f.hint || "", score,
+        answersText: "", options: [], correctOptionIds: [], matchingAnswerId: (f.answers || [])[0] || "", selectCount: f.selectCount || 1,
+        pinX: labelPoint ? labelPoint.x : null, pinY: labelPoint ? labelPoint.y : null
       };
     }
     const valueSet = opts.map((o) => String(o.value || "").toLowerCase()).sort().join(",");
     const isTFNG = opts.length === 3 && valueSet === "false,ng,true";
+    const isYNNG = opts.length === 3 && valueSet === "ng,no,yes";
+    const kind = isTFNG ? "tfng" : isYNNG ? "ynng" : "mcq";
     return {
-      id: f.id, label: f.label || "", kind: isTFNG ? "tfng" : "mcq", pre: "", post: "", score,
+      id: f.id, label: f.label || "", kind, pre: "", post: "", hint: f.hint || "", score,
       answersText: "", options: opts.map((o) => ({ id: o.value, text: o.label })), correctOptionIds: f.answers || [],
-      matchingAnswerId: "", selectCount: f.selectCount || 1
+      matchingAnswerId: "", selectCount: f.selectCount || 1,
+      pinX: null, pinY: null
     };
   }
 
@@ -1267,6 +1499,11 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
       passageText: subject === "reading" ? sec.passageText : "",
       imageId: sec.imageId || null,
       matchOptions: (sec.matchBank || []).filter((b) => b.text.trim()).map((b) => ({ value: b.id, label: b.text.trim() })),
+      // Rebuild fresh từ field list hiện tại mỗi lần lưu — xoá câu hỏi
+      // labelling thì pin của nó tự động biến mất theo, không cần dọn riêng.
+      labelPoints: (sec.fields || [])
+        .filter((f) => f.kind === "labelling" && f.pinX != null && f.pinY != null)
+        .map((f) => ({ fieldId: Number(f.id), x: f.pinX, y: f.pinY })),
       fields: sec.fields.map(fieldToServer)
     }));
   }
@@ -1279,12 +1516,29 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
       passageText: s.passageText || "",
       imageId: s.imageId && (s.imageId._id || s.imageId),
       matchBank: (s.matchOptions || []).map((o) => ({ id: o.value, text: o.label })),
-      fields: (s.fields || []).map(fieldFromServer)
+      fields: (s.fields || []).map((f) => fieldFromServer(f, s))
     }));
   }
 
-  function buildSectionsPayload() {
-    return sectionsPayloadFrom(builderSections, builderSubject);
+  function buildTestSkillsPayload() {
+    const out = {};
+    TEST_QUESTION_SKILLS.forEach((key) => {
+      const skill = builderSkills[key];
+      out[key] = {
+        durationMinutes: skill.durationMinutes || null,
+        instructions: skill.instructions || "",
+        sections: sectionsPayloadFrom(skill.sections, key)
+      };
+    });
+    ["writing", "speaking"].forEach((key) => {
+      const skill = builderSkills[key];
+      out[key] = {
+        durationMinutes: skill.durationMinutes || null,
+        instructions: skill.instructions || "",
+        prompts: skill.prompts.map((p) => ({ _id: p._id, title: p.title, instructions: p.instructions, imageId: p.imageId || null }))
+      };
+    });
+    return out;
   }
 
   function saveTest(status) {
@@ -1292,15 +1546,12 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
     statusEl.style.display = "none";
 
     const payload = {
-      subject: builderSubject,
       title: document.getElementById("tbTitle").value.trim(),
       unit: document.getElementById("tbUnit").value.trim(),
       level: Number(document.getElementById("tbLevel").value) || 1,
-      instructions: document.getElementById("tbInstructions").value.trim(),
       opensAt: document.getElementById("tbOpensAt").value ? new Date(document.getElementById("tbOpensAt").value).toISOString() : null,
       closesAt: document.getElementById("tbClosesAt").value ? new Date(document.getElementById("tbClosesAt").value).toISOString() : null,
-      durationMinutes: document.getElementById("tbDuration").value ? Number(document.getElementById("tbDuration").value) : null,
-      sections: buildSectionsPayload()
+      skills: buildTestSkillsPayload()
     };
 
     if (!payload.title) {
@@ -1390,8 +1641,9 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
     }
     if (sub) {
       filtered = filtered.filter((r) => {
-        const test = testsCache.find((t) => t._id === r.testId || t.title === r.testTitle);
-        return test && test.subject === sub;
+        if (r.testSkill) return r.testSkill === sub;
+        if (r.categoryKey) return r.categoryKey === sub;
+        return false;
       });
     }
     return filtered;
@@ -1425,7 +1677,9 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
       const title =
         kind === "test" ? (r.testTitle || "")
         : kind === "exercise" ? (r.exerciseTitle || "")
-        : (r.categoryKey === "writing" ? "Writing Prompt" : "Speaking Prompt");
+        // writing/speaking từ Mock Test có testTitle; từ Lesson Unit thì không.
+        : r.testTitle ? `${r.testTitle} — ${kind === "writing" ? "Writing" : "Speaking"} Prompt`
+        : (kind === "writing" ? "Writing Prompt" : "Speaking Prompt");
       let scoreHtml;
       if (kind === "writing" || kind === "speaking") {
         scoreHtml = r.gradingStatus === "graded"
@@ -2003,9 +2257,12 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
     content.appendChild(addBtn);
   }
 
-  function renderPromptsTab(content, cat) {
-    const rerender = () => renderUnitCatContent();
-    cat.prompts.forEach((p, pIdx) => {
+  // Trình soạn "prompts" (Writing/Speaking — đề bài, chấm tay) dùng chung
+  // cho cả Lesson Unit và Mock Test 4-kỹ-năng: chỉ thao tác trên 1 mảng
+  // prompts + 1 hàm rerender do nơi gọi cung cấp, không biết gì về context.
+  function renderPromptsEditor(container, promptsArr, rerender) {
+    container.innerHTML = "";
+    promptsArr.forEach((p, pIdx) => {
       const box = document.createElement("div");
       box.className = "builder-section";
       box.innerHTML = `
@@ -2027,10 +2284,10 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
       box.querySelector(".section-image-select").addEventListener("change", (e) => (p.imageId = e.target.value));
       box.querySelector(".danger").addEventListener("click", () => {
         if (!confirm("Delete this prompt?")) return;
-        cat.prompts.splice(pIdx, 1);
+        promptsArr.splice(pIdx, 1);
         rerender();
       });
-      content.appendChild(box);
+      container.appendChild(box);
       renderImageSelectOptions(box);
       if (p.imageId) box.querySelector(".section-image-select").value = p.imageId;
     });
@@ -2041,10 +2298,14 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
     addBtn.style.marginTop = "10px";
     addBtn.innerHTML = '<svg class="icon"><use href="#icon-plus"></use></svg> Add Prompt';
     addBtn.addEventListener("click", () => {
-      cat.prompts.push({ title: "", instructions: "", imageId: "" });
+      promptsArr.push({ title: "", instructions: "", imageId: "" });
       rerender();
     });
-    content.appendChild(addBtn);
+    container.appendChild(addBtn);
+  }
+
+  function renderPromptsTab(content, cat) {
+    renderPromptsEditor(content, cat.prompts, () => renderUnitCatContent());
   }
 
   function saveUnit(forceStatus) {

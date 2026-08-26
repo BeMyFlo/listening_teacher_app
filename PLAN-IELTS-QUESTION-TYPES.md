@@ -85,27 +85,45 @@ This works identically for Mock Tests and Unit exercises — the "Illustration" 
 
 ## Phase 4 — Dual-CSV import pipeline (content + questions)
 
-### Content CSV templates (new)
-- Reading: `Passage_ID, Title, Passage Text` (paragraphs marked `[A][B][C]...` for Matching Headings/Information, matching the sheet's convention).
-- Listening: `Track_ID, Title` only. **Drop the Transcript/Audio-Link columns from V1** — transcript is explicitly teacher-reference-only with no existing schema field to hold it, and audio must go through the existing Cloudinary Audio Library upload (never an auto-fetched URL — fetching an arbitrary teacher-pasted link server-side is an SSRF/abuse risk and out of scope). Audio attachment stays a manual step after import, exactly as today. *(Open item: if the teacher wants transcripts kept somewhere for her own reference, that's a separate small feature — a teacher-only `notes` field on Audio — raise it as a follow-up, not bundled here.)*
+**Ground-truthed against the actual teacher files** (`IELTS_Reading_Sheet.xlsx`, `IELTS_Listening_Sheet.xlsx`, both in project root — read directly via their XML, not assumed) on 2026-08-26. The two real "Dang_bai" dropdowns (`Huong dan` tab) and the real content-tab headers (`Doan van` / `Bai nghe` tabs) drove every literal string and column name below; the four gaps found against the earlier draft of this phase are fixed inline and called out where relevant.
+
+### Content CSV templates
+- Reading (from the `Doan van` tab): `Passage_ID, Tieu_de, Chu_de, Noi_dung (danh dau [A][B][C]...), Ghi_chu`. Paragraphs marked `[A][B][C]...` for Matching Headings/Information, matching the sheet's convention.
+- Listening (from the `Bai nghe` tab): `Track_ID, Tieu_de, Section (1-4), Link_audio, Transcript, Ghi_chu`.
+- **`parseContentCsv` must read columns by header name, not position, and silently ignore any column it doesn't need** — this is the actual real-world column set exported straight from these two tabs, which is wider than the app needs. Concretely consumed: `Passage_ID`/`Track_ID` (join key), `Tieu_de` (→ `sec.name`), `Noi_dung` (→ `passageText`, Reading only). Explicitly ignored, with reasons:
+  - `Chu_de` (Reading topic) — no schema field to hold it, teacher-reference-only.
+  - `Ghi_chu` (both) — teacher-reference-only, same as today's "example row" notes.
+  - `Section (1-4)` (Listening — which of the 4 real IELTS Listening parts this track belongs to) — no existing schema field maps to this; the app's own "sections" concept is the *question-group* container, not the exam-part number. Dropping this is a real information loss (a teacher browsing tracks can't tell which IELTS part a track was authored for), but there's nowhere to put it without a schema change. **Flagged as a follow-up, not blocking**: add an optional `examPart: Number` to the Track/Audio model later if the teacher asks for it.
+  - `Link_audio`, `Transcript` — same as before: audio must go through the existing Cloudinary Audio Library upload, never an auto-fetched URL (SSRF/abuse risk fetching an arbitrary teacher-pasted link server-side). Audio attachment stays a manual step after import.
 
 ### `lib/csvImport.js`
 - New `parseContentCsv(rows)` → `Map<id, {title, passageText}>`.
 - `rowsToSections(rows, contentMap)` — new **optional** 2nd parameter, must default to an empty `Map` and produce byte-identical output to today when omitted (regression-test this by diffing old vs. new output on the existing sample CSV).
-- **Join-key design:** reuse the existing `Section` column as the literal join key (must equal the content CSV's ID) — no new column needed. When a match is found in `contentMap`, populate `passageText` **and use the content CSV's `Title` as `sec.name`** (not the raw ID — avoids conflating "join key" with "display title"). When no match is found, fall back to the raw `Section` value as the name and emit a soft warning: `Row N: no passage text found for section "P1" — check it matches a Passage_ID in your content file, or attach it manually`.
-- Extend the `typeRaw` if/else chain (~line 100-108) into a lookup table covering the full real-world vocabulary (normalize via the existing `.toLowerCase().replace(/[^a-z]/g,"")`, confirmed no collisions across all 22 source dropdown values):
+- **Join-key design:** reuse the existing `Section` column (the app's own import-CSV column, distinct from the sheet's `Nhom_cau`/question-group column) as the literal join key — must equal the content CSV's `Passage_ID`/`Track_ID`. When a match is found in `contentMap`, populate `passageText` **and use the content CSV's `Tieu_de` as `sec.name`** (not the raw ID — avoids conflating "join key" with "display title"). When no match is found, fall back to the raw `Section` value as the name and emit a soft warning: `Row N: no passage text found for section "P1" — check it matches a Passage_ID in your content file, or attach it manually`.
+- Extend the `typeRaw` if/else chain (~line 100-108) into a lookup table. **Uses the literal dropdown strings from the two sheets verbatim** (confirmed by direct inspection — do not retranslate to English; normalize via the existing `.toLowerCase().replace(/[^a-z]/g,"")` before matching, confirmed no collisions across all 27 literal source values):
 
-  | Source label(s) | → kind |
-  |---|---|
-  | Multiple Choice (1 answer / multi-answer) | `mcq` |
-  | True/False/Not Given | `tfng` |
-  | Yes/No/Not Given | `ynng` |
-  | Matching Headings/Information/Features/Sentence Endings, (Listening) Matching | `matching` |
-  | Plan/Map/Diagram Labelling, Diagram Label Completion | `labelling` |
-  | Sentence/Note/Table/Flow-chart/Form Completion, Short Answer Questions, Summary Completion (no word list) | `fill` |
-  | Summary Completion (with word list) | `matching` (word bank = shared answer bank) |
+  | Literal source value (as it appears in the sheet's dropdown) | Sheet | → kind |
+  |---|---|---|
+  | `Multiple Choice (1 dap an)` | R+L | `mcq` |
+  | `Multiple Choice (nhieu dap an)` | R+L | `mcq` |
+  | `True/False/Not Given` | R | `tfng` |
+  | `Yes/No/Not Given` | R | `ynng` |
+  | `Matching Headings` / `Matching Information` / `Matching Features` / `Matching Sentence Endings` | R | `matching` |
+  | `Matching` | L | `matching` |
+  | `Plan/Map/Diagram Labelling` | L | `labelling` |
+  | `Diagram Label Completion` | R | `labelling` |
+  | `Sentence Completion` | R+L | `fill` |
+  | `Note Completion` / `Table Completion` / `Flow-chart Completion` | R+L | `fill` |
+  | `Form Completion` | L | `fill` |
+  | `Short Answer Questions` | R+L | `fill` |
+  | `Summary Completion (khong co danh sach tu)` | R | `fill` |
+  | `Summary Completion (co danh sach tu)` | R | `matching` (word bank = shared answer bank) |
+  | `Summary Completion` **(no word-list qualifier at all)** | L | `fill` |
 
-- `optionCols` (~line 81): extend `[1,2,3,4,5]` → `[1..8]` (matches the sheets' Option_A..H).
+  **Gap fixed here:** the Listening sheet's dropdown has a single unqualified `Summary Completion` entry (unlike Reading's two qualified variants) — the original draft of this table only recognized the two qualified forms, so a real Listening import would have silently failed to classify this row. Default it to `fill` (Listening summary-completion in this sheet is always typed-answer style in practice, never a word-bank pick) and note in the modal help text that a word-bank Listening summary should be authored as Reading-style `Summary Completion (co danh sach tu)` wording if that need ever comes up.
+- **Diagram-image URL is out of scope for CSV import, same rationale as audio.** The Listening `Cau hoi` tab carries a per-question `Anh_so_do_URL` column for `Plan/Map/Diagram Labelling` rows, but Phase 3's `labelPoints` design is one shared `sec.imageId` per section, attached manually via the existing Illustration picker (never a server-side URL fetch — same SSRF rationale as `Link_audio`). The importer must **ignore this column** (it's covered by the same "ignore unknown columns" rule as the content CSV) — call this out explicitly in the modal's post-import review ("Diagram image: attach manually," reusing the existing pill/warning convention) so a teacher doesn't expect the pin image to appear automatically.
+- The Listening `Cau hoi` tab's `Thoi_diem (mm:ss)` column (per-question audio timestamp) is likewise teacher-reference-only with no schema field — ignored by the same "unknown column" rule, no separate handling needed.
+- `optionCols` (~line 81): extend `[1,2,3,4,5]` → `[1..8]` (matches the sheets' Lua_chon_A..H).
 - Update `assets/templates/question-import-template.csv` and the modal help text (~teacher.js:1089, "Option 1-5" → "Option 1-8") to match.
 
 ### `api/admin/import.js` (extend in place — no new route file)

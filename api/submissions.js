@@ -35,7 +35,10 @@ async function handler(req, res) {
   const kind = (req.body && req.body.kind) || "test";
 
   if (kind === "test") {
-    const { testId, answers, replayCount } = req.body || {};
+    const { testId, skill, answers, replayCount } = req.body || {};
+    if (!["listening", "reading"].includes(skill)) {
+      return res.status(400).json({ ok: false, error: "Invalid skill" });
+    }
 
     let test;
     try {
@@ -47,13 +50,13 @@ async function handler(req, res) {
       return res.status(404).json({ ok: false, error: "Mock test not found" });
     }
 
-    // Active schedule check
+    // Cả 4 kỹ năng dùng chung 1 cửa sổ mở/khoá ở cấp Test.
     const now = new Date();
     if ((test.opensAt && test.opensAt > now) || (test.closesAt && test.closesAt < now)) {
       return res.status(400).json({ ok: false, error: "Mock test is currently closed" });
     }
 
-    const { score, total, detail } = gradeSubmission(test, answers || {});
+    const { score, total, detail } = gradeSubmission(test.skills[skill], answers || {});
 
     const submission = await Submission.create({
       studentId: student._id,
@@ -61,6 +64,7 @@ async function handler(req, res) {
       kind: "test",
       testId: test._id,
       testTitle: `${test.unit} · ${test.title}`.replace(/^ · /, ""),
+      testSkill: skill,
       answers: answers || {},
       score,
       total,
@@ -106,7 +110,50 @@ async function handler(req, res) {
   }
 
   if (kind === "writing" || kind === "speaking") {
-    const { unitId, categoryKey, promptId, essayText, audioUrl, audioPublicId } = req.body || {};
+    const { testId, unitId, categoryKey, promptId, essayText, audioUrl, audioPublicId } = req.body || {};
+    if ((kind === "writing" && !String(essayText || "").trim())) {
+      return res.status(400).json({ ok: false, error: "Please enter your essay" });
+    }
+    if (kind === "speaking" && !audioUrl) {
+      return res.status(400).json({ ok: false, error: "Please record audio before submitting" });
+    }
+
+    // Prompt nằm trong 1 Mock Test (4-skill) — không phải Lesson Unit.
+    if (testId) {
+      let test;
+      try {
+        test = await Test.findOne({ _id: testId, status: "published" });
+      } catch (err) {
+        return res.status(404).json({ ok: false, error: "Mock test not found" });
+      }
+      if (!test) return res.status(404).json({ ok: false, error: "Mock test not found" });
+
+      const now = new Date();
+      if ((test.opensAt && test.opensAt > now) || (test.closesAt && test.closesAt < now)) {
+        return res.status(400).json({ ok: false, error: "Mock test is currently closed" });
+      }
+
+      const skillBlock = test.skills[kind];
+      const prompt = skillBlock && skillBlock.prompts.id(promptId);
+      if (!prompt) return res.status(404).json({ ok: false, error: "Prompt not found" });
+
+      const submission = await Submission.create({
+        studentId: student._id,
+        studentName: student.name,
+        kind,
+        testId: test._id,
+        testTitle: `${test.unit} · ${test.title}`.replace(/^ · /, ""),
+        testSkill: kind,
+        promptId: prompt._id,
+        essayText: kind === "writing" ? essayText : undefined,
+        audioUrl: kind === "speaking" ? audioUrl : undefined,
+        audioPublicId: kind === "speaking" ? audioPublicId : undefined,
+        gradingStatus: "submitted"
+      });
+      return res.status(201).json({ ok: true, submissionId: submission._id, message: "Submitted successfully, pending teacher review" });
+    }
+
+    // Prompt nằm trong Lesson Unit — luồng cũ, không đổi.
     let unit;
     try {
       unit = await Unit.findOne({ _id: unitId, status: "published", level: student.level });
@@ -117,12 +164,6 @@ async function handler(req, res) {
     const category = unit.categories.find((c) => c.key === categoryKey);
     const prompt = category && category.prompts.id(promptId);
     if (!prompt) return res.status(404).json({ ok: false, error: "Prompt not found" });
-    if (kind === "writing" && !String(essayText || "").trim()) {
-      return res.status(400).json({ ok: false, error: "Please enter your essay" });
-    }
-    if (kind === "speaking" && !audioUrl) {
-      return res.status(400).json({ ok: false, error: "Please record audio before submitting" });
-    }
     const submission = await Submission.create({
       studentId: student._id,
       studentName: student.name,

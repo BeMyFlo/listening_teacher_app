@@ -13,12 +13,14 @@ function toPublicUnit(unit) {
       passageText: s.passageText || "",
       imageUrl: s.imageId && s.imageId.cloudinaryUrl,
       matchOptions: s.matchOptions || [],
+      labelPoints: s.labelPoints || [],
       fields: (s.fields || []).map((f) => ({
         id: f.id,
         label: f.label,
         type: f.type,
         pre: f.pre,
         post: f.post,
+        hint: f.hint || "",
         options: f.options,
         selectCount: f.selectCount || 1,
         score: f.score || 1

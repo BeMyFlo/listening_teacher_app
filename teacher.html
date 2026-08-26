@@ -215,7 +215,7 @@
               <div class="page-head-icon"><svg class="icon"><use href="#icon-clipboard"></use></svg></div>
               <div>
                 <h1>Mock Tests</h1>
-                <p class="page-sub">Create and publish Listening &amp; Reading tests by level</p>
+                <p class="page-sub">Create and publish full 4-skill mock tests by level</p>
               </div>
             </div>
             <button class="btn" id="btnNewTest"><svg class="icon"><use href="#icon-plus"></use></svg> Create Test</button>
@@ -232,16 +232,8 @@
             </div>
 
             <div class="form-row">
-              <label>Skill (Subject)</label>
-              <div class="subject-toggle" id="builderSubjectToggle">
-                <button type="button" class="active" data-subject="listening"><svg class="icon"><use href="#icon-headphones"></use></svg> Listening</button>
-                <button type="button" data-subject="reading"><svg class="icon"><use href="#icon-book-open"></use></svg> Reading</button>
-              </div>
-            </div>
-
-            <div class="form-row">
               <label for="tbTitle">Test Title</label>
-              <input type="text" id="tbTitle" placeholder="e.g. Listening 2A – Course Registration" />
+              <input type="text" id="tbTitle" placeholder="e.g. Full Mock Test 2A" />
             </div>
             <div class="form-row">
               <label for="tbUnit">Unit (optional)</label>
@@ -250,10 +242,6 @@
             <div class="form-row">
               <label for="tbLevel">Level</label>
               <input type="number" id="tbLevel" min="1" step="1" value="1" style="width:120px; padding:11px 12px; border:1px solid var(--border); border-radius:8px; font-size:1rem;" />
-            </div>
-            <div class="form-row">
-              <label for="tbInstructions">Test Instructions</label>
-              <input type="text" id="tbInstructions" placeholder="e.g. Listen to the conversation and fill in the blanks..." />
             </div>
 
             <h4 style="margin-top:22px;">Schedule (optional)</h4>
@@ -266,19 +254,12 @@
                 <label for="tbClosesAt">Closing Time</label>
                 <input type="datetime-local" id="tbClosesAt" />
               </div>
-              <div class="form-row" style="margin-bottom:0;">
-                <label for="tbDuration">Time Limit (minutes)</label>
-                <input type="number" id="tbDuration" min="1" step="1" placeholder="Unlimited" />
-              </div>
             </div>
-            <p style="color:var(--muted); font-size:.82rem; margin-top:6px;">Leave blank = open indefinitely. Students can only view and submit within the active window.</p>
+            <p style="color:var(--muted); font-size:.82rem; margin-top:6px;">Leave blank = open indefinitely. All 4 skills open/close together on this schedule. Students can only view and submit within the active window.</p>
 
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:22px;">
-              <h4 style="margin:0;">Sections</h4>
-              <button type="button" class="btn secondary" id="btnImportSpreadsheet" style="padding:8px 14px; font-size:.85rem;"><svg class="icon"><use href="#icon-upload"></use></svg> Import from spreadsheet</button>
-            </div>
-            <div id="tbSections"></div>
-            <button type="button" class="dashed-add-btn" id="btnAddSection" style="margin-top:8px;"><svg class="icon"><use href="#icon-plus"></use></svg> Add Section</button>
+            <h4 style="margin-top:22px;">Skills</h4>
+            <div class="subject-toggle" id="tbSkillTabs"></div>
+            <div id="tbSkillPanels" style="margin-top:14px;"></div>
 
             <p id="builderStatus" class="notice error" style="display:none; margin-top:16px;"></p>
 
@@ -312,6 +293,8 @@
                 <option value="">All Skills</option>
                 <option value="listening">Listening</option>
                 <option value="reading">Reading</option>
+                <option value="writing">Writing</option>
+                <option value="speaking">Speaking</option>
               </select>
               <select id="filterTest" class="select-inline"><option value="">All Mock Tests</option></select>
               <input type="text" id="searchBox" placeholder="Search student name..." style="padding:9px 12px; border:1px solid var(--border); border-radius:8px;" />

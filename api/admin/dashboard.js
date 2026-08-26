@@ -20,10 +20,14 @@ async function handler(req, res) {
     Unit.countDocuments(),
     Submission.countDocuments({ kind: { $in: ["writing", "speaking"] }, gradingStatus: "submitted" }),
     Submission.find().lean(),
+    // Nhóm theo cả testSkill — 1 Test giờ có 4 kỹ năng độc lập, gộp chung
+    // testId sẽ trộn lẫn điểm Listening/Reading/Writing/Speaking (khác
+    // thang điểm) vào 1 trung bình vô nghĩa.
     Submission.aggregate([
+      { $match: { testId: { $exists: true, $ne: null } } },
       {
         $group: {
-          _id: { testId: "$testId", testTitle: "$testTitle" },
+          _id: { testId: "$testId", testTitle: "$testTitle", testSkill: "$testSkill" },
           submissions: { $sum: 1 },
           avgScorePct: { $avg: { $cond: [{ $gt: ["$total", 0] }, { $multiply: [{ $divide: ["$score", "$total"] }, 100] }, 0] } }
         }
@@ -57,6 +61,7 @@ async function handler(req, res) {
     byTest: byTest.map((t) => ({
       testId: t._id.testId,
       testTitle: t._id.testTitle,
+      testSkill: t._id.testSkill || null,
       submissions: t.submissions,
       avgScorePct: Math.round(t.avgScorePct)
     })),
