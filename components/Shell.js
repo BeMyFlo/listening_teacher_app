@@ -44,7 +44,7 @@ export default function Shell({ role, userName, userSub, children }) {
 
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <img className="logo" src="/logo.png" alt="Ms Nhi" />
+          <img className="logo" src="/logo.svg" alt="Ms Nhi" />
           <button
             type="button"
             className="sidebar-collapse-btn"
