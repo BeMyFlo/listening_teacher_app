@@ -34,6 +34,10 @@ export default function SubmissionsPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (rows || []).filter((r) => {
+      // This page is Mock Tests only — lesson-unit work is reviewed per unit
+      // under Lessons → (unit) → Submissions.
+      const isMockTest = r.kind === "test" || ((r.kind === "writing" || r.kind === "speaking") && r.testId);
+      if (!isMockTest) return false;
       if (q && !String(r.studentName || "").toLowerCase().includes(q)) return false;
       if (filterSubject) {
         if (r.testSkill) return r.testSkill === filterSubject;
@@ -59,15 +63,14 @@ export default function SubmissionsPage() {
         <div className="head-left">
           <div className="page-head-icon"><svg className="icon"><use href="#icon-list" /></svg></div>
           <div>
-            <h1>Submissions</h1>
-            <p className="page-sub">Student test submissions and results</p>
+            <h1>Mock Test Results</h1>
+            <p className="page-sub">Mock test submissions and scores · lesson work is reviewed per unit</p>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <select className="select-inline" value={filterKind} onChange={(e) => setFilterKind(e.target.value)}>
             <option value="">All Submission Types</option>
-            <option value="test">Mock Test</option>
-            <option value="exercise">Lesson Exercise</option>
+            <option value="test">Listening / Reading</option>
             <option value="writing">Writing (Manual Grading)</option>
             <option value="speaking">Speaking (Manual Grading)</option>
           </select>

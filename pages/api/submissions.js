@@ -74,6 +74,7 @@ async function handler(req, res) {
       testTitle: `${test.unit} · ${test.title}`.replace(/^ · /, ""),
       testSkill: skill,
       answers: answers || {},
+      detail,
       score,
       total,
       replayCount: Number(replayCount) || 0
@@ -125,6 +126,7 @@ async function handler(req, res) {
       exerciseId: exercise._id,
       exerciseTitle: exercise.title,
       answers: answers || {},
+      detail,
       score,
       total
     });
