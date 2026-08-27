@@ -29,8 +29,18 @@
           </div>
 
           <div id="lessonsList">
-            <div class="card">
-              <div id="unitsStatus" class="notice info">Loading lesson units...</div>
+            <div id="unitsStatus" class="notice info">Loading lesson units...</div>
+            <div id="unitsFeatured"></div>
+            <div class="page-head" id="unitsListHead" style="margin-top:22px; display:none;">
+              <div class="head-left"><h3 style="margin:0;">All Units</h3></div>
+              <div style="display:flex; gap:10px;">
+                <select id="unitsSortSelect" class="select-inline">
+                  <option value="order">Unit order</option>
+                  <option value="newest">Newest first</option>
+                </select>
+              </div>
+            </div>
+            <div class="card" style="margin-top:10px;">
               <div id="unitsList"></div>
             </div>
           </div>

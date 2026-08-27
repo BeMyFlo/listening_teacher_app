@@ -179,6 +179,70 @@ input[type=search]:focus, textarea:focus, select:focus {
 .list-item .meta-text h4, .list-item .meta-text p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .list-item .list-value { flex-shrink: 0; }
 
+/* ---------- Lessons list (student) — thẻ Unit nổi bật + danh sách ---------- */
+.progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  margin: 4px 0;
+}
+.progress-bar-fill { height: 100%; background: var(--blue); border-radius: 999px; }
+
+.unit-featured-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 22px;
+  background: linear-gradient(135deg, var(--blue-light) 0%, #fff 60%);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 22px;
+}
+.unit-featured-icon {
+  width: 56px; height: 56px;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--blue);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+.unit-featured-icon .icon { width: 1.6rem; height: 1.6rem; }
+.unit-featured-progress { min-width: 180px; }
+.unit-featured-progress .label { display: block; font-size: .78rem; color: var(--muted); }
+.unit-featured-progress .pct { font-size: 1.4rem; font-weight: 800; color: var(--blue); }
+.unit-featured-progress .sub { font-size: .78rem; color: var(--muted); }
+.unit-featured-progress .progress-bar { width: 180px; }
+.unit-featured-cta { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; }
+.unit-featured-cta .icon { width: 1rem; height: 1rem; }
+
+.unit-list-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 6px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+.unit-list-row:first-child { border-top: none; }
+.unit-list-row:hover { background: var(--bg); }
+.unit-list-num {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  background: var(--blue-light);
+  color: var(--blue);
+  font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.unit-list-meta { flex: 1; min-width: 0; }
+.unit-list-meta h4 { margin: 0 0 3px; font-size: .96rem; color: var(--ink); font-weight: 700; }
+.unit-list-meta p { margin: 0; font-size: .8rem; color: var(--muted); }
+.unit-list-progress { width: 160px; flex-shrink: 0; font-size: .84rem; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 8px; }
+.unit-list-progress .progress-bar { width: 100%; }
+.unit-list-goto { pointer-events: none; }
+
 /* ---------- Mock Test list — thẻ đề 4 kỹ năng ---------- */
 .test-exam-card {
   padding: 16px 18px;

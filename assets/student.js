@@ -719,6 +719,7 @@
   // ============================================================
   //  BÀI HỌC (LESSONS — Phase 3)
   // ============================================================
+  const LESSON_CAT_ORDER = ["grammar", "vocabulary", "listening", "reading", "writing", "speaking"];
   const LESSON_CAT_LABELS = {
     grammar: "Grammar",
     vocabulary: "Vocabulary",
@@ -735,6 +736,16 @@
     writing: "writing",
     speaking: "mic"
   };
+  const LESSON_CAT_COLORS = {
+    grammar: "#16a34a",
+    vocabulary: "#7c3aed",
+    listening: "#0ea5e9",
+    reading: "#f59e0b",
+    writing: "#ec4899",
+    speaking: "#ef4444"
+  };
+  let unitsCache = [];
+  let unitsSortMode = "order";
 
   let currentUnit = null;
   let lessonCatKey = "grammar";
@@ -754,6 +765,9 @@
     document.getElementById("lessonsDetail").style.display = "none";
     document.getElementById("lessonsList").style.display = "block";
     openExerciseId = null;
+    // mySubmissionsCache có thể vừa đổi (làm bài xong quay lại) — vẽ lại
+    // progress ngay, không cần gọi API lại vì unitsCache đã có sẵn.
+    if (unitsCache.length) renderLessonsList();
   });
 
   function refreshMySubmissions() {
@@ -788,40 +802,137 @@
   }
 
   function loadLessons() {
-    refreshMySubmissions();
     const statusEl = document.getElementById("unitsStatus");
-    const listEl = document.getElementById("unitsList");
-    listEl.innerHTML = "";
     statusEl.style.display = "block";
     statusEl.className = "notice info";
     statusEl.textContent = "Loading lesson units...";
+    document.getElementById("unitsFeatured").innerHTML = "";
+    document.getElementById("unitsList").innerHTML = "";
+    document.getElementById("unitsListHead").style.display = "none";
 
-    Api.listUnits()
-      .then((data) => {
-        const rows = data.rows || [];
+    Promise.all([refreshMySubmissions(), Api.listUnits()])
+      .then(([, data]) => {
+        unitsCache = data.rows || [];
         statusEl.style.display = "none";
-        if (!rows.length) {
-          listEl.innerHTML = '<div class="empty-state">No lesson units available for your level.</div>';
+        if (!unitsCache.length) {
+          document.getElementById("unitsList").innerHTML = '<div class="empty-state">No lesson units available for your level.</div>';
           return;
         }
-        rows.forEach((u) => {
-          const item = document.createElement("div");
-          item.className = "list-item";
-          item.innerHTML = `
-            <div class="meta">
-              <h4>${escapeHtml(u.name)}</h4>
-              <p>Grammar · Vocabulary · Listening · Reading · Writing · Speaking</p>
-            </div>
-            <button class="btn">Start Lesson</button>`;
-          item.querySelector("button").addEventListener("click", () => openUnit(u.id));
-          listEl.appendChild(item);
-        });
+        document.getElementById("unitsListHead").style.display = "flex";
+        renderLessonsList();
       })
       .catch((err) => {
         statusEl.className = "notice error";
         statusEl.innerHTML = Icon("warning") + " Failed to load lesson units: " + escapeHtml(err.message);
       });
   }
+
+  // % hoàn thành 1 Unit dựa trên số item (exercise+prompt) học sinh đã có
+  // ít nhất 1 lần nộp bài — không có field "lessons"/"XP" nào trong data
+  // model nên không bịa, chỉ suy ra từ Submission thật đã có sẵn.
+  function unitProgress(u) {
+    const totalItems = (u.categories || []).reduce((n, c) => n + (c.itemCount || 0), 0);
+    const attempted = new Set();
+    mySubmissionsCache.forEach((s) => {
+      if (String(s.unitId) !== String(u.id)) return;
+      if (s.kind === "exercise") attempted.add("ex:" + s.exerciseId);
+      else if (s.kind === "writing" || s.kind === "speaking") attempted.add("pr:" + s.promptId);
+    });
+    const completed = Math.min(attempted.size, totalItems);
+    const pct = totalItems ? Math.round((completed / totalItems) * 100) : 0;
+    return { totalItems, completed, pct };
+  }
+
+  function categoryBadgesHtml(u) {
+    return LESSON_CAT_ORDER.map((key) => {
+      const cat = (u.categories || []).find((c) => c.key === key);
+      const has = cat && cat.hasContent;
+      const color = LESSON_CAT_COLORS[key];
+      return has
+        ? `<span class="cat-badge" style="background:${color}22; color:${color};">${escapeHtml(LESSON_CAT_LABELS[key])}</span>`
+        : `<span class="cat-badge cat-badge-empty">${escapeHtml(LESSON_CAT_LABELS[key])}</span>`;
+    }).join("");
+  }
+
+  function sortedUnits() {
+    const arr = unitsCache.slice();
+    if (unitsSortMode === "newest") {
+      arr.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    }
+    return arr;
+  }
+
+  function renderLessonsList() {
+    renderFeaturedUnit();
+    renderUnitsListRows();
+  }
+
+  // Thẻ nổi bật trên đầu: ưu tiên Unit đang làm dở (0% < x < 100%), rồi
+  // đến Unit chưa bắt đầu đầu tiên, cuối cùng fallback Unit đầu danh sách.
+  function renderFeaturedUnit() {
+    const wrap = document.getElementById("unitsFeatured");
+    const withProgress = unitsCache.map((u) => ({ u, p: unitProgress(u) }));
+    const featured =
+      withProgress.find((x) => x.p.pct > 0 && x.p.pct < 100) ||
+      withProgress.find((x) => x.p.pct === 0) ||
+      withProgress[0];
+    if (!featured) {
+      wrap.innerHTML = "";
+      return;
+    }
+    const { u, p } = featured;
+    const ctaLabel = p.pct === 0 ? "Start Lesson" : p.pct === 100 ? "Review Lesson" : "Continue Lesson";
+    wrap.innerHTML = `
+      <div class="unit-featured-card">
+        <div class="unit-featured-icon">${Icon("book-open")}</div>
+        <div style="flex:1; min-width:220px;">
+          <h3 style="margin:0 0 4px;">${escapeHtml(u.name)}</h3>
+          <div class="unit-overview-badges">${categoryBadgesHtml(u)}</div>
+        </div>
+        <div class="unit-featured-progress">
+          <span class="label">Overall Progress</span>
+          <span class="pct">${p.pct}%</span>
+          <div class="progress-bar"><div class="progress-bar-fill" style="width:${p.pct}%;"></div></div>
+          <span class="sub">${p.completed}/${p.totalItems} item(s) completed</span>
+        </div>
+        <button class="btn unit-featured-cta">${Icon("play")} ${ctaLabel}</button>
+      </div>
+    `;
+    wrap.querySelector(".unit-featured-cta").addEventListener("click", () => openUnit(u.id));
+  }
+
+  function renderUnitsListRows() {
+    const listEl = document.getElementById("unitsList");
+    listEl.innerHTML = "";
+    sortedUnits().forEach((u, idx) => {
+      const p = unitProgress(u);
+      const skillsWithContent = (u.categories || []).filter((c) => c.hasContent).length;
+      const statusLabel = p.pct === 100 ? "Completed" : p.pct === 0 ? "Not started" : "In progress";
+      const statusColor = p.pct === 100 ? "var(--green)" : p.pct === 0 ? "var(--muted)" : "var(--blue)";
+      const row = document.createElement("div");
+      row.className = "unit-list-row";
+      row.innerHTML = `
+        <div class="unit-list-num">${String(idx + 1).padStart(2, "0")}</div>
+        <div class="unit-list-meta">
+          <h4>${escapeHtml(u.name)}</h4>
+          <p>${skillsWithContent}/${LESSON_CAT_ORDER.length} skills · ${p.totalItems} item(s)</p>
+        </div>
+        <div class="unit-list-progress">
+          <span style="color:${statusColor}; font-weight:700;">${p.pct}%</span>
+          <span style="color:${statusColor};">${statusLabel}</span>
+          <div class="progress-bar"><div class="progress-bar-fill" style="width:${p.pct}%; background:${statusColor};"></div></div>
+        </div>
+        <button type="button" class="icon-btn unit-list-goto">${Icon("chevron-right")}</button>
+      `;
+      row.addEventListener("click", () => openUnit(u.id));
+      listEl.appendChild(row);
+    });
+  }
+
+  document.getElementById("unitsSortSelect").addEventListener("change", (e) => {
+    unitsSortMode = e.target.value;
+    renderUnitsListRows();
+  });
 
   function openUnit(unitId) {
     document.getElementById("unitsStatus").style.display = "block";

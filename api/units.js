@@ -92,7 +92,20 @@ async function handler(req, res) {
     .sort({ level: 1, order: 1 })
     .lean();
 
-  const rows = units.map((u) => ({ id: u._id, name: u.name, order: u.order }));
+  // Tóm tắt từng category (không lộ đáp án/nội dung câu hỏi) — đủ để trang
+  // danh sách Lessons hiện badge kỹ năng + số lượng + tính % hoàn thành mà
+  // không cần tải chi tiết từng Unit.
+  const rows = units.map((u) => ({
+    id: u._id,
+    name: u.name,
+    order: u.order,
+    createdAt: u.createdAt,
+    categories: (u.categories || []).map((c) => ({
+      key: c.key,
+      hasContent: !!((c.theory && c.theory.html && c.theory.html.trim()) || (c.exercises || []).length || (c.prompts || []).length),
+      itemCount: (c.exercises || []).length + (c.prompts || []).length
+    }))
+  }));
   return res.status(200).json({ ok: true, rows });
 }
 
