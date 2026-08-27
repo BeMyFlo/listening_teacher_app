@@ -17,7 +17,7 @@ export default function LessonImport({ mode, existing, onImport, onClose }) {
   async function upload() {
     const exFile = exRef.current?.files?.[0];
     if (!exFile) {
-      setErr("Chọn file bài tập trước.");
+      setErr("Choose the exercise file first.");
       return;
     }
     setBusy(true);
@@ -44,7 +44,7 @@ export default function LessonImport({ mode, existing, onImport, onClose }) {
       const out = {
         extId: it.extId,
         name: it.name,
-        exercises: secs.length ? [{ title: it.name || "Bài tập", _sections: secs }] : [],
+        exercises: secs.length ? [{ title: it.name || "Exercise", _sections: secs }] : [],
       };
       if (isGrammar) out.lesson = it.lesson || {};
       else out.words = it.words || [];
@@ -60,7 +60,7 @@ export default function LessonImport({ mode, existing, onImport, onClose }) {
     <div className="modal-overlay" onClick={(e) => e.target.classList.contains("modal-overlay") && onClose()}>
       <div className="modal-box">
         <div className="modal-head">
-          <h3>Import {isGrammar ? "Grammar" : "Vocabulary"} từ file</h3>
+          <h3>Import {isGrammar ? "Grammar" : "Vocabulary"} from file</h3>
           <button type="button" className="icon-btn" onClick={onClose}>
             <svg className="icon"><use href="#icon-cross" /></svg>
           </button>
@@ -69,16 +69,16 @@ export default function LessonImport({ mode, existing, onImport, onClose }) {
           {!preview ? (
             <>
               <p style={{ color: "var(--muted)", fontSize: ".86rem", marginTop: 0 }}>
-                Chọn <b>file bài tập</b> (bắt buộc) và <b>file bài học</b> (tuỳ chọn). Hệ thống nối 2 file theo{" "}
+                Choose an <b>exercise file</b> (required) and a <b>lesson file</b> (optional). The two are matched by{" "}
                 {isGrammar ? "Grammar_ID" : "Unit_ID"}.
               </p>
               <div className="form-row" style={{ marginBottom: 12 }}>
-                <label>File bài tập ({isGrammar ? "IELTS_Grammar_BaiTap.xlsx" : "IELTS_Vocab_BaiTap.xlsx"})</label>
+                <label>Exercise file ({isGrammar ? "IELTS_Grammar_BaiTap.xlsx" : "IELTS_Vocab_BaiTap.xlsx"})</label>
                 <input ref={exRef} type="file" accept=".xlsx" />
               </div>
               <div className="form-row" style={{ marginBottom: 0 }}>
                 <label>
-                  File bài học ({isGrammar ? "IELTS_Grammar_BaiHoc.xlsx" : "IELTS_Vocab_BaiHoc.xlsx"}) — tuỳ chọn
+                  Lesson file ({isGrammar ? "IELTS_Grammar_BaiHoc.xlsx" : "IELTS_Vocab_BaiHoc.xlsx"}) — optional
                 </label>
                 <input ref={lessonRef} type="file" accept=".xlsx" />
               </div>
@@ -89,7 +89,7 @@ export default function LessonImport({ mode, existing, onImport, onClose }) {
               )}
               <div style={{ marginTop: 16, textAlign: "right" }}>
                 <button type="button" className="btn" disabled={busy} onClick={upload}>
-                  {busy ? "Đang đọc..." : "Upload & Preview"}
+                  {busy ? "Reading..." : "Upload & Preview"}
                 </button>
               </div>
             </>
@@ -97,7 +97,7 @@ export default function LessonImport({ mode, existing, onImport, onClose }) {
             <>
               {(preview.warnings || []).length > 0 && (
                 <div className="notice error" style={{ marginTop: 0 }}>
-                  <b>{preview.warnings.length} cảnh báo:</b>
+                  <b>{preview.warnings.length} warning(s):</b>
                   <br />
                   {preview.warnings.map((w, i) => (
                     <span key={i}>
@@ -108,11 +108,11 @@ export default function LessonImport({ mode, existing, onImport, onClose }) {
                 </div>
               )}
               <p style={{ fontWeight: 700, color: "var(--ink)" }}>
-                {list.length} {isGrammar ? "chủ điểm" : "nhóm từ"} — sẵn sàng import.
+                {list.length} {isGrammar ? "topics" : "word groups"} — ready to import.
               </p>
               <div style={{ maxHeight: 340, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8, padding: "0 14px" }}>
                 {list.length === 0 ? (
-                  <div className="empty-state">Không có gì để import.</div>
+                  <div className="empty-state">Nothing to import.</div>
                 ) : (
                   list.map((it, i) => {
                     const qs = (it.importSections || []).reduce((n, s) => n + (s.fields || []).length, 0);
@@ -122,14 +122,14 @@ export default function LessonImport({ mode, existing, onImport, onClose }) {
                           {it.name || it.extId}{" "}
                           {isGrammar ? (
                             it.lesson && it.lesson.formula ? (
-                              <span className="pill pill-ok">Có lý thuyết</span>
+                              <span className="pill pill-ok">Has theory</span>
                             ) : (
-                              <span className="pill pill-warn">Chưa có lý thuyết</span>
+                              <span className="pill pill-warn">No theory</span>
                             )
                           ) : (
-                            <span className="pill pill-info">{(it.words || []).length} từ</span>
+                            <span className="pill pill-info">{(it.words || []).length} words</span>
                           )}
-                          {qs > 0 && <span className="pill pill-info">{qs} câu</span>}
+                          {qs > 0 && <span className="pill pill-info">{qs} questions</span>}
                         </div>
                         {isGrammar && it.lesson && it.lesson.formula && (
                           <div className="preview-q">
@@ -153,10 +153,10 @@ export default function LessonImport({ mode, existing, onImport, onClose }) {
               </div>
               <div style={{ marginTop: 16, display: "flex", gap: 10, justifyContent: "flex-end" }}>
                 <button type="button" className="btn secondary" onClick={() => setPreview(null)}>
-                  Chọn file khác
+                  Choose another file
                 </button>
                 <button type="button" className="btn" disabled={!list.length} onClick={confirm}>
-                  Import vào Unit
+                  Import into unit
                 </button>
               </div>
             </>

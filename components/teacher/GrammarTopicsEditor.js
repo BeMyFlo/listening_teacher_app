@@ -14,10 +14,10 @@ function emptyTopic() {
 }
 
 const LESSON_FIELDS = [
-  ["formula", "Công thức"],
-  ["whenToUse", "Khi nào dùng"],
-  ["commonMistakes", "Lỗi hay gặp"],
-  ["examples", "Ví dụ"],
+  ["formula", "Form"],
+  ["whenToUse", "When to use"],
+  ["commonMistakes", "Common mistakes"],
+  ["examples", "Examples"],
 ];
 
 export default function GrammarTopicsEditor({ topics, media, onChange }) {
@@ -56,20 +56,20 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <h3 style={{ margin: 0 }}>Chủ điểm ngữ pháp ({topics.length})</h3>
+        <h3 style={{ margin: 0 }}>Grammar topics ({topics.length})</h3>
         <button
           type="button"
           className="btn secondary"
           style={{ padding: "8px 14px", fontSize: ".85rem" }}
           onClick={() => setImporting(true)}
         >
-          <svg className="icon"><use href="#icon-upload" /></svg> Import từ file
+          <svg className="icon"><use href="#icon-upload" /></svg> Import from file
         </button>
       </div>
 
       {topics.length === 0 && (
         <div className="empty-state" style={{ marginTop: 12 }}>
-          Chưa có chủ điểm nào. Import từ file hoặc thêm thủ công.
+          No topics yet. Import from a file or add them manually.
         </div>
       )}
 
@@ -80,7 +80,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
               <input
                 type="text"
                 className="sec-name"
-                placeholder="Tên chủ điểm (VD: Câu điều kiện loại 2)"
+                placeholder="Topic name (e.g. Second conditional)"
                 style={{ flex: 1 }}
                 value={t.name}
                 onChange={(e) => patch((d) => (d[i].name = e.target.value))}
@@ -88,7 +88,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
               <button
                 type="button"
                 className="icon-btn"
-                title={open === i ? "Thu gọn" : "Mở"}
+                title={open === i ? "Collapse" : "Expand"}
                 onClick={() => setOpen(open === i ? -1 : i)}
               >
                 <svg className="icon"><use href={open === i ? "#icon-chevron-down" : "#icon-chevron-right"} /></svg>
@@ -96,9 +96,9 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
               <button
                 type="button"
                 className="icon-btn danger"
-                title="Xoá chủ điểm"
+                title="Delete topic"
                 onClick={() => {
-                  if (window.confirm("Xoá chủ điểm này?")) patch((d) => d.splice(i, 1));
+                  if (window.confirm("Delete this topic?")) patch((d) => d.splice(i, 1));
                 }}
               >
                 <svg className="icon"><use href="#icon-trash" /></svg>
@@ -107,7 +107,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
 
             {open === i && (
               <>
-                <h4 style={{ margin: "14px 0 8px" }}>Lý thuyết</h4>
+                <h4 style={{ margin: "14px 0 8px" }}>Theory</h4>
                 {LESSON_FIELDS.map(([k, label]) => (
                   <div className="form-row" key={k} style={{ marginBottom: 10 }}>
                     <label>{label}</label>
@@ -119,7 +119,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
                   </div>
                 ))}
                 <div className="form-row" style={{ marginBottom: 10 }}>
-                  <label>Link video YouTube (tuỳ chọn)</label>
+                  <label>YouTube video link (optional)</label>
                   <input
                     type="text"
                     placeholder="https://www.youtube.com/watch?v=..."
@@ -128,7 +128,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
                   />
                 </div>
 
-                <h4 style={{ margin: "18px 0 8px" }}>Bài tập</h4>
+                <h4 style={{ margin: "18px 0 8px" }}>Exercises</h4>
                 <TopicExercises
                   exercises={t.exercises}
                   media={media}
@@ -150,7 +150,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
           setOpen(topics.length);
         }}
       >
-        <svg className="icon"><use href="#icon-plus" /></svg> Thêm chủ điểm
+        <svg className="icon"><use href="#icon-plus" /></svg> Add topic
       </button>
 
       {importing && (
@@ -180,7 +180,7 @@ export function TopicExercises({ exercises, media, subject, onChange }) {
             <input
               type="text"
               className="ex-title"
-              placeholder="Tên bài tập"
+              placeholder="Exercise title"
               style={{ flex: 1 }}
               value={ex.title}
               onChange={(e) => patch((d) => (d[i].title = e.target.value))}
@@ -188,9 +188,9 @@ export function TopicExercises({ exercises, media, subject, onChange }) {
             <button
               type="button"
               className="icon-btn danger"
-              title="Xoá bài tập"
+              title="Delete exercise"
               onClick={() => {
-                if (window.confirm("Xoá bài tập này?")) patch((d) => d.splice(i, 1));
+                if (window.confirm("Delete this exercise?")) patch((d) => d.splice(i, 1));
               }}
             >
               <svg className="icon"><use href="#icon-trash" /></svg>
@@ -211,7 +211,7 @@ export function TopicExercises({ exercises, media, subject, onChange }) {
         className="dashed-add-btn"
         onClick={() => onChange([...exercises, { title: "", _sections: [] }])}
       >
-        <svg className="icon"><use href="#icon-plus" /></svg> Thêm bài tập
+        <svg className="icon"><use href="#icon-plus" /></svg> Add exercise
       </button>
     </>
   );

@@ -459,6 +459,79 @@ tr:hover td { background: #fafcfe; }
 .passage-pane img { max-width: 100%; border-radius: 8px; margin-bottom: 12px; display: block; }
 .questions-pane .section-title { margin-top: 0; }
 
+/* ---------- Công cụ hỗ trợ Reading (tô vàng / ghi chú) ---------- */
+.reading-tools { margin-top: 10px; }
+.reading-tools-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap; margin-bottom: 8px;
+}
+.reading-tools-bar .rt-hint {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .8rem; color: var(--muted); white-space: normal;
+}
+.reading-tools-bar .rt-hint .icon { width: 14px; height: 14px; }
+.rt-clear {
+  border: 1px solid var(--border); background: #fff; color: var(--muted);
+  border-radius: 999px; padding: 3px 12px; font-size: .78rem; cursor: pointer;
+}
+.rt-clear:hover { color: var(--blue); border-color: var(--blue); }
+
+.reading-passage-text mark.rt-mark {
+  background: #ffe680; color: inherit; border-radius: 2px;
+  padding: 1px 0; cursor: pointer;
+}
+.reading-passage-text mark.rt-mark.has-note {
+  background: #ffd54a; box-shadow: inset 0 -2px 0 #f0a500;
+}
+
+.rt-popup {
+  display: flex; gap: 4px; background: var(--navy, #1f2a44);
+  padding: 4px; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.25);
+  z-index: 1000;
+}
+.rt-popup button {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: transparent; border: none; color: #fff;
+  font-size: .8rem; padding: 5px 9px; border-radius: 5px; cursor: pointer;
+  white-space: nowrap;
+}
+.rt-popup button:hover { background: rgba(255,255,255,.15); }
+.rt-popup .rt-swatch {
+  width: 12px; height: 12px; border-radius: 3px; background: #ffe680; display: inline-block;
+}
+
+.rt-notes {
+  margin-top: 14px; border-top: 1px dashed var(--border); padding-top: 12px;
+}
+.rt-notes h4 { margin: 0 0 8px; font-size: .85rem; color: var(--muted); }
+.rt-note-item {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  padding: 6px 0; font-size: .85rem; line-height: 1.5;
+}
+.rt-note-quote { color: var(--muted); font-style: italic; }
+.rt-note-body { flex: 1; min-width: 140px; }
+.rt-note-edit, .rt-note-del {
+  border: none; background: none; cursor: pointer; font-size: .78rem; padding: 0;
+}
+.rt-note-edit { color: var(--blue); }
+.rt-note-del { color: #c0392b; }
+
+.rt-note-editor-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.35);
+  display: flex; align-items: center; justify-content: center; z-index: 1001;
+}
+.rt-note-editor {
+  background: #fff; border-radius: var(--radius); padding: 18px 20px;
+  width: min(440px, 92vw); box-shadow: 0 20px 50px rgba(0,0,0,.3);
+}
+.rt-note-editor h4 { margin: 0 0 8px; }
+.rt-note-editor-quote { margin: 0 0 10px; color: var(--muted); font-style: italic; font-size: .85rem; }
+.rt-note-editor textarea {
+  width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  font: inherit; resize: vertical;
+}
+.rt-note-editor-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
 .diagram-image {
   max-width: 100%;
   border-radius: 8px;
@@ -1034,12 +1107,9 @@ tr:hover td { background: #fafcfe; }
 .sidebar-brand .logo {
   width: 36px; height: 36px;
   border-radius: 10px;
-  background: linear-gradient(150deg, var(--blue), var(--navy));
-  color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 800;
+  object-fit: contain;
   flex-shrink: 0;
-  box-shadow: 0 3px 10px rgba(70,83,214,.3);
+  box-shadow: 0 3px 10px rgba(70,83,214,.2);
 }
 .sidebar-brand .logo .icon { width: 1.15rem; height: 1.15rem; }
 
@@ -1843,12 +1913,8 @@ tr:hover td { background: #fafcfe; }
 .login-brand .logo {
   width: 46px; height: 46px;
   border-radius: 13px;
-  background: linear-gradient(150deg, var(--accent), #b8830f);
-  color: var(--navy-dark);
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 800;
-  font-size: 1.05rem;
-  box-shadow: 0 4px 14px rgba(211,161,26,.35);
+  object-fit: contain;
+  box-shadow: 0 4px 14px rgba(70,83,214,.25);
 }
 .login-sub { text-align: center; color: var(--muted); font-size: .88rem; margin: 0 0 24px; line-height: 1.5; }
 

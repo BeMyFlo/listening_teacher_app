@@ -3,18 +3,18 @@
 import { useState } from "react";
 
 const BACK_ROWS = [
-  ["partOfSpeech", "Loại từ"],
-  ["meaning", "Nghĩa"],
-  ["definitionEn", "Định nghĩa"],
-  ["example", "Ví dụ"],
+  ["partOfSpeech", "Part of speech"],
+  ["meaning", "Meaning"],
+  ["definitionEn", "Definition"],
+  ["example", "Example"],
   ["collocation", "Collocation"],
-  ["synonyms", "Đồng nghĩa"],
+  ["synonyms", "Synonyms"],
 ];
 
 export function VocabFlashcards({ words }) {
   const [i, setI] = useState(0);
   const [flipped, setFlipped] = useState(false);
-  if (!words.length) return <div className="empty-state">Nhóm này chưa có từ nào.</div>;
+  if (!words.length) return <div className="empty-state">This group has no words yet.</div>;
 
   const w = words[Math.min(i, words.length - 1)];
   const go = (d) => {
@@ -45,7 +45,7 @@ export function VocabFlashcards({ words }) {
           <>
             <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--navy)" }}>{w.word}</div>
             {w.ipa && <div style={{ color: "var(--muted)", marginTop: 6 }}>{w.ipa}</div>}
-            <div style={{ color: "var(--muted)", fontSize: ".8rem", marginTop: 14 }}>bấm để lật</div>
+            <div style={{ color: "var(--muted)", fontSize: ".8rem", marginTop: 14 }}>tap to flip</div>
           </>
         ) : (
           <div style={{ width: "100%" }}>
@@ -79,19 +79,19 @@ export function VocabFlashcards({ words }) {
 }
 
 export function VocabWordList({ words }) {
-  if (!words.length) return <div className="empty-state">Nhóm này chưa có từ nào.</div>;
+  if (!words.length) return <div className="empty-state">This group has no words yet.</div>;
   return (
     <div className="table-wrap">
       <table className="data-table">
         <thead>
           <tr>
-            <th>Từ</th>
-            <th>Phiên âm</th>
-            <th>Loại</th>
-            <th>Nghĩa</th>
-            <th>Ví dụ</th>
+            <th>Word</th>
+            <th>IPA</th>
+            <th>Type</th>
+            <th>Meaning</th>
+            <th>Example</th>
             <th>Collocation</th>
-            <th>Đồng nghĩa</th>
+            <th>Synonyms</th>
           </tr>
         </thead>
         <tbody>

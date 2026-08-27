@@ -24,7 +24,7 @@ export default function SpreadsheetImport({ existingSections, onImport, onClose 
   async function upload() {
     const file = fileRef.current?.files?.[0];
     if (!file) {
-      setErr("Chọn file .xlsx hoặc .csv trước.");
+      setErr("Choose an .xlsx or .csv file first.");
       return;
     }
     setBusy(true);
@@ -64,11 +64,11 @@ export default function SpreadsheetImport({ existingSections, onImport, onClose 
           {!preview ? (
             <>
               <p style={{ color: "var(--muted)", fontSize: ".86rem", marginTop: 0 }}>
-                Tải lên file <b>.xlsx</b> mẫu (tab <i>Cau hoi</i> + <i>Doan van</i>) — hệ thống tự đọc cả 2 tab. Hoặc file{" "}
-                <b>.csv</b> đã xuất riêng.
+                Upload the <b>.xlsx</b> template (tabs <i>Cau hoi</i> + <i>Doan van</i>) — both tabs are read automatically. Or a{" "}
+                <b>.csv</b> exported separately.
               </p>
               <div className="form-row" style={{ marginBottom: 12 }}>
-                <label>File câu hỏi (.xlsx hoặc .csv)</label>
+                <label>Questions file (.xlsx or .csv)</label>
                 <input
                   ref={fileRef}
                   type="file"
@@ -80,7 +80,7 @@ export default function SpreadsheetImport({ existingSections, onImport, onClose 
               </div>
               {isCsv && (
                 <div className="form-row" style={{ marginBottom: 0 }}>
-                  <label>File nội dung / đoạn văn (.csv — tuỳ chọn, chỉ khi dùng CSV)</label>
+                  <label>Content / passage file (.csv — optional, CSV only)</label>
                   <input ref={contentRef} type="file" accept=".csv,text/csv" />
                 </div>
               )}
@@ -91,7 +91,7 @@ export default function SpreadsheetImport({ existingSections, onImport, onClose 
               )}
               <div style={{ marginTop: 16, textAlign: "right" }}>
                 <button type="button" className="btn" disabled={busy} onClick={upload}>
-                  {busy ? "Đang đọc..." : "Upload & Preview"}
+                  {busy ? "Reading..." : "Upload & Preview"}
                 </button>
               </div>
             </>
@@ -99,7 +99,7 @@ export default function SpreadsheetImport({ existingSections, onImport, onClose 
             <>
               {preview.warnings.length > 0 && (
                 <div className="notice error" style={{ marginTop: 0 }}>
-                  <b>{preview.warnings.length} cảnh báo:</b>
+                  <b>{preview.warnings.length} warning(s):</b>
                   <br />
                   {preview.warnings.map((w, i) => (
                     <span key={i}>
@@ -110,20 +110,20 @@ export default function SpreadsheetImport({ existingSections, onImport, onClose 
                 </div>
               )}
               <p style={{ fontWeight: 700, color: "var(--ink)" }}>
-                {preview.sections.length} section · {totalQ} câu hỏi — sẵn sàng import.
+                {preview.sections.length} sections · {totalQ} questions — ready to import.
               </p>
               <div style={{ maxHeight: 340, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8, padding: "0 14px" }}>
                 {preview.sections.length === 0 ? (
-                  <div className="empty-state">Không có gì để import.</div>
+                  <div className="empty-state">Nothing to import.</div>
                 ) : (
                   preview.sections.map((s, si) => (
                     <div key={si}>
                       <div className="preview-section-title">
-                        {s.name || "(chưa đặt tên)"}{" "}
+                        {s.name || "(untitled)"}{" "}
                         {s.passageText ? (
-                          <span className="pill pill-ok">Đã có đoạn văn</span>
+                          <span className="pill pill-ok">Has passage</span>
                         ) : (
-                          <span className="pill pill-warn">Chưa có đoạn văn</span>
+                          <span className="pill pill-warn">No passage</span>
                         )}
                       </div>
                       {(s.fields || []).map((f, fi) => (
@@ -141,7 +141,7 @@ export default function SpreadsheetImport({ existingSections, onImport, onClose 
               </div>
               <div style={{ marginTop: 16, display: "flex", gap: 10, justifyContent: "flex-end" }}>
                 <button type="button" className="btn secondary" onClick={() => setPreview(null)}>
-                  Chọn file khác
+                  Choose another file
                 </button>
                 <button type="button" className="btn" disabled={!totalQ} onClick={confirm}>
                   Import into builder

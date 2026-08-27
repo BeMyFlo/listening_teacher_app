@@ -44,9 +44,7 @@ export default function Shell({ role, userName, userSub, children }) {
 
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <div className="logo">
-            <svg className="icon"><use href="#icon-student" /></svg>
-          </div>
+          <img className="logo" src="/logo.png" alt="IELTS with Ms Nhi" />
           <span className="brand-text">IELTS with Ms Nhi</span>
           <button
             type="button"

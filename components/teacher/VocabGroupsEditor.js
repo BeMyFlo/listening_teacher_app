@@ -42,20 +42,20 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <h3 style={{ margin: 0 }}>Nhóm từ vựng ({groups.length})</h3>
+        <h3 style={{ margin: 0 }}>Vocabulary groups ({groups.length})</h3>
         <button
           type="button"
           className="btn secondary"
           style={{ padding: "8px 14px", fontSize: ".85rem" }}
           onClick={() => setImporting(true)}
         >
-          <svg className="icon"><use href="#icon-upload" /></svg> Import từ file
+          <svg className="icon"><use href="#icon-upload" /></svg> Import from file
         </button>
       </div>
 
       {groups.length === 0 && (
         <div className="empty-state" style={{ marginTop: 12 }}>
-          Chưa có nhóm từ nào. Import từ file hoặc thêm thủ công.
+          No word groups yet. Import from a file or add them manually.
         </div>
       )}
 
@@ -66,7 +66,7 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
               <input
                 type="text"
                 className="sec-name"
-                placeholder="Tên nhóm từ (VD: Environment)"
+                placeholder="Group name (e.g. Environment)"
                 style={{ flex: 1 }}
                 value={g.name}
                 onChange={(e) => patch((d) => (d[i].name = e.target.value))}
@@ -81,9 +81,9 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
               <button
                 type="button"
                 className="icon-btn danger"
-                title="Xoá nhóm từ"
+                title="Delete group"
                 onClick={() => {
-                  if (window.confirm("Xoá nhóm từ này?")) patch((d) => d.splice(i, 1));
+                  if (window.confirm("Delete this group?")) patch((d) => d.splice(i, 1));
                 }}
               >
                 <svg className="icon"><use href="#icon-trash" /></svg>
@@ -92,10 +92,10 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
 
             {open === i && (
               <>
-                <h4 style={{ margin: "14px 0 8px" }}>Danh sách từ ({g.words.length})</h4>
+                <h4 style={{ margin: "14px 0 8px" }}>Word list ({g.words.length})</h4>
                 <VocabWordTable words={g.words} onChange={(next) => patch((d) => (d[i].words = next))} />
 
-                <h4 style={{ margin: "18px 0 8px" }}>Bài tập</h4>
+                <h4 style={{ margin: "18px 0 8px" }}>Exercises</h4>
                 <TopicExercises
                   exercises={g.exercises}
                   media={media}
@@ -117,7 +117,7 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
           setOpen(groups.length);
         }}
       >
-        <svg className="icon"><use href="#icon-plus" /></svg> Thêm nhóm từ
+        <svg className="icon"><use href="#icon-plus" /></svg> Add group
       </button>
 
       {importing && (

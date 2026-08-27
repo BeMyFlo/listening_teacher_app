@@ -164,7 +164,7 @@ function LessonTopicPane({ cat, unitId, subs, onSubmitted }) {
   if (!items.length)
     return (
       <div className="empty-state">
-        {isGrammar ? "Chưa có chủ điểm ngữ pháp nào." : "Chưa có nhóm từ nào."}
+        {isGrammar ? "No grammar topics yet." : "No vocabulary groups yet."}
       </div>
     );
 
@@ -187,13 +187,13 @@ function LessonTopicPane({ cat, unitId, subs, onSubmitted }) {
                 <svg className="icon"><use href={"#icon-" + (isGrammar ? "grammar" : "vocabulary")} /></svg>
               </div>
               <div className="unit-list-meta">
-                <h4>{it.name || (isGrammar ? "Chủ điểm" : "Nhóm từ")}</h4>
+                <h4>{it.name || (isGrammar ? "Topic" : "Word group")}</h4>
                 <p>
-                  {!isGrammar && <span className="meta-icon">{(it.words || []).length} từ</span>}
-                  <span className="meta-icon">{exs.length} bài tập</span>
+                  {!isGrammar && <span className="meta-icon">{(it.words || []).length} words</span>}
+                  <span className="meta-icon">{exs.length} exercises</span>
                   {exs.length > 0 && (
                     <span className="meta-icon">
-                      {done}/{exs.length} đã làm
+                      {done}/{exs.length} done
                     </span>
                   )}
                 </p>
@@ -212,7 +212,7 @@ function LessonTopicPane({ cat, unitId, subs, onSubmitted }) {
     <div style={{ marginTop: 12 }}>
       <p className="back-link" onClick={() => setOpenId(null)}>
         <svg className="icon"><use href="#icon-arrow-left" /></svg>{" "}
-        {isGrammar ? "Danh sách chủ điểm" : "Danh sách nhóm từ"}
+        {isGrammar ? "Topic list" : "Word group list"}
       </p>
       <h3 style={{ marginTop: 0 }}>{item.name}</h3>
 
@@ -233,7 +233,7 @@ function LessonTopicPane({ cat, unitId, subs, onSubmitted }) {
               className={"lesson-subtab" + (vocabView === "list" ? " active" : "")}
               onClick={() => setVocabView("list")}
             >
-              Bảng từ
+              Word table
             </button>
           </div>
           <div style={{ marginTop: 12 }}>
@@ -246,9 +246,9 @@ function LessonTopicPane({ cat, unitId, subs, onSubmitted }) {
         </>
       )}
 
-      <h3 style={{ marginTop: 24 }}>Bài tập</h3>
+      <h3 style={{ marginTop: 24 }}>Exercises</h3>
       {(item.exercises || []).length === 0 ? (
-        <div className="empty-state">Chưa có bài tập.</div>
+        <div className="empty-state">No exercises yet.</div>
       ) : (
         item.exercises.map((ex, i) => (
           <ExerciseBlock
