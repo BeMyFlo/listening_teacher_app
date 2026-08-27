@@ -4,8 +4,11 @@
   "private": true,
   "description": "IELTS with Ms Nhi — static frontend + Vercel serverless API + MongoDB + Cloudinary",
   "scripts": {
-    "dev": "vercel dev",
-    "dev:local": "node server.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "dev:vercel": "vercel dev",
+    "dev:legacy": "node server.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -14,9 +17,14 @@
     "express": "^5.2.1",
     "formidable": "^3.5.2",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.9.5"
+    "mongoose": "^8.9.5",
+    "next": "^14.2.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.26",
     "vercel": "^37.14.0"
   }
 }
