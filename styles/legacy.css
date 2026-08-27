@@ -49,7 +49,7 @@
 .icon-sm { width: .85em; height: .85em; }
 .icon.flip { transform: scaleX(-1); }
 
-html { overflow-x: hidden; }
+html { overflow-x: clip; }
 body {
   margin: 0;
   font-family: "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -57,10 +57,12 @@ body {
   color: var(--ink);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
-  /* Lưới an toàn: nếu 1 phần tử nào đó lỡ không co lại kịp trên màn hình
-     hẹp, chặn cuộn ngang toàn trang thay vì để lộ ra khoảng trắng/tràn —
-     ưu tiên cho học sinh dùng điện thoại không bị vỡ giao diện. */
-  overflow-x: hidden;
+  /* Safety net: if some element fails to shrink on a narrow screen, clip the
+     horizontal overflow instead of exposing a whitespace gap — keeps the UI
+     from breaking for students on phones.
+     NOTE: use `clip`, not `hidden` — `overflow-x: hidden` turns the element
+     into a scroll container and breaks `position: sticky` on the sidebar. */
+  overflow-x: clip;
 }
 img, svg { max-width: 100%; }
 
