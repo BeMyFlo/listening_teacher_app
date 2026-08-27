@@ -1108,7 +1108,7 @@ tr:hover td { background: #fafcfe; }
 .app-shell.collapsed .sidebar-collapse-btn .icon { transform: rotate(180deg); }
 .sidebar-brand { justify-content: center; }
 .sidebar-brand .logo {
-  width: 132px; height: auto;
+  width: 100px; height: auto;
   max-width: 100%;
   object-fit: contain;
   flex-shrink: 0;
