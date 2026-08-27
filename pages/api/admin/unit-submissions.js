@@ -5,6 +5,7 @@ const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const Submission = require("../../../lib/models/Submission");
 const { buildUnitOverview, buildStudentDetail } = require("../../../lib/teacher/unitSubmissions");
+const { classDeadlines } = require("../../../lib/deadlines");
 
 const S = (v) => (v == null ? "" : String(v));
 
@@ -53,9 +54,7 @@ async function handler(req, res) {
     if (!student) return res.status(404).json({ ok: false, error: "Student not found in this unit" });
     const mine = submissions.filter((s) => S(s.studentId) === S(studentId));
     const cls = student.classId ? classById[S(student.classId)] : null;
-    const myDeadline = (unit.deadlines || []).find(
-      (d) => cls && S(d.classId) === S(cls._id) && d.dueAt
-    );
+    const dl = cls ? classDeadlines(unit, cls._id) : { unit: null, byCategory: {} };
     return res.status(200).json({
       ok: true,
       unit: { _id: unit._id, name: unit.name, level: unit.level },
@@ -63,7 +62,8 @@ async function handler(req, res) {
         _id: student._id,
         name: student.name,
         className: cls ? cls.name : null,
-        dueAt: myDeadline ? myDeadline.dueAt : null,
+        dueAt: dl.unit,               // hạn chung
+        deadlineByCategory: dl.byCategory, // hạn đã resolve từng kỹ năng
       },
       categories: buildStudentDetail({ unit, submissions: mine }),
     });
@@ -78,23 +78,27 @@ async function handler(req, res) {
 
   const rows = buildUnitOverview({ unit, submissions, students, classById });
 
-  // Hạn nộp theo lớp: { [classId]: ISO date }.
+  // Hạn nộp đã resolve theo lớp: { [classId]: { unit, byCategory } }.
   const deadlineByClass = {};
-  (unit.deadlines || []).forEach((d) => {
-    if (d && d.classId && d.dueAt) deadlineByClass[S(d.classId)] = d.dueAt;
+  relevantClasses.forEach((c) => {
+    deadlineByClass[S(c._id)] = classDeadlines(unit, c._id);
   });
+  // Có ít nhất 1 hạn riêng kỹ năng ở unit này? (để UI biết có nên hiện chi tiết)
+  const hasSkillDeadlines = (unit.deadlines || []).some((d) => d.categoryKey);
 
   return res.status(200).json({
     ok: true,
     unit: { _id: unit._id, name: unit.name, level: unit.level, classIds: assignedClassIds },
     scope,
+    hasSkillDeadlines,
     deadlineByClass,
     classes: relevantClasses.map((c) => ({
       _id: c._id,
       name: c.name,
       level: c.level,
       studentCount: studentCountByClass[S(c._id)] || 0,
-      dueAt: deadlineByClass[S(c._id)] || null,
+      dueAt: deadlineByClass[S(c._id)].unit,
+      deadlineByCategory: deadlineByClass[S(c._id)].byCategory,
     })),
     students: rows,
   });

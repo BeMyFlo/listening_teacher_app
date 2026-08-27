@@ -161,7 +161,10 @@ function Inner() {
                   <p>
                     <span className="meta-icon">{c.studentCount} students</span>
                     <span className="meta-icon">
-                      {fmtDeadline(c.dueAt) ? `Deadline: ${fmtDeadline(c.dueAt)}` : "No deadline set"}
+                      {fmtDeadline(c.dueAt) ? `Deadline: ${fmtDeadline(c.dueAt)}` : "No unit deadline"}
+                      {data.hasSkillDeadlines && Object.values(c.deadlineByCategory || {}).some(Boolean)
+                        ? " · per-skill set"
+                        : ""}
                     </span>
                   </p>
                 </div>

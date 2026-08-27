@@ -1768,17 +1768,40 @@ tr:hover td { background: #fafcfe; }
 }
 .settings-hint { font-size: .8rem; color: var(--muted); margin: 8px 0 0; }
 
-.settings-deadline-row { margin-bottom: 14px; }
-.settings-deadline-row:last-of-type { margin-bottom: 0; }
-.settings-deadline-row > span {
-  display: block;
-  font-weight: 700;
-  font-size: .84rem;
-  color: var(--ink);
-  margin-bottom: 6px;
+/* Deadline editor: per class = whole-unit input + collapsible per-skill grid */
+.deadline-class {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: var(--bg);
 }
-.settings-deadline-input { display: flex; align-items: center; gap: 8px; }
-.settings-deadline-input input { flex: 1; }
+.deadline-class:last-of-type { margin-bottom: 0; }
+.deadline-class-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.deadline-class-name { font-weight: 700; font-size: .88rem; color: var(--ink); min-width: 130px; }
+.deadline-class-head input[type=datetime-local] { flex: 1; min-width: 180px; }
+.deadline-skill-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--blue);
+  font-weight: 600;
+  font-size: .8rem;
+  cursor: pointer;
+}
+.deadline-skill-toggle .icon { width: 14px; height: 14px; }
+.deadline-skill-grid {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+.deadline-skill-row { display: flex; align-items: center; gap: 10px; }
+.deadline-skill-row > span { min-width: 110px; font-size: .84rem; color: var(--muted); font-weight: 500; }
+.deadline-skill-row input[type=datetime-local] { flex: 1; min-width: 170px; }
 
 .settings-note {
   display: flex;

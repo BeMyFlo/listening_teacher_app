@@ -27,15 +27,16 @@ const fmtDeadline = (d) =>
     minute: "2-digit",
   });
 
-function DeadlineBanner({ dueAt }) {
+function DeadlineBanner({ dueAt, label }) {
   if (!dueAt) return null;
   const ms = new Date(dueAt).getTime() - Date.now();
   const when = fmtDeadline(dueAt);
+  const pre = label ? label + " — " : "";
 
   if (ms <= 0)
     return (
       <div className="notice warn">
-        <svg className="icon"><use href="#icon-warning" /></svg> Past due ({when}). You can still
+        <svg className="icon"><use href="#icon-warning" /></svg> {pre}Past due ({when}). You can still
         submit, but your work will be marked <b>Late</b>.
       </div>
     );
@@ -45,7 +46,7 @@ function DeadlineBanner({ dueAt }) {
     const left = hours >= 1 ? `${Math.round(hours)} hour${Math.round(hours) === 1 ? "" : "s"} left` : "less than an hour left";
     return (
       <div className="notice warn">
-        <svg className="icon"><use href="#icon-clock" /></svg> Due soon — {when} ({left})
+        <svg className="icon"><use href="#icon-clock" /></svg> {pre}Due soon — {when} ({left})
       </div>
     );
   }
@@ -53,7 +54,7 @@ function DeadlineBanner({ dueAt }) {
   const days = Math.ceil(hours / 24);
   return (
     <div className="notice info">
-      <svg className="icon"><use href="#icon-clock" /></svg> Due {when} · {days} day{days === 1 ? "" : "s"} left
+      <svg className="icon"><use href="#icon-clock" /></svg> {pre}Due {when} · {days} day{days === 1 ? "" : "s"} left
     </div>
   );
 }
@@ -130,6 +131,9 @@ export default function UnitDetailPage() {
         </div>
 
         <div id="lessonCatContent">
+          {cat && cat.dueAt && cat.dueAt !== unit.dueAt && (
+            <DeadlineBanner dueAt={cat.dueAt} label={`${catMeta.label} deadline`} />
+          )}
           {cat && LESSON_LIST_CATS.includes(catKey) ? (
             <LessonTopicPane cat={cat} unitId={unit.id} subs={subs} onSubmitted={refresh} />
           ) : !cat ? null : (

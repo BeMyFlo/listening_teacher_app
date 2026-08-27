@@ -8,15 +8,14 @@ const Submission = require("../../lib/models/Submission");
 const { gradeSubmission } = require("../../lib/grade");
 const notifications = require("../../lib/notifications");
 const { resolveVariant } = require("../../lib/grading/rubric");
+const { resolveDeadline } = require("../../lib/deadlines");
 
-// Hạn nộp của Unit áp cho lớp của học sinh (Unit.deadlines). Trả cờ trễ +
-// snapshot dueAt để lưu vào Submission.
-function unitLateness(unit, student, now = new Date()) {
-  const dl = (unit.deadlines || []).find(
-    (d) => String(d.classId) === String(student.classId)
-  );
-  if (!dl || !dl.dueAt) return { isLate: false, dueAt: undefined };
-  return { isLate: now > new Date(dl.dueAt), dueAt: dl.dueAt };
+// Hạn nộp áp cho lớp của học sinh + kỹ năng đang nộp (hạn riêng kỹ năng ->
+// fallback hạn chung Unit). Trả cờ trễ + snapshot dueAt để lưu vào Submission.
+function unitLateness(unit, student, categoryKey, now = new Date()) {
+  const due = resolveDeadline(unit, student.classId, categoryKey);
+  if (!due) return { isLate: false, dueAt: undefined };
+  return { isLate: now > new Date(due), dueAt: due };
 }
 
 // Gửi thông báo "nộp trễ" cho học sinh (1 lần / submission).
@@ -145,7 +144,7 @@ async function handler(req, res) {
     if (!exercise) return res.status(404).json({ ok: false, error: "Exercise not found" });
 
     const { score, total, detail } = gradeSubmission(exercise, answers || {});
-    const { isLate, dueAt } = unitLateness(unit, student);
+    const { isLate, dueAt } = unitLateness(unit, student, categoryKey);
     const submission = await Submission.create({
       studentId: student._id,
       studentName: student.name,
@@ -221,7 +220,7 @@ async function handler(req, res) {
     const category = unit.categories.find((c) => c.key === categoryKey);
     const prompt = category && category.prompts.id(promptId);
     if (!prompt) return res.status(404).json({ ok: false, error: "Prompt not found" });
-    const { isLate, dueAt } = unitLateness(unit, student);
+    const { isLate, dueAt } = unitLateness(unit, student, kind);
     const submission = await Submission.create({
       studentId: student._id,
       studentName: student.name,

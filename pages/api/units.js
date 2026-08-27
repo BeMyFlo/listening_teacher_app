@@ -3,15 +3,22 @@ const { requireStudent } = require("../../lib/auth");
 const Student = require("../../lib/models/Student");
 const Unit = require("../../lib/models/Unit");
 const Class = require("../../lib/models/Class");
+const { resolveDeadline } = require("../../lib/deadlines");
+
+const iso = (d) => (d ? new Date(d) : null);
+const overdue = (d) => !!d && Date.now() > new Date(d).getTime();
+
+// Mốc hạn sớm nhất còn hiệu lực cho lớp (hạn chung + hạn riêng từng kỹ năng)
+// — dùng cho chip ở danh sách bài học.
+function earliestDeadline(unit, classId) {
+  const cands = [resolveDeadline(unit, classId, null)];
+  (Unit.CATEGORY_KEYS || []).forEach((k) => cands.push(resolveDeadline(unit, classId, k)));
+  const times = cands.filter(Boolean).map((d) => new Date(d).getTime());
+  return times.length ? new Date(Math.min(...times)) : null;
+}
 
 // Strips answer keys before a unit is sent to a student's browser — same
 // rule as toPublicTest in api/tests.js (kept local on purpose).
-// Hạn nộp của Unit cho 1 lớp (Unit.deadlines). null nếu lớp không có hạn.
-function deadlineForClass(unit, classId) {
-  const dl = (unit.deadlines || []).find((d) => String(d.classId) === String(classId));
-  return dl && dl.dueAt ? dl.dueAt : null;
-}
-
 function toPublicUnit(unit, cls) {
   const publicSections = (sections) =>
     (sections || []).map((s) => ({
@@ -41,16 +48,25 @@ function toPublicUnit(unit, cls) {
     sections: publicSections(ex.sections),
   });
 
-  const dueAt = deadlineForClass(unit, cls && cls._id);
+  const cid = cls && cls._id;
+  const unitDue = resolveDeadline(unit, cid, null);
 
   return {
     id: unit._id,
     name: unit.name,
     level: unit.level,
-    dueAt,
-    isOverdue: !!dueAt && Date.now() > new Date(dueAt).getTime(),
-    categories: (unit.categories || []).map((c) => ({
+    // Hạn chung cả Unit (cho banner ở đầu trang).
+    dueAt: iso(unitDue),
+    isOverdue: overdue(unitDue),
+    // Hạn sớm nhất bất kỳ (cho chip "Due in N days").
+    nextDueAt: iso(earliestDeadline(unit, cid)),
+    categories: (unit.categories || []).map((c) => {
+      const catDue = resolveDeadline(unit, cid, c.key);
+      return {
       key: c.key,
+      // Hạn áp cho kỹ năng này (riêng nếu có, không thì = hạn chung Unit).
+      dueAt: iso(catDue),
+      isOverdue: overdue(catDue),
       theory: {
         html: (c.theory && c.theory.html) || "",
         audioUrl: c.theory && c.theory.audioId && c.theory.audioId.cloudinaryUrl,
@@ -82,7 +98,8 @@ function toPublicUnit(unit, cls) {
         words: (g.words || []).map((w) => ({ ...(w.toObject ? w.toObject() : w) })),
         exercises: (g.exercises || []).map(publicExercise),
       })),
-    }))
+      };
+    })
   };
 }
 
@@ -150,14 +167,14 @@ async function handler(req, res) {
   // danh sách Lessons hiện badge kỹ năng + số lượng + tính % hoàn thành mà
   // không cần tải chi tiết từng Unit.
   const rows = units.map((u) => {
-    const dueAt = deadlineForClass(u, cls._id);
+    const dueAt = earliestDeadline(u, cls._id);
     return {
       id: u._id,
       name: u.name,
       order: u.order,
       createdAt: u.createdAt,
-      dueAt,
-      isOverdue: !!dueAt && Date.now() > new Date(dueAt).getTime(),
+      dueAt: iso(dueAt),
+      isOverdue: overdue(dueAt),
       categories: (u.categories || []).map((c) => {
         const topicEx = (c.topics || []).reduce((n, t) => n + (t.exercises || []).length, 0);
         const groupEx = (c.groups || []).reduce((n, g) => n + (g.exercises || []).length, 0);

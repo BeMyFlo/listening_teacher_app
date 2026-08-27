@@ -30,12 +30,18 @@ function toEditorUnit(u) {
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
     classIds: (u.classIds || []).map((x) => refId(x)).filter(Boolean),
-    // { [classId]: "<datetime-local>" } — dễ bind vào input, đổi lại mảng khi lưu.
-    deadlines: Object.fromEntries(
-      (u.deadlines || [])
-        .map((d) => [refId(d.classId), toDatetimeLocal(d.dueAt)])
-        .filter(([id, v]) => id && v)
-    ),
+    // { [classId]: { unit: "<dt>", grammar: "<dt>", ... } } — "unit" = hạn chung,
+    // key kỹ năng = hạn riêng. Đổi lại mảng phẳng khi lưu (toPayload).
+    deadlines: (() => {
+      const m = {};
+      (u.deadlines || []).forEach((d) => {
+        const cid = refId(d.classId);
+        const dt = toDatetimeLocal(d.dueAt);
+        if (!cid || !dt) return;
+        (m[cid] = m[cid] || {})[d.categoryKey || "unit"] = dt;
+      });
+      return m;
+    })(),
     categories: (u.categories || []).map((c) => ({
       _id: c._id,
       key: c.key,
@@ -102,9 +108,15 @@ function toPayload(unit, status) {
   const body = {
     name: unit.name.trim(),
     classIds: unit.classIds || [],
-    deadlines: Object.entries(unit.deadlines || {})
-      .filter(([, v]) => v && !isNaN(new Date(v).getTime()))
-      .map(([classId, v]) => ({ classId, dueAt: new Date(v).toISOString() })),
+    deadlines: Object.entries(unit.deadlines || {}).flatMap(([classId, slots]) =>
+      Object.entries(slots || {})
+        .filter(([, v]) => v && !isNaN(new Date(v).getTime()))
+        .map(([slot, v]) => ({
+          classId,
+          categoryKey: slot === "unit" ? null : slot,
+          dueAt: new Date(v).toISOString(),
+        }))
+    ),
     categories: unit.categories.map((cat) => ({
       _id: cat._id,
       key: cat.key,
@@ -182,12 +194,16 @@ export default function UnitEditorPage() {
     });
   }
 
-  function setDeadline(classId, value) {
+  // slot = "unit" (hạn chung) | category key (hạn riêng kỹ năng)
+  function setDeadline(classId, slot, value) {
     setUnit((u) => {
-      const next = { ...(u.deadlines || {}) };
-      if (value) next[classId] = value;
-      else delete next[classId];
-      return { ...u, deadlines: next };
+      const all = { ...(u.deadlines || {}) };
+      const slots = { ...(all[classId] || {}) };
+      if (value) slots[slot] = value;
+      else delete slots[slot];
+      if (Object.keys(slots).length) all[classId] = slots;
+      else delete all[classId];
+      return { ...u, deadlines: all };
     });
   }
 
@@ -383,45 +399,30 @@ export default function UnitEditorPage() {
                     Submission deadlines{" "}
                     <span style={{ fontWeight: 400, color: "var(--muted)" }}>(optional)</span>
                   </div>
-                  <div className="settings-row-desc">Leave blank if no deadline is required.</div>
+                  <div className="settings-row-desc">
+                    One deadline for the whole unit, optionally overridden per skill. Blank = no deadline.
+                  </div>
                 </div>
                 <div className="settings-row-control">
-                  {levelClasses.map((c) => {
-                    const val = (unit.deadlines || {})[String(c._id)] || "";
-                    return (
-                      <div className="settings-deadline-row" key={c._id}>
-                        <span>{c.name}</span>
-                        <div className="settings-deadline-input">
-                          <input
-                            type="datetime-local"
-                            value={val}
-                            onChange={(e) => setDeadline(String(c._id), e.target.value)}
-                          />
-                          {val && (
-                            <button
-                              type="button"
-                              className="icon-btn danger"
-                              title="Clear deadline"
-                              onClick={() => setDeadline(String(c._id), "")}
-                            >
-                              <svg className="icon"><use href="#icon-cross" /></svg>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {levelClasses.map((c) => (
+                    <ClassDeadlineEditor
+                      key={c._id}
+                      cls={c}
+                      slots={(unit.deadlines || {})[String(c._id)] || {}}
+                      onChange={(slot, v) => setDeadline(String(c._id), slot, v)}
+                    />
+                  ))}
                   <p className="settings-note">
                     <svg className="icon"><use href="#icon-info" /></svg>
                     <span>
-                      Students can still submit after the deadline, but their work is flagged <b>Late</b>.
+                      A skill with no deadline of its own uses the whole-unit deadline.
                     </span>
                   </p>
                   <p className="settings-note">
                     <svg className="icon"><use href="#icon-info" /></svg>
                     <span>
-                      Each student gets a reminder in their notification bell <b>24 hours</b> before
-                      the deadline.
+                      Students can still submit after the deadline, but their work is flagged <b>Late</b>.
+                      Each student gets a reminder <b>24 hours</b> before.
                     </span>
                   </p>
                 </div>
@@ -492,6 +493,56 @@ export default function UnitEditorPage() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ClassDeadlineEditor({ cls, slots, onChange }) {
+  const skillsSet = LESSON_CATS.filter((c) => slots[c.key]).length;
+  const [open, setOpen] = useState(skillsSet > 0);
+
+  const clearBtn = (slot) =>
+    slots[slot] ? (
+      <button
+        type="button"
+        className="icon-btn danger"
+        title="Clear"
+        onClick={() => onChange(slot, "")}
+      >
+        <svg className="icon"><use href="#icon-cross" /></svg>
+      </button>
+    ) : null;
+
+  return (
+    <div className="deadline-class">
+      <div className="deadline-class-head">
+        <span className="deadline-class-name">{cls.name}</span>
+        <input
+          type="datetime-local"
+          value={slots.unit || ""}
+          onChange={(e) => onChange("unit", e.target.value)}
+        />
+        {clearBtn("unit")}
+      </div>
+      <button type="button" className="deadline-skill-toggle" onClick={() => setOpen((o) => !o)}>
+        <svg className="icon"><use href={"#icon-" + (open ? "chevron-down" : "chevron-right")} /></svg>
+        Per-skill deadlines{skillsSet > 0 ? ` · ${skillsSet} set` : ""}
+      </button>
+      {open && (
+        <div className="deadline-skill-grid">
+          {LESSON_CATS.map((c) => (
+            <div className="deadline-skill-row" key={c.key}>
+              <span>{c.label}</span>
+              <input
+                type="datetime-local"
+                value={slots[c.key] || ""}
+                onChange={(e) => onChange(c.key, e.target.value)}
+              />
+              {clearBtn(c.key)}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

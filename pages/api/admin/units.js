@@ -22,8 +22,10 @@ async function sanitizeClassIds(raw, level) {
   return found.map((c) => c._id);
 }
 
-// Hạn nộp theo lớp. Chỉ giữ entry có classId là lớp thật đúng level và dueAt
-// hợp lệ. dueAt rỗng/null = bỏ hạn của lớp đó. Trả { error } nếu date sai.
+// Hạn nộp theo (lớp, kỹ năng). categoryKey null/rỗng = hạn chung cả Unit;
+// hoặc là 1 trong CATEGORY_KEYS = hạn riêng kỹ năng. Chỉ giữ entry có classId
+// hợp lệ đúng level + dueAt hợp lệ; dueAt rỗng = bỏ hạn đó. Dedup theo
+// (classId, categoryKey). Trả { error } nếu date/kỹ năng sai.
 async function sanitizeDeadlines(raw, level) {
   if (!Array.isArray(raw) || !raw.length) return [];
   const valid = new Set(
@@ -32,12 +34,18 @@ async function sanitizeDeadlines(raw, level) {
   const seen = new Set();
   const out = [];
   for (const d of raw) {
-    if (!d || !valid.has(String(d.classId)) || seen.has(String(d.classId))) continue;
+    if (!d || !valid.has(String(d.classId))) continue;
+    const catKey = d.categoryKey || null;
+    if (catKey && !Unit.CATEGORY_KEYS.includes(catKey)) {
+      return { error: "Invalid deadline skill: " + catKey };
+    }
+    const dedupe = String(d.classId) + "|" + (catKey || "");
+    if (seen.has(dedupe)) continue;
     if (d.dueAt == null || String(d.dueAt).trim() === "") continue;
     const dt = new Date(d.dueAt);
     if (isNaN(dt.getTime())) return { error: "Invalid deadline date/time" };
-    seen.add(String(d.classId));
-    out.push({ classId: d.classId, dueAt: dt });
+    seen.add(dedupe);
+    out.push({ classId: d.classId, categoryKey: catKey, dueAt: dt });
   }
   return out;
 }

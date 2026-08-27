@@ -253,7 +253,7 @@ export default function StudentUnitSubmissionPage() {
       {back}
       {data.student.dueAt && (
         <p className="back-link" style={{ cursor: "default", color: "var(--muted)" }}>
-          <svg className="icon"><use href="#icon-clock" /></svg> Deadline: {fmtDateTime(data.student.dueAt)}
+          <svg className="icon"><use href="#icon-clock" /></svg> Unit deadline: {fmtDateTime(data.student.dueAt)}
         </p>
       )}
       {lateCount > 0 && (
@@ -262,11 +262,19 @@ export default function StudentUnitSubmissionPage() {
           submission{lateCount === 1 ? "" : "s"} in this unit.
         </div>
       )}
-      {data.categories.map((cat) => (
+      {data.categories.map((cat) => {
+        const catDue = (data.student.deadlineByCategory || {})[cat.key];
+        const ownDeadline = catDue && catDue !== data.student.dueAt;
+        return (
         <div className="card" key={cat.key} style={{ marginBottom: 16 }}>
           <div className="page-head" style={{ marginBottom: 8 }}>
             <div className="head-left">
               <h3 style={{ margin: 0 }}>{cat.label}</h3>
+              {ownDeadline && (
+                <span className="pill pill-info" style={{ marginLeft: 8 }}>
+                  Due {fmtDateTime(catDue)}
+                </span>
+              )}
             </div>
             <div style={{ color: "var(--muted)", fontSize: ".9rem" }}>
               {cat.kind === "exercise"
@@ -289,7 +297,8 @@ export default function StudentUnitSubmissionPage() {
             cat.prompts.map((p) => <PromptRow key={p._id} prompt={p} onGraded={load} />)
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
