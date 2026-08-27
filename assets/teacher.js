@@ -2056,6 +2056,8 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
   }
 
   function openUnitEditor(unitId) {
+    unitOverviewStudents = [];
+    unitOverviewSubmissions = [];
     Api.admin
       .getUnit(unitId)
       .then((data) => {
@@ -2066,6 +2068,8 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
           name: u.name || "",
           level: u.level,
           status: u.status,
+          createdAt: u.createdAt,
+          updatedAt: u.updatedAt,
           categories: (u.categories || []).map((c) => ({
             _id: c._id,
             key: c.key,
@@ -2094,8 +2098,41 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
         document.getElementById("unitEditorStatus").style.display = "none";
         renderUnitEditor();
         document.getElementById("unitEditor").scrollIntoView({ behavior: "smooth" });
+        loadUnitOverviewStats();
       })
       .catch((err) => alert("Failed to load Unit: " + err.message));
+  }
+
+  // Số liệu thật cho header card (Students at this level / Total
+  // Submissions / Avg Completion / Avg Score) — lấy 1 lần khi mở editor,
+  // không có API riêng theo unit nên tự lọc từ danh sách đầy đủ.
+  let unitOverviewStudents = [];
+  let unitOverviewSubmissions = [];
+  function loadUnitOverviewStats() {
+    Promise.all([Api.admin.listStudents(), Api.admin.listSubmissions()])
+      .then(([studentsData, subsData]) => {
+        unitOverviewStudents = studentsData.rows || [];
+        unitOverviewSubmissions = subsData.rows || [];
+        renderUnitOverviewCard();
+      })
+      .catch(() => {
+        // Thống kê chỉ mang tính tham khảo — lỗi tải thì bỏ qua, không chặn soạn bài.
+      });
+  }
+
+  function computeUnitOverviewStats() {
+    const totalStudents = unitOverviewStudents.filter((s) => s.level === unitEditing.level).length;
+    const unitSubs = unitOverviewSubmissions.filter(
+      (s) => s.kind !== "test" && s.unitId && String(s.unitId) === String(unitEditing._id)
+    );
+    const totalSubmissions = unitSubs.length;
+    const uniqueStudents = new Set(unitSubs.map((s) => String(s.studentId))).size;
+    const avgCompletionPct = totalStudents ? Math.round((uniqueStudents / totalStudents) * 100) : 0;
+    const exerciseSubs = unitSubs.filter((s) => s.kind === "exercise" && s.total > 0);
+    const avgScorePct = exerciseSubs.length
+      ? Math.round(exerciseSubs.reduce((sum, s) => sum + (s.score / s.total) * 100, 0) / exerciseSubs.length)
+      : null;
+    return { totalStudents, totalSubmissions, avgCompletionPct, avgScorePct };
   }
 
   function closeUnitEditor() {
@@ -2112,9 +2149,62 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
   function renderUnitEditor() {
     if (!unitEditing) return;
     document.getElementById("unitEditorHeading").textContent = "Edit Unit: " + unitEditing.name;
+    renderUnitOverviewCard();
     renderUnitCatTabs();
     renderUnitSubTabs();
     renderUnitCatContent();
+  }
+
+  const CATEGORY_COLORS = {
+    grammar: "#16a34a",
+    vocabulary: "#7c3aed",
+    listening: "#0ea5e9",
+    reading: "#f59e0b",
+    writing: "#ec4899",
+    speaking: "#ef4444"
+  };
+
+  // Header card kiểu "Lesson Management" — icon + badge từng kỹ năng + số
+  // liệu thật (Students/Submissions/Completion/Avg Score), tính từ dữ liệu
+  // Student/Submission đã có sẵn, không bịa thêm khái niệm mới (không có
+  // "Assignment" hay "Due date" trong data model hiện tại).
+  function renderUnitOverviewCard() {
+    const wrap = document.getElementById("unitOverviewCard");
+    if (!unitEditing) {
+      wrap.innerHTML = "";
+      return;
+    }
+    const stats = computeUnitOverviewStats();
+    const totalItems = unitEditing.categories.reduce((n, c) => n + (c.exercises || []).length + (c.prompts || []).length, 0);
+    const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—");
+
+    const badges = CATEGORY_KEYS.map((key) => {
+      const cat = unitEditing.categories.find((c) => c.key === key);
+      const has = categoryHasContent(cat);
+      const color = CATEGORY_COLORS[key];
+      return has
+        ? `<span class="cat-badge" style="background:${color}22; color:${color};">${escapeHtml(CATEGORY_LABELS[key])}</span>`
+        : `<span class="cat-badge cat-badge-empty">${escapeHtml(CATEGORY_LABELS[key])}</span>`;
+    }).join("");
+
+    wrap.innerHTML = `
+      <div class="unit-overview">
+        <div class="unit-overview-main">
+          <div class="unit-overview-icon">${Icon("book-open")}</div>
+          <div style="flex:1; min-width:0;">
+            <h3 style="margin:0 0 6px;">${escapeHtml(unitEditing.name) || "(untitled unit)"}</h3>
+            <div class="unit-overview-badges">${badges}</div>
+            <p class="unit-overview-meta">Level ${unitEditing.level} · Created ${fmtDate(unitEditing.createdAt)} · Updated ${fmtDate(unitEditing.updatedAt)} · ${totalItems} item(s)</p>
+          </div>
+        </div>
+        <div class="unit-overview-stats">
+          <div class="unit-overview-stat"><span class="value">${stats.totalStudents}</span><span class="label">Students (Level ${unitEditing.level})</span></div>
+          <div class="unit-overview-stat"><span class="value">${stats.totalSubmissions}</span><span class="label">Total Submissions</span></div>
+          <div class="unit-overview-stat"><span class="value">${stats.avgCompletionPct}%</span><span class="label">Avg Completion</span></div>
+          <div class="unit-overview-stat"><span class="value">${stats.avgScorePct != null ? stats.avgScorePct + "%" : "—"}</span><span class="label">Avg Score</span></div>
+        </div>
+      </div>
+    `;
   }
 
   function categoryHasContent(cat) {
@@ -2179,6 +2269,8 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
     nameRow.querySelector("input").addEventListener("input", (e) => {
       unitEditing.name = e.target.value;
       document.getElementById("unitEditorHeading").textContent = "Edit Unit: " + unitEditing.name;
+      const overviewTitle = document.querySelector("#unitOverviewCard h3");
+      if (overviewTitle) overviewTitle.textContent = unitEditing.name || "(untitled unit)";
     });
     content.appendChild(nameRow);
 

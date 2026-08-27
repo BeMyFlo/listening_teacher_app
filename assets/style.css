@@ -1408,6 +1408,43 @@ tr:hover td { background: #fafcfe; }
 }
 .builder-toolbar h3 { margin: 0; }
 
+/* ---------- Unit editor overview card ---------- */
+.unit-overview {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin: 18px 0 4px;
+  background: var(--bg);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+}
+.unit-overview-main { display: flex; align-items: flex-start; gap: 14px; flex: 1; min-width: 260px; }
+.unit-overview-icon {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  background: var(--blue-light);
+  color: var(--blue);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.unit-overview-icon .icon { width: 1.3rem; height: 1.3rem; }
+.unit-overview-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.cat-badge {
+  font-size: .74rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.cat-badge-empty { background: var(--border); color: var(--muted); }
+.unit-overview-meta { margin: 8px 0 0; color: var(--muted); font-size: .82rem; }
+.unit-overview-stats { display: flex; gap: 22px; flex-wrap: wrap; }
+.unit-overview-stat { display: flex; flex-direction: column; min-width: 90px; }
+.unit-overview-stat .value { font-size: 1.25rem; font-weight: 800; color: var(--ink); }
+.unit-overview-stat .label { font-size: .72rem; color: var(--muted); white-space: nowrap; }
+
 /* ---------- Unit editor tabs (Phase 3) ---------- */
 .unit-cat-tabs {
   display: flex;
