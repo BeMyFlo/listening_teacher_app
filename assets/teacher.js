@@ -152,6 +152,16 @@
       .replace(/>/g, "&gt;");
   }
 
+  // Theory content chỉ là plain text (escapeHtml), giáo viên không có cách
+  // nào in đậm/nghiêng. Hỗ trợ cú pháp markdown tối giản **đậm** / *nghiêng*
+  // — escape trước rồi mới chèn <b>/<i> nên an toàn khỏi injection.
+  function renderTheoryText(raw) {
+    let html = escapeHtml(raw);
+    html = html.replace(/\*\*([^\n]+?)\*\*/g, "<b>$1</b>");
+    html = html.replace(/\*([^\n*]+?)\*/g, "<i>$1</i>");
+    return html;
+  }
+
   // ---------- Generic read-only preview modal ----------
   function showModal(title, bodyHtml) {
     const old = document.querySelector(".modal-overlay");
@@ -1940,7 +1950,7 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
         if (!cat || !categoryHasContent(cat)) return "";
         let body = "";
         if ((cat.theory.html || "").trim()) {
-          body += `<div class="preview-q"><div class="pq-label">Theory</div><div class="pq-meta" style="white-space:pre-line; color:var(--ink);">${escapeHtml(cat.theory.html)}</div></div>`;
+          body += `<div class="preview-q"><div class="pq-label">Theory</div><div class="pq-meta" style="white-space:pre-line; color:var(--ink);">${renderTheoryText(cat.theory.html)}</div></div>`;
         }
         (cat.exercises || []).forEach((ex) => {
           body += `<div class="preview-q"><div class="pq-label">${escapeHtml(ex.title) || "(untitled exercise)"}</div></div>` + previewSectionsHtml(ex._sections || []);
@@ -2186,7 +2196,12 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
     box.innerHTML = `
       <div class="form-row">
         <label>Theory Content</label>
-        <textarea rows="8" class="theory-html" placeholder="Theory content for ${CATEGORY_LABELS[unitCatKey]}...">${escapeHtml(cat.theory.html)}</textarea>
+        <div class="theory-toolbar">
+          <button type="button" class="icon-btn theory-btn-bold" title="Bold selected text (**text**)"><b>B</b></button>
+          <button type="button" class="icon-btn theory-btn-italic" title="Italicize selected text (*text*)"><i>I</i></button>
+          <span class="theory-toolbar-hint">Select text, then click to bold/italicize — or type **bold** / *italic* directly.</span>
+        </div>
+        <textarea rows="24" class="theory-html" placeholder="Theory content for ${CATEGORY_LABELS[unitCatKey]}...">${escapeHtml(cat.theory.html)}</textarea>
       </div>
       <div class="form-row">
         <label>Audio Illustration (optional)</label>
@@ -2197,7 +2212,26 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
         <select class="select-inline section-image-select" style="width:100%;"></select>
       </div>
     `;
-    box.querySelector(".theory-html").addEventListener("input", (e) => (cat.theory.html = e.target.value));
+    const theoryTa = box.querySelector(".theory-html");
+    theoryTa.addEventListener("input", (e) => (cat.theory.html = e.target.value));
+
+    // Bọc vùng bôi đen bằng **/* — không bôi đen thì bọc từ vị trí con trỏ
+    // (chèn cặp dấu, con trỏ nằm giữa để gõ tiếp).
+    function wrapSelection(marker) {
+      const start = theoryTa.selectionStart;
+      const end = theoryTa.selectionEnd;
+      const val = theoryTa.value;
+      const selected = val.slice(start, end);
+      const wrapped = marker + selected + marker;
+      theoryTa.value = val.slice(0, start) + wrapped + val.slice(end);
+      cat.theory.html = theoryTa.value;
+      theoryTa.focus();
+      const cursor = selected ? start + wrapped.length : start + marker.length;
+      theoryTa.setSelectionRange(cursor, cursor);
+    }
+    box.querySelector(".theory-btn-bold").addEventListener("click", () => wrapSelection("**"));
+    box.querySelector(".theory-btn-italic").addEventListener("click", () => wrapSelection("*"));
+
     box.querySelector(".section-audio-select").addEventListener("change", (e) => (cat.theory.audioId = e.target.value));
     box.querySelector(".section-image-select").addEventListener("change", (e) => (cat.theory.imageId = e.target.value));
     content.appendChild(box);

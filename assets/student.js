@@ -705,6 +705,15 @@
       .replace(/>/g, "&gt;");
   }
 
+  // Theory content hỗ trợ cú pháp markdown tối giản **đậm** / *nghiêng*
+  // giáo viên gõ ở ô soạn — escape trước rồi mới chèn <b>/<i> nên an toàn.
+  function renderTheoryText(raw) {
+    let html = escapeHtml(raw);
+    html = html.replace(/\*\*([^\n]+?)\*\*/g, "<b>$1</b>");
+    html = html.replace(/\*([^\n*]+?)\*/g, "<i>$1</i>");
+    return html;
+  }
+
   document.getElementById("btnRetake").addEventListener("click", () => startTest(currentTest.id, currentSkill));
 
   // ============================================================
@@ -729,6 +738,15 @@
 
   let currentUnit = null;
   let lessonCatKey = "grammar";
+  let lessonSubTab = "learn"; // 'learn' | 'practice'
+  const LESSON_CAT_DESC = {
+    grammar: "Learn grammar rules and practice exercises to improve accuracy.",
+    vocabulary: "Build vocabulary with topic word lists and practice.",
+    listening: "Practice listening sections with audio recordings.",
+    reading: "Practice reading skills with passages and questions.",
+    writing: "Practice writing tasks — submit for teacher feedback.",
+    speaking: "Practice speaking tasks — record and submit for feedback."
+  };
   let mySubmissionsCache = [];
   let openExerciseId = null;
 
@@ -814,6 +832,7 @@
       .then((data) => {
         currentUnit = data.unit;
         lessonCatKey = "grammar";
+        lessonSubTab = "learn";
         openExerciseId = null;
         document.getElementById("unitsStatus").style.display = "none";
         document.getElementById("lessonsList").style.display = "none";
@@ -840,6 +859,7 @@
       btn.innerHTML = Icon(LESSON_CAT_ICONS[key]) + " " + LESSON_CAT_LABELS[key];
       btn.addEventListener("click", () => {
         lessonCatKey = key;
+        lessonSubTab = "learn";
         openExerciseId = null;
         renderLessonCatTabs();
         renderLessonCatContent();
@@ -853,35 +873,98 @@
     return currentUnit.categories.find((c) => c.key === lessonCatKey) || null;
   }
 
+  function latestSubmissionOf(match) {
+    return mySubmissionsCache.find(match) || null;
+  }
+
+  // Dùng dữ liệu đã có sẵn (mySubmissionsCache) để tính nhanh — không thêm
+  // tracking mới (không có "Study Time", không có "Locked" tuần tự).
+  function lessonCatStats(cat) {
+    const isPromptCat = lessonCatKey === "writing" || lessonCatKey === "speaking";
+    const items = isPromptCat ? cat.prompts : cat.exercises;
+    const topics = items.length;
+    let completed = 0;
+    let scoreSum = 0;
+    let scoreCount = 0;
+    if (isPromptCat) {
+      cat.prompts.forEach((p) => {
+        const last = latestSubmissionOf((s) => (s.kind === "writing" || s.kind === "speaking") && String(s.promptId) === String(p.id));
+        if (last) completed++;
+      });
+    } else {
+      cat.exercises.forEach((ex) => {
+        const last = latestSubmissionOf((s) => s.kind === "exercise" && String(s.exerciseId) === String(ex.id));
+        if (last) {
+          completed++;
+          if (last.total > 0) {
+            scoreSum += (last.score / last.total) * 100;
+            scoreCount++;
+          }
+        }
+      });
+    }
+    return {
+      topics,
+      completed,
+      avgScorePct: scoreCount ? Math.round(scoreSum / scoreCount) : null
+    };
+  }
+
   function renderLessonCatContent() {
     const wrap = document.getElementById("lessonCatContent");
     wrap.innerHTML = "";
     const cat = currentLessonCategory();
     if (!cat) return;
 
-    // Theory
-    const theoryBox = document.createElement("div");
-    const hasTheory = (cat.theory.html || "").trim() || cat.theory.audioUrl || cat.theory.imageUrl;
-    theoryBox.innerHTML = `<h3 style="margin-top:6px;">Theory</h3>` + (
-      hasTheory
-        ? `
-          ${(cat.theory.html || "").trim() ? `<div class="lesson-text">${escapeHtml(cat.theory.html)}</div>` : ""}
-          ${cat.theory.audioUrl ? `<audio controls src="${cat.theory.audioUrl}" style="width:100%; margin:10px 0;"></audio>` : ""}
-          ${cat.theory.imageUrl ? `<img src="${cat.theory.imageUrl}" class="diagram-image" />` : ""}
-        `
-        : '<div class="empty-state">No theory content available for this section.</div>'
-    );
-    wrap.appendChild(theoryBox);
+    const isPromptCat = lessonCatKey === "writing" || lessonCatKey === "speaking";
+    const stats = lessonCatStats(cat);
 
-    if (lessonCatKey === "writing" || lessonCatKey === "speaking") {
+    const header = document.createElement("div");
+    header.className = "lesson-header-card";
+    header.innerHTML = `
+      <div class="lesson-header-top">
+        <span class="lesson-header-icon">${Icon(LESSON_CAT_ICONS[lessonCatKey])}</span>
+        <div>
+          <h3 style="margin:0;">${escapeHtml(LESSON_CAT_LABELS[lessonCatKey])}</h3>
+          <p style="margin:2px 0 0; color:var(--muted); font-size:.86rem;">${escapeHtml(LESSON_CAT_DESC[lessonCatKey] || "")}</p>
+        </div>
+      </div>
+      <div class="lesson-stat-row">
+        <div class="lesson-stat"><span class="value">${stats.topics}</span><span class="label">${isPromptCat ? "Prompts" : "Exercises"}</span></div>
+        <div class="lesson-stat"><span class="value">${stats.completed}</span><span class="label">Completed</span></div>
+        ${!isPromptCat ? `<div class="lesson-stat"><span class="value">${stats.avgScorePct != null ? stats.avgScorePct + "%" : "—"}</span><span class="label">Avg Score</span></div>` : ""}
+      </div>
+      <div class="lesson-subtabs">
+        <button type="button" class="lesson-subtab ${lessonSubTab === "learn" ? "active" : ""}" data-sub="learn">${Icon("book-open")} Learn</button>
+        <button type="button" class="lesson-subtab ${lessonSubTab === "practice" ? "active" : ""}" data-sub="practice">${Icon("edit")} Practice</button>
+      </div>
+    `;
+    header.querySelectorAll(".lesson-subtab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        lessonSubTab = btn.dataset.sub;
+        renderLessonCatContent();
+      });
+    });
+    wrap.appendChild(header);
+
+    if (lessonSubTab === "learn") {
+      const theoryBox = document.createElement("div");
+      const hasTheory = (cat.theory.html || "").trim() || cat.theory.audioUrl || cat.theory.imageUrl;
+      theoryBox.innerHTML = `<h3 style="margin-top:6px;">Theory</h3>` + (
+        hasTheory
+          ? `
+            ${(cat.theory.html || "").trim() ? `<div class="lesson-text">${renderTheoryText(cat.theory.html)}</div>` : ""}
+            ${cat.theory.audioUrl ? `<audio controls src="${cat.theory.audioUrl}" style="width:100%; margin:10px 0;"></audio>` : ""}
+            ${cat.theory.imageUrl ? `<img src="${cat.theory.imageUrl}" class="diagram-image" />` : ""}
+          `
+          : '<div class="empty-state">No theory content available for this section.</div>'
+      );
+      wrap.appendChild(theoryBox);
+    } else if (isPromptCat) {
       renderLessonPrompts(wrap, cat);
     } else {
       renderLessonExercises(wrap, cat);
     }
-  }
-
-  function latestSubmissionOf(match) {
-    return mySubmissionsCache.find(match) || null;
   }
 
   function renderLessonExercises(wrap, cat) {
@@ -889,16 +972,25 @@
       wrap.insertAdjacentHTML("beforeend", '<div class="empty-state">No exercises available for this section.</div>');
       return;
     }
-    cat.exercises.forEach((ex) => {
+    cat.exercises.forEach((ex, exIdx) => {
       const last = latestSubmissionOf((s) => s.kind === "exercise" && String(s.exerciseId) === String(ex.id));
+      const isOpen = openExerciseId === ex.id;
+      const statusBadge = isOpen
+        ? '<span class="pill pill-warn">In Progress</span>'
+        : last
+          ? `<span class="pill pill-ok">Completed · ${Math.round((last.score / Math.max(last.total, 1)) * 100)}%</span>`
+          : '<span class="pill pill-muted">Not started</span>';
+      const ctaLabel = isOpen ? "Continue" : last ? "Review" : "Start";
       const box = document.createElement("div");
       box.className = "lesson-block";
       box.innerHTML = `
         <div class="lesson-block-head">
-          <h4 style="margin:0;">${escapeHtml(ex.title || "Exercise")} <span style="color:var(--muted); font-weight:400;">· ${ex.totalQuestions} questions</span></h4>
-          <button class="btn" style="padding:8px 16px;">${openExerciseId === ex.id ? "In Progress" : "Start Exercise"}</button>
+          <div>
+            <h4 style="margin:0;">${exIdx + 1}. ${escapeHtml(ex.title || "Exercise")}</h4>
+            <p style="margin:4px 0 0; color:var(--muted); font-size:.85rem;">${ex.totalQuestions} questions ${statusBadge}</p>
+          </div>
+          <button class="btn" style="padding:8px 16px;">${ctaLabel}</button>
         </div>
-        ${last ? `<p style="margin:8px 0 0; color:var(--muted);">Last attempt: <b>${last.score}/${last.total}</b> correct</p>` : ""}
         <div class="lesson-ex-form" style="display:${openExerciseId === ex.id ? "block" : "none"}; margin-top:16px;"></div>
       `;
 
@@ -951,12 +1043,17 @@
       wrap.insertAdjacentHTML("beforeend", '<div class="empty-state">No prompts available for this section.</div>');
       return;
     }
-    cat.prompts.forEach((p) => {
+    cat.prompts.forEach((p, pIdx) => {
       const last = latestSubmissionOf((s) => (s.kind === "writing" || s.kind === "speaking") && String(s.promptId) === String(p.id));
+      const statusBadge = !last
+        ? '<span class="pill pill-muted">Not started</span>'
+        : last.gradingStatus === "graded"
+          ? `<span class="pill pill-ok">Graded · ${last.manualScore} pts</span>`
+          : '<span class="pill pill-warn">Pending review</span>';
       const box = document.createElement("div");
       box.className = "lesson-block";
       box.innerHTML = `
-        <h4 style="margin:0 0 8px;">${escapeHtml(p.title || "Prompt")}</h4>
+        <h4 style="margin:0 0 8px;">${pIdx + 1}. ${escapeHtml(p.title || "Prompt")} ${statusBadge}</h4>
         ${p.instructions ? `<div class="lesson-text">${escapeHtml(p.instructions)}</div>` : ""}
         ${p.imageUrl ? `<img src="${p.imageUrl}" class="diagram-image" style="margin:10px 0;" />` : ""}
         <div class="prompt-work" style="margin-top:12px;"></div>
