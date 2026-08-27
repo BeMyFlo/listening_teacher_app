@@ -932,11 +932,11 @@
         <div class="unit-list-num">${String(idx + 1).padStart(2, "0")}</div>
         <div class="unit-list-meta">
           <h4>${escapeHtml(u.name)}</h4>
-          <p>${skillsWithContent}/${LESSON_CAT_ORDER.length} skills · ${p.totalItems} item(s)</p>
+          <p><span class="meta-icon">${Icon("headphones")} ${skillsWithContent}/${LESSON_CAT_ORDER.length} skills</span><span class="meta-icon">${Icon("clipboard")} ${p.totalItems} item(s)</span></p>
         </div>
         <div class="unit-list-progress">
-          <span style="color:${statusColor}; font-weight:700;">${p.pct}%</span>
-          <span style="color:${statusColor};">${statusLabel}</span>
+          <div class="unit-list-pct" style="color:${statusColor};">${p.pct}%</div>
+          <div class="unit-list-status" style="color:${statusColor};">${statusLabel}</div>
           <div class="progress-bar"><div class="progress-bar-fill" style="width:${p.pct}%; background:${statusColor};"></div></div>
         </div>
         <button type="button" class="icon-btn unit-list-goto">${Icon("chevron-right")}</button>

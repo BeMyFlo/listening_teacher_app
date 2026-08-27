@@ -220,29 +220,36 @@ input[type=search]:focus, textarea:focus, select:focus {
 .unit-list-row {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 14px 6px;
+  gap: 20px;
+  padding: 20px 14px;
   border-top: 1px solid var(--border);
   cursor: pointer;
+  border-radius: 10px;
 }
 .unit-list-row:first-child { border-top: none; }
 .unit-list-row:hover { background: var(--bg); }
-.unit-list-row.selected { background: var(--blue-light); }
+.unit-list-row.selected { background: var(--blue-light); border-top-color: transparent; }
+.unit-list-row.selected + .unit-list-row { border-top-color: transparent; }
 .unit-list-row.selected .unit-list-num { background: var(--blue); color: #fff; }
 .unit-list-num {
-  width: 40px; height: 40px;
-  border-radius: 10px;
+  width: 48px; height: 48px;
+  border-radius: 12px;
   background: var(--blue-light);
   color: var(--blue);
   font-weight: 800;
+  font-size: 1.05rem;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
 .unit-list-meta { flex: 1; min-width: 0; }
-.unit-list-meta h4 { margin: 0 0 3px; font-size: .96rem; color: var(--ink); font-weight: 700; }
-.unit-list-meta p { margin: 0; font-size: .8rem; color: var(--muted); }
-.unit-list-progress { width: 160px; flex-shrink: 0; font-size: .84rem; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 8px; }
-.unit-list-progress .progress-bar { width: 100%; }
+.unit-list-meta h4 { margin: 0 0 4px; font-size: 1rem; color: var(--ink); font-weight: 700; }
+.unit-list-meta p { margin: 0; font-size: .82rem; color: var(--muted); display: flex; gap: 18px; flex-wrap: wrap; }
+.unit-list-meta .meta-icon { display: inline-flex; align-items: center; gap: 5px; }
+.unit-list-meta .meta-icon .icon { width: .95rem; height: .95rem; }
+.unit-list-progress { width: 170px; flex-shrink: 0; text-align: right; }
+.unit-list-pct { font-size: 1.2rem; font-weight: 800; }
+.unit-list-status { font-size: .8rem; margin-top: 1px; }
+.unit-list-progress .progress-bar { width: 100%; margin-top: 6px; }
 .unit-list-goto { pointer-events: none; }
 
 /* ---------- Mock Test list — thẻ đề 4 kỹ năng ---------- */
