@@ -2,7 +2,7 @@ import "./globals.css";
 import { IconSprite } from "@/components/Icon";
 
 export const metadata = {
-  title: "IELTS with Ms Nhi",
+  title: "Ms Nhi",
   description: "IELTS LMS",
 };
 
