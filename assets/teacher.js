@@ -2225,7 +2225,10 @@ The train departs at ___. | 9am; nine o'clock"></textarea>
       const wrapped = marker + selected + marker;
       theoryTa.value = val.slice(0, start) + wrapped + val.slice(end);
       cat.theory.html = theoryTa.value;
-      theoryTa.focus();
+      // preventScroll: true — mặc định .focus() tự cuộn trang để hiện trọn
+      // ô input; với ô cao 24 dòng này thì cú cuộn đó nhảy rất xa xuống
+      // dưới, đúng thứ giáo viên báo bị "nhảy xuống cuối" mỗi lần bấm B/I.
+      theoryTa.focus({ preventScroll: true });
       const cursor = selected ? start + wrapped.length : start + marker.length;
       theoryTa.setSelectionRange(cursor, cursor);
     }
