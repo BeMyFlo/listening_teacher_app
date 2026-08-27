@@ -227,6 +227,8 @@ input[type=search]:focus, textarea:focus, select:focus {
 }
 .unit-list-row:first-child { border-top: none; }
 .unit-list-row:hover { background: var(--bg); }
+.unit-list-row.selected { background: var(--blue-light); }
+.unit-list-row.selected .unit-list-num { background: var(--blue); color: #fff; }
 .unit-list-num {
   width: 40px; height: 40px;
   border-radius: 10px;

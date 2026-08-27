@@ -746,6 +746,7 @@
   };
   let unitsCache = [];
   let unitsSortMode = "order";
+  let selectedUnitId = null; // click 1 dòng trong "All Units" -> chọn hiện lên thẻ trên, không mở luôn
 
   let currentUnit = null;
   let lessonCatKey = "grammar";
@@ -867,15 +868,28 @@
     renderUnitsListRows();
   }
 
-  // Thẻ nổi bật trên đầu: ưu tiên Unit đang làm dở (0% < x < 100%), rồi
-  // đến Unit chưa bắt đầu đầu tiên, cuối cùng fallback Unit đầu danh sách.
-  function renderFeaturedUnit() {
-    const wrap = document.getElementById("unitsFeatured");
+  // Unit nào đang được xem ở thẻ trên: ưu tiên Unit vừa click chọn ở "All
+  // Units" (selectedUnitId); chưa chọn gì thì mặc định Unit đang làm dở
+  // (0%<x<100%), rồi Unit chưa bắt đầu đầu tiên, cuối cùng fallback Unit
+  // đầu danh sách. Tính 1 lần, dùng chung cho cả thẻ trên lẫn highlight
+  // dòng đang chọn bên dưới — tránh gọi unitProgress() lặp lại nhiều lần.
+  function getFeaturedUnitEntry() {
     const withProgress = unitsCache.map((u) => ({ u, p: unitProgress(u) }));
-    const featured =
+    return (
+      (selectedUnitId && withProgress.find((x) => String(x.u.id) === String(selectedUnitId))) ||
       withProgress.find((x) => x.p.pct > 0 && x.p.pct < 100) ||
       withProgress.find((x) => x.p.pct === 0) ||
-      withProgress[0];
+      withProgress[0] ||
+      null
+    );
+  }
+
+  // Thẻ nổi bật trên đầu — chỉ mang tính xem trước; bấm nút trong thẻ này
+  // mới thật sự mở bài (xem renderUnitsListRows: click 1 dòng chỉ đổi thẻ
+  // này sang Unit đó, không mở thẳng).
+  function renderFeaturedUnit() {
+    const wrap = document.getElementById("unitsFeatured");
+    const featured = getFeaturedUnitEntry();
     if (!featured) {
       wrap.innerHTML = "";
       return;
@@ -904,13 +918,16 @@
   function renderUnitsListRows() {
     const listEl = document.getElementById("unitsList");
     listEl.innerHTML = "";
+    const featuredEntry = getFeaturedUnitEntry();
+    const featuredId = featuredEntry && featuredEntry.u.id;
     sortedUnits().forEach((u, idx) => {
       const p = unitProgress(u);
       const skillsWithContent = (u.categories || []).filter((c) => c.hasContent).length;
       const statusLabel = p.pct === 100 ? "Completed" : p.pct === 0 ? "Not started" : "In progress";
       const statusColor = p.pct === 100 ? "var(--green)" : p.pct === 0 ? "var(--muted)" : "var(--blue)";
+      const isSelected = String(u.id) === String(featuredId);
       const row = document.createElement("div");
-      row.className = "unit-list-row";
+      row.className = "unit-list-row" + (isSelected ? " selected" : "");
       row.innerHTML = `
         <div class="unit-list-num">${String(idx + 1).padStart(2, "0")}</div>
         <div class="unit-list-meta">
@@ -924,7 +941,13 @@
         </div>
         <button type="button" class="icon-btn unit-list-goto">${Icon("chevron-right")}</button>
       `;
-      row.addEventListener("click", () => openUnit(u.id));
+      // Click 1 dòng chỉ CHỌN để xem preview ở thẻ trên — bấm nút trong thẻ
+      // đó mới thật sự mở bài, không mở thẳng ngay khi click dòng.
+      row.addEventListener("click", () => {
+        selectedUnitId = u.id;
+        renderLessonsList();
+        document.getElementById("unitsFeatured").scrollIntoView({ behavior: "smooth", block: "start" });
+      });
       listEl.appendChild(row);
     });
   }
