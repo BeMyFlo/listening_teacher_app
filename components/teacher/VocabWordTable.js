@@ -1,14 +1,14 @@
 "use client";
 
 const COLS = [
-  ["word", "Từ"],
-  ["partOfSpeech", "Loại từ"],
-  ["ipa", "Phiên âm"],
-  ["meaning", "Nghĩa"],
-  ["definitionEn", "Định nghĩa (EN)"],
-  ["example", "Ví dụ"],
+  ["word", "Word"],
+  ["partOfSpeech", "Part of speech"],
+  ["ipa", "IPA"],
+  ["meaning", "Meaning"],
+  ["definitionEn", "Definition (EN)"],
+  ["example", "Example"],
   ["collocation", "Collocation"],
-  ["synonyms", "Đồng nghĩa"],
+  ["synonyms", "Synonyms"],
 ];
 
 export function emptyWord() {
@@ -47,7 +47,7 @@ export default function VocabWordTable({ words, onChange }) {
             {words.length === 0 && (
               <tr>
                 <td colSpan={COLS.length + 1} style={{ textAlign: "center", color: "var(--muted)" }}>
-                  Chưa có từ nào.
+                  No words yet.
                 </td>
               </tr>
             )}
@@ -67,7 +67,7 @@ export default function VocabWordTable({ words, onChange }) {
                   <button
                     type="button"
                     className="icon-btn danger"
-                    title="Xoá từ"
+                    title="Delete word"
                     onClick={() => patch((d) => d.splice(i, 1))}
                   >
                     <svg className="icon"><use href="#icon-trash" /></svg>
@@ -84,7 +84,7 @@ export default function VocabWordTable({ words, onChange }) {
         style={{ marginTop: 8, padding: "6px 12px", fontSize: ".85rem" }}
         onClick={() => onChange([...words, emptyWord()])}
       >
-        <svg className="icon"><use href="#icon-plus" /></svg> Thêm từ
+        <svg className="icon"><use href="#icon-plus" /></svg> Add word
       </button>
     </div>
   );

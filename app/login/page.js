@@ -88,7 +88,7 @@ export default function LoginPage() {
 
         <form className="login-card" onSubmit={onSubmit}>
           <div className="login-brand">
-            <div className="logo">MN</div>
+            <img className="logo" src="/logo.png" alt="IELTS with Ms Nhi" />
             IELTS with Ms Nhi
           </div>
           <p className="login-sub">Sign in to continue — role is detected automatically (Teacher / Student).</p>

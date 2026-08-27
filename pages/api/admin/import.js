@@ -69,7 +69,7 @@ async function handler(req, res) {
         const b = fs.readFileSync(f.filepath);
         return b.length > 4 * 1024 * 1024 ? { error: "File is too large" } : { wb: readWorkbook(b) };
       } catch (err) {
-        return { error: "Không đọc được file: " + err.message };
+        return { error: "Could not read file: " + err.message };
       } finally {
         fs.unlink(f.filepath, () => {});
       }
@@ -77,8 +77,8 @@ async function handler(req, res) {
     const exRes = readXlsxBuf(file);
     const lessonF = Array.isArray(files.lessonFile) ? files.lessonFile[0] : files.lessonFile;
     const lessonRes = lessonF ? readXlsxBuf(lessonF) : { wb: null };
-    if (exRes.error) return res.status(400).json({ ok: false, error: "File bài tập: " + exRes.error });
-    if (lessonRes.error) return res.status(400).json({ ok: false, error: "File bài học: " + lessonRes.error });
+    if (exRes.error) return res.status(400).json({ ok: false, error: "Exercise file: " + exRes.error });
+    if (lessonRes.error) return res.status(400).json({ ok: false, error: "Lesson file: " + lessonRes.error });
 
     const out =
       mode === "grammar"
@@ -102,7 +102,7 @@ async function handler(req, res) {
     try {
       wb = readWorkbook(buf);
     } catch (err) {
-      return res.status(400).json({ ok: false, error: "Không đọc được file .xlsx: " + err.message });
+      return res.status(400).json({ ok: false, error: "Could not read the .xlsx file: " + err.message });
     }
     const contentFile = Array.isArray(files.contentFile) ? files.contentFile[0] : files.contentFile;
     if (contentFile) fs.unlink(contentFile.filepath, () => {});

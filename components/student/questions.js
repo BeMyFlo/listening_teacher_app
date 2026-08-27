@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import ReadingPassage from "@/components/student/ReadingPassage";
 
 // ---------- State câu trả lời ----------
 export function useAnswers() {
@@ -181,7 +182,10 @@ export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, o
           <h3 style={{ color: "var(--navy)", marginTop: 0 }}>{section.name}</h3>
           {section.imageUrl && <DiagramImage section={section} />}
           {section.passageText && (
-            <div style={{ marginTop: 10, whiteSpace: "pre-line" }}>{section.passageText}</div>
+            <ReadingPassage
+              text={section.passageText}
+              storageKey={(section.name || "") + ":" + secIdx}
+            />
           )}
         </div>
         <div className="questions-pane">{fields}</div>

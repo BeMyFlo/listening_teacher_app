@@ -3,10 +3,10 @@
 import { youTubeId } from "@/lib/lessonImport";
 
 const ROWS = [
-  ["formula", "Công thức"],
-  ["whenToUse", "Khi nào dùng"],
-  ["commonMistakes", "Lỗi hay gặp"],
-  ["examples", "Ví dụ"],
+  ["formula", "Form"],
+  ["whenToUse", "When to use"],
+  ["commonMistakes", "Common mistakes"],
+  ["examples", "Examples"],
 ];
 
 export default function GrammarTopicView({ topic }) {
@@ -14,7 +14,7 @@ export default function GrammarTopicView({ topic }) {
   const vid = youTubeId(lesson.videoUrl);
   const hasAny = ROWS.some(([k]) => (lesson[k] || "").trim()) || vid;
 
-  if (!hasAny) return <div className="empty-state">Chủ điểm này chưa có lý thuyết.</div>;
+  if (!hasAny) return <div className="empty-state">This topic has no theory yet.</div>;
 
   return (
     <div className="lesson-block" style={{ marginTop: 4 }}>
@@ -35,7 +35,7 @@ export default function GrammarTopicView({ topic }) {
           <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, maxWidth: 640 }}>
             <iframe
               src={"https://www.youtube.com/embed/" + vid}
-              title="Video bài học"
+              title="Lesson video"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0, borderRadius: 8 }}
