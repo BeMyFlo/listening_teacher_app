@@ -107,7 +107,7 @@ function TestCard({ row, subs }) {
     const sub = latestExamSub(subs, row.id, tab.key);
     if (!sub) return;
     if (tab.key === "listening" || tab.key === "reading") bits.push(`${tab.label}: ${sub.score}/${sub.total}`);
-    else if (sub.gradingStatus === "graded") bits.push(`${tab.label}: ${sub.manualScore} pts`);
+    else if (sub.gradingStatus === "graded") bits.push(`${tab.label}: Band ${sub.manualScore}`);
   });
 
   return (
@@ -153,7 +153,7 @@ function SkillBox({ row, tab, meta, subs }) {
     );
     cta = "Retake";
   } else if (sub.gradingStatus === "graded") {
-    statusNode = <b>Graded: {sub.manualScore} pts</b>;
+    statusNode = <b>Graded: Band {sub.manualScore}</b>;
     cta = "Redo";
   } else {
     statusNode = <span className="muted">Submitted — pending review</span>;

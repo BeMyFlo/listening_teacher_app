@@ -26,6 +26,7 @@ async function handler(req, res) {
         _id: s._id,
         name: s.name,
         username: s.username,
+        email: s.email || "",
         classId: s.classId || null,
         className: cls ? cls.name : null,
         level: cls ? cls.level : null, // suy từ lớp, để hiển thị
@@ -42,8 +43,12 @@ async function handler(req, res) {
     const username = String((req.body && req.body.username) || "").trim().toLowerCase();
     const password = String((req.body && req.body.password) || "");
     const classId = req.body && req.body.classId;
+    const email = String((req.body && req.body.email) || "").trim().toLowerCase();
 
     if (!name) return res.status(400).json({ ok: false, error: "Please enter full name" });
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ ok: false, error: "Invalid email address" });
+    }
     if (!/^[a-z0-9_.]{3,30}$/.test(username)) {
       return res.status(400).json({
         ok: false,
@@ -70,7 +75,7 @@ async function handler(req, res) {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const student = await Student.create({ name, username, passwordHash, classId: cls._id });
+    const student = await Student.create({ name, username, passwordHash, classId: cls._id, email });
     return res.status(201).json({
       ok: true,
       student: { _id: student._id, name: student.name, username: student.username },
@@ -90,7 +95,20 @@ async function handler(req, res) {
     }
 
     if (req.method === "PUT") {
-      const { password, classId } = req.body || {};
+      const { password, classId, name, email } = req.body || {};
+      if (name != null) {
+        if (!String(name).trim()) {
+          return res.status(400).json({ ok: false, error: "Full name cannot be empty" });
+        }
+        student.name = String(name).trim();
+      }
+      if (email != null) {
+        const e = String(email).trim().toLowerCase();
+        if (e && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+          return res.status(400).json({ ok: false, error: "Invalid email address" });
+        }
+        student.email = e;
+      }
       if (password != null) {
         if (String(password).length < 4) {
           return res.status(400).json({ ok: false, error: "Password must be at least 4 characters" });

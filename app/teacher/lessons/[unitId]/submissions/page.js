@@ -19,6 +19,17 @@ const STATUS = {
   needs_grading: { label: "Needs grading", cls: "pill-warn" },
 };
 
+const fmtDeadline = (d) =>
+  d
+    ? new Date(d).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null;
+
 function CatCell({ c }) {
   if (!c) return <td style={{ color: "var(--muted)" }}>—</td>;
   if (c.kind === "prompt") {
@@ -60,6 +71,14 @@ function Inner() {
     const m = {};
     (data?.students || []).forEach((s) => {
       if (s.anyPending) m[String(s.classId)] = (m[String(s.classId)] || 0) + 1;
+    });
+    return m;
+  }, [data]);
+
+  const lateByClass = useMemo(() => {
+    const m = {};
+    (data?.students || []).forEach((s) => {
+      if (s.anyLate) m[String(s.classId)] = (m[String(s.classId)] || 0) + 1;
     });
     return m;
   }, [data]);
@@ -125,6 +144,7 @@ function Inner() {
           )}
           {data.classes.map((c) => {
             const pending = pendingByClass[String(c._id)] || 0;
+            const late = lateByClass[String(c._id)] || 0;
             return (
               <div
                 className="unit-list-row"
@@ -135,9 +155,15 @@ function Inner() {
                 <div className="unit-list-meta">
                   <h4>
                     {c.name}{" "}
-                    {pending > 0 && <span className="pill pill-warn">{pending} to grade</span>}
+                    {pending > 0 && <span className="pill pill-warn">{pending} to grade</span>}{" "}
+                    {late > 0 && <span className="pill pill-danger">{late} late</span>}
                   </h4>
-                  <p><span className="meta-icon">{c.studentCount} students</span></p>
+                  <p>
+                    <span className="meta-icon">{c.studentCount} students</span>
+                    <span className="meta-icon">
+                      {fmtDeadline(c.dueAt) ? `Deadline: ${fmtDeadline(c.dueAt)}` : "No deadline set"}
+                    </span>
+                  </p>
                 </div>
                 <button type="button" className="icon-btn unit-list-goto">
                   <svg className="icon"><use href="#icon-chevron-right" /></svg>
@@ -192,7 +218,12 @@ function Inner() {
                     style={{ cursor: "pointer" }}
                     onClick={() => router.push(`/teacher/lessons/${unitId}/submissions/${s._id}`)}
                   >
-                    <td><b>{s.name}</b><br /><span style={{ color: "var(--muted)", fontSize: ".8rem" }}>{s.username}</span></td>
+                    <td>
+                      <b>{s.name}</b>
+                      {s.anyLate && <span className="pill pill-danger" style={{ marginLeft: 6 }}>Late</span>}
+                      <br />
+                      <span style={{ color: "var(--muted)", fontSize: ".8rem" }}>{s.username}</span>
+                    </td>
                     {CATS.map((c) => <CatCell key={c.key} c={s.categories[c.key]} />)}
                     <td><span className={"pill " + st.cls}>{st.label}</span></td>
                     <td><svg className="icon"><use href="#icon-chevron-right" /></svg></td>

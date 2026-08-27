@@ -10,6 +10,7 @@ import { latestPromptSub } from "@/lib/student/submissions";
 import { useAnswers, SectionBlock, answerLabel } from "@/components/student/questions";
 import Countdown from "@/components/student/Countdown";
 import { WritingPrompt, SpeakingPrompt } from "@/components/student/PromptBlock";
+import RubricResult from "@/components/RubricResult";
 
 export default function TakeTestPage() {
   const { testId, skill } = useParams();
@@ -99,9 +100,13 @@ export default function TakeTestPage() {
                   {last &&
                     (last.gradingStatus === "graded" ? (
                       <div className="notice success">
-                        <svg className="icon"><use href="#icon-check-circle" /></svg> Graded:{" "}
-                        <b>{last.manualScore} pts</b>
-                        {last.manualFeedback ? " — Feedback: " + last.manualFeedback : ""}
+                        <svg className="icon"><use href="#icon-check-circle" /></svg> Graded by your teacher
+                        <RubricResult
+                          rubricVariant={last.rubricVariant}
+                          criteria={last.criteria}
+                          manualScore={last.manualScore}
+                          manualFeedback={last.manualFeedback}
+                        />
                       </div>
                     ) : (
                       <div className="notice info">Submitted — pending teacher review.</div>

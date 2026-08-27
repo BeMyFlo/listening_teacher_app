@@ -22,6 +22,26 @@ async function sanitizeClassIds(raw, level) {
   return found.map((c) => c._id);
 }
 
+// Hạn nộp theo lớp. Chỉ giữ entry có classId là lớp thật đúng level và dueAt
+// hợp lệ. dueAt rỗng/null = bỏ hạn của lớp đó. Trả { error } nếu date sai.
+async function sanitizeDeadlines(raw, level) {
+  if (!Array.isArray(raw) || !raw.length) return [];
+  const valid = new Set(
+    (await Class.find({ level }).select("_id").lean()).map((c) => String(c._id))
+  );
+  const seen = new Set();
+  const out = [];
+  for (const d of raw) {
+    if (!d || !valid.has(String(d.classId)) || seen.has(String(d.classId))) continue;
+    if (d.dueAt == null || String(d.dueAt).trim() === "") continue;
+    const dt = new Date(d.dueAt);
+    if (isNaN(dt.getTime())) return { error: "Invalid deadline date/time" };
+    seen.add(String(d.classId));
+    out.push({ classId: d.classId, dueAt: dt });
+  }
+  return out;
+}
+
 const CATEGORY_KEYS = Unit.CATEGORY_KEYS;
 
 // Validates a full client-sent categories array. Exercise sections reuse the
@@ -62,12 +82,16 @@ async function handler(req, res) {
     if (!Number.isInteger(level) || level < 1) {
       return res.status(400).json({ ok: false, error: "Please select a valid level" });
     }
+    const deadlines = await sanitizeDeadlines(req.body.deadlines, level);
+    if (deadlines.error) return res.status(400).json({ ok: false, error: deadlines.error });
+
     const unit = await Unit.create({
       level,
       name: String(name).trim(),
       order: Number(req.body.order) || 0,
       status: "draft",
       classIds: await sanitizeClassIds(req.body.classIds, level),
+      deadlines,
       categories: Unit.seedCategories()
     });
     return res.status(201).json({ ok: true, unit });
@@ -88,7 +112,8 @@ async function handler(req, res) {
   }
 
   if (req.method === "PUT") {
-    const { name, order, status, categories, level, classIds } = req.body || {};
+    const { name, order, status, categories, level, classIds, deadlines } = req.body || {};
+    const levelChanged = level != null && Number(level) !== unit.level;
 
     if (name != null) {
       if (!String(name).trim()) {
@@ -105,6 +130,15 @@ async function handler(req, res) {
     }
     if (classIds != null) {
       unit.classIds = await sanitizeClassIds(classIds, unit.level);
+    }
+    if (deadlines != null) {
+      const clean = await sanitizeDeadlines(deadlines, unit.level);
+      if (clean.error) return res.status(400).json({ ok: false, error: clean.error });
+      unit.deadlines = clean;
+    } else if (levelChanged) {
+      // Đổi level nhưng không gửi deadlines mới -> rụng các mốc của lớp sai level.
+      const clean = await sanitizeDeadlines(unit.deadlines, unit.level);
+      unit.deadlines = Array.isArray(clean) ? clean : [];
     }
     if (order != null) unit.order = Number(order) || 0;
     if (status != null) {
@@ -135,7 +169,8 @@ async function handler(req, res) {
             _id: p._id || undefined,
             title: String(p.title || "").trim(),
             instructions: String(p.instructions || ""),
-            imageId: p.imageId || undefined
+            imageId: p.imageId || undefined,
+            writingTask: ["task1", "task2"].includes(p.writingTask) ? p.writingTask : "task2"
           })),
           topics: (cat.topics || []).map((t) => ({
             _id: t._id || undefined,

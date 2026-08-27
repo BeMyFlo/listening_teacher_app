@@ -1,0 +1,488 @@
+{
+  "_note": "Generated from IELTS_Writing_ChamDiem.xlsx / IELTS_Speaking_ChamDiem.xlsx (teacher-provided). Criterion bands are whole 1-9; overall band = rounded average.",
+  "writing": {
+    "task1": {
+      "label": "Writing Task 1",
+      "criteria": [
+        {
+          "key": "TA",
+          "label": "Task Achievement",
+          "bands": {
+            "1": {
+              "en": "Answer is completely unrelated to the task.",
+              "vi": "Bài làm hoàn toàn lạc đề."
+            },
+            "2": {
+              "en": "Barely responds to the task; content has little relevance; data may be presented with no clear organisation.",
+              "vi": "Gần như không đáp ứng đề bài, tổ chức lộn xộn."
+            },
+            "3": {
+              "en": "Fails to adequately address the task; does not attempt an overview; details are presented with little order, sometimes just a list of data.",
+              "vi": "Chưa đáp ứng yêu cầu, không có tổng quan, dữ liệu rời rạc."
+            },
+            "4": {
+              "en": "Attempts the task but misses key features/requirements; may confuse key features with minor details; overview is limited; some data may be inaccurate.",
+              "vi": "Cố gắng làm bài nhưng bỏ sót đặc điểm chính, tổng quan hạn chế."
+            },
+            "5": {
+              "en": "Generally addresses the task; format may be inappropriate in places; recounts details mechanically with no clear overview; may lack data to support points.",
+              "vi": "Có làm bài nhưng thiếu tổng quan rõ ràng, trình bày máy móc."
+            },
+            "6": {
+              "en": "Addresses the requirements; presents an overview with appropriately selected information; highlights key features but some details may be irrelevant or inaccurate.",
+              "vi": "Có tổng quan, chọn thông tin phù hợp nhưng còn vài chi tiết chưa chuẩn."
+            },
+            "7": {
+              "en": "Covers the requirements; presents a clear overview of main trends/differences/stages; highlights key features but details could be extended more.",
+              "vi": "Nêu tổng quan rõ xu hướng chính, chi tiết có thể triển khai thêm."
+            },
+            "8": {
+              "en": "Covers all requirements sufficiently; presents a clear overview with key features/comparisons clearly highlighted, though could be extended more fully.",
+              "vi": "Đáp ứng đủ yêu cầu, tổng quan rõ ràng, có thể triển khai sâu hơn."
+            },
+            "9": {
+              "en": "Fully satisfies all requirements; clearly presents a fully developed overview with all key features/comparisons appropriately and accurately highlighted.",
+              "vi": "Đáp ứng trọn vẹn yêu cầu, tổng quan chính xác và đầy đủ."
+            }
+          }
+        },
+        {
+          "key": "CC",
+          "label": "Coherence & Cohesion",
+          "bands": {
+            "1": {
+              "en": "Fails to communicate any message; does not respond to the task at all.",
+              "vi": "Không truyền tải được nội dung nào."
+            },
+            "2": {
+              "en": "Has very little control of organisational features.",
+              "vi": "Hầu như không kiểm soát được cách tổ chức bài."
+            },
+            "3": {
+              "en": "Does not organise ideas logically; uses a very limited range of cohesive devices which may not show a logical relationship between ideas.",
+              "vi": "Không tổ chức ý logic, gần như không có từ nối hợp lý."
+            },
+            "4": {
+              "en": "Presents ideas without coherent arrangement or clear progression; uses only basic, possibly inaccurate/repetitive cohesive devices; may not use paragraphs.",
+              "vi": "Ý rời rạc, thiếu tiến triển rõ ràng, ít chia đoạn."
+            },
+            "5": {
+              "en": "Presents information with some organisation but lacks overall progression; cohesive devices used inadequately/inaccurately/repetitively; paragraphing may be inadequate.",
+              "vi": "Có tổ chức nhưng thiếu mạch lạc xuyên suốt, lặp từ nối."
+            },
+            "6": {
+              "en": "Arranges ideas coherently with a clear overall progression; cohesive devices used effectively but sometimes mechanical; paragraphing used but not always logical.",
+              "vi": "Sắp xếp ý khá rõ ràng nhưng liên kết đôi khi máy móc."
+            },
+            "7": {
+              "en": "Logically organises information with clear progression; uses a range of cohesive devices appropriately, though with minor over-/under-use; each paragraph has a clear central topic.",
+              "vi": "Tổ chức thông tin mạch lạc, dùng từ nối khá đa dạng."
+            },
+            "8": {
+              "en": "Sequences information/ideas logically; manages all aspects of cohesion well; paragraphing is sufficient and appropriate.",
+              "vi": "Sắp xếp ý logic, liên kết tốt, chia đoạn hợp lý."
+            },
+            "9": {
+              "en": "Uses cohesion so naturally it attracts no attention; paragraphing is skilfully managed.",
+              "vi": "Liên kết câu tự nhiên, chia đoạn khéo léo."
+            }
+          }
+        },
+        {
+          "key": "LR",
+          "label": "Lexical Resource",
+          "bands": {
+            "1": {
+              "en": "Can only use a few isolated words.",
+              "vi": "Chỉ dùng được vài từ rời rạc."
+            },
+            "2": {
+              "en": "Uses an extremely limited range of vocabulary; essentially no control of word formation/spelling.",
+              "vi": "Vốn từ cực kỳ hạn chế, gần như không kiểm soát được từ."
+            },
+            "3": {
+              "en": "Uses a very limited range of words/expressions with very limited control of word formation/spelling; errors may severely distort the message.",
+              "vi": "Vốn từ rất hạn chế, lỗi làm sai lệch nghĩa nghiêm trọng."
+            },
+            "4": {
+              "en": "Uses only basic vocabulary, possibly repetitive or inappropriate for the task; limited control of word formation/spelling; errors may strain the reader.",
+              "vi": "Chỉ dùng từ cơ bản, lặp từ, lỗi ảnh hưởng người đọc."
+            },
+            "5": {
+              "en": "Uses a limited range of vocabulary that is minimally adequate for the task; noticeable spelling/word-formation errors that may cause difficulty for the reader.",
+              "vi": "Vốn từ hạn chế, lỗi chính tả/từ vựng gây khó hiểu."
+            },
+            "6": {
+              "en": "Uses an adequate range of vocabulary for the task; attempts less common vocabulary with some inaccuracy; some spelling/word-formation errors that don't impede communication.",
+              "vi": "Vốn từ đủ dùng, có cố gắng dùng từ nâng cao nhưng chưa chuẩn."
+            },
+            "7": {
+              "en": "Uses a sufficient range of vocabulary allowing some flexibility and precision; uses less common items with awareness of style/collocation; occasional errors in word choice, spelling or word formation.",
+              "vi": "Vốn từ khá đa dạng, thỉnh thoảng sai từ vựng/chính tả."
+            },
+            "8": {
+              "en": "Uses a wide range of vocabulary fluently and flexibly for precise meaning; skilfully uses less common items with rare inaccuracies in word choice/collocation; rare spelling/word-formation errors.",
+              "vi": "Vốn từ rộng, linh hoạt, hiếm lỗi chọn từ/chính tả."
+            },
+            "9": {
+              "en": "Uses a wide range of vocabulary with very natural, sophisticated control; rare errors occur only as slips.",
+              "vi": "Vốn từ rộng, dùng tự nhiên, gần như không lỗi."
+            }
+          }
+        },
+        {
+          "key": "GRA",
+          "label": "Grammatical Range & Accuracy",
+          "bands": {
+            "1": {
+              "en": "Cannot use sentence forms at all.",
+              "vi": "Không đặt được câu."
+            },
+            "2": {
+              "en": "Cannot use sentence forms except in memorised phrases.",
+              "vi": "Chỉ dùng được câu học thuộc lòng."
+            },
+            "3": {
+              "en": "Attempts sentence forms but grammar/punctuation errors predominate and distort meaning.",
+              "vi": "Cố gắng đặt câu nhưng lỗi nhiều làm sai nghĩa."
+            },
+            "4": {
+              "en": "Uses only a very limited range of structures with rare subordinate clauses; some structures accurate but errors predominate; punctuation often faulty.",
+              "vi": "Cấu trúc rất hạn chế, lỗi ngữ pháp chiếm đa số."
+            },
+            "5": {
+              "en": "Uses only a limited range of structures; attempts complex sentences but these are less accurate than simple ones; frequent grammar errors, faulty punctuation causing some difficulty.",
+              "vi": "Cấu trúc hạn chế, câu phức thường sai, lỗi gây khó hiểu."
+            },
+            "6": {
+              "en": "Uses a mix of simple and complex sentence forms; some grammar/punctuation errors but they rarely reduce communication.",
+              "vi": "Kết hợp câu đơn và câu phức, có lỗi nhưng không cản trở giao tiếp."
+            },
+            "7": {
+              "en": "Uses a variety of complex structures; produces frequent error-free sentences; good control of grammar/punctuation with a few errors.",
+              "vi": "Dùng câu phức đa dạng, khá nhiều câu không lỗi."
+            },
+            "8": {
+              "en": "Uses a wide range of structures; the majority of sentences are error-free; only very occasional errors/inappropriacies.",
+              "vi": "Cấu trúc đa dạng, hầu hết câu không lỗi."
+            },
+            "9": {
+              "en": "Uses a wide range of structures with full flexibility and accuracy; rare errors occur only as slips.",
+              "vi": "Cấu trúc câu đa dạng, chính xác gần như tuyệt đối."
+            }
+          }
+        }
+      ]
+    },
+    "task2": {
+      "label": "Writing Task 2",
+      "criteria": [
+        {
+          "key": "TR",
+          "label": "Task Response",
+          "bands": {
+            "1": {
+              "en": "Answer is completely unrelated to the task.",
+              "vi": "Bài làm hoàn toàn lạc đề."
+            },
+            "2": {
+              "en": "Barely responds to the task; no position expressed; may attempt one or two ideas with no development.",
+              "vi": "Gần như không trả lời đề bài."
+            },
+            "3": {
+              "en": "Does not adequately address any part of the task; no clear position; few, largely undeveloped or irrelevant ideas.",
+              "vi": "Không giải quyết được phần nào của đề bài."
+            },
+            "4": {
+              "en": "Responds to the task only minimally or answers tangentially; position unclear; ideas hard to identify, may be repetitive/irrelevant/unsupported.",
+              "vi": "Trả lời rất sơ sài hoặc lạc hướng khỏi đề."
+            },
+            "5": {
+              "en": "Addresses the task only partially; format may be inappropriate; position unclear in places, no clear conclusion; main ideas limited and underdeveloped; may include irrelevant detail.",
+              "vi": "Chỉ trả lời một phần đề, lập luận thiếu rõ ràng."
+            },
+            "6": {
+              "en": "Addresses all parts although some more fully than others; presents a relevant position though conclusion may be unclear/repetitive; main ideas relevant but some underdeveloped.",
+              "vi": "Trả lời đủ các phần nhưng chưa đều, một số ý chưa phát triển kỹ."
+            },
+            "7": {
+              "en": "Addresses all parts of the task; presents a clear position throughout; extends and supports main ideas, though may over-generalise or lack focus at times.",
+              "vi": "Trả lời đủ đề, quan điểm rõ ràng, đôi khi lập luận chưa thật sát."
+            },
+            "8": {
+              "en": "Sufficiently addresses all parts of the task; presents a well-developed response with relevant, extended and supported ideas.",
+              "vi": "Trả lời đủ các phần của đề, lập luận phát triển tốt."
+            },
+            "9": {
+              "en": "Fully addresses all parts of the task; presents a fully developed position with relevant, fully extended and well-supported ideas.",
+              "vi": "Trả lời trọn vẹn đề bài, lập luận phát triển đầy đủ, dẫn chứng thuyết phục."
+            }
+          }
+        },
+        {
+          "key": "CC",
+          "label": "Coherence & Cohesion",
+          "bands": {
+            "1": {
+              "en": "Fails to communicate any message.",
+              "vi": "Không truyền tải được nội dung nào."
+            },
+            "2": {
+              "en": "Has very little control of organisational features.",
+              "vi": "Hầu như không kiểm soát được cách tổ chức bài."
+            },
+            "3": {
+              "en": "Does not organise ideas logically; very limited range of cohesive devices which may not show logical relationships.",
+              "vi": "Không tổ chức ý logic, gần như không có từ nối hợp lý."
+            },
+            "4": {
+              "en": "Presents ideas without coherent arrangement or clear progression; uses only basic cohesive devices, possibly inaccurate/repetitive.",
+              "vi": "Ý rời rạc, thiếu tiến triển rõ ràng."
+            },
+            "5": {
+              "en": "Presents information with some organisation but lacks overall progression; cohesive devices inadequate/inaccurate/overused; may be repetitive due to poor referencing.",
+              "vi": "Có tổ chức nhưng thiếu mạch lạc xuyên suốt."
+            },
+            "6": {
+              "en": "Arranges ideas coherently with clear overall progression; cohesive devices used effectively but sometimes faulty/mechanical; referencing not always clear.",
+              "vi": "Sắp xếp khá rõ ràng nhưng liên kết đôi khi máy móc."
+            },
+            "7": {
+              "en": "Logically organises information with clear progression throughout; uses a range of cohesive devices appropriately with minor over-/under-use.",
+              "vi": "Tổ chức ý mạch lạc, dùng từ nối khá đa dạng."
+            },
+            "8": {
+              "en": "Sequences information/ideas logically; manages all aspects of cohesion well; paragraphing sufficient and appropriate.",
+              "vi": "Sắp xếp ý logic, liên kết tốt, chia đoạn hợp lý."
+            },
+            "9": {
+              "en": "Uses cohesion so naturally it attracts no attention; paragraphing is skilfully managed.",
+              "vi": "Liên kết câu tự nhiên, chia đoạn khéo léo."
+            }
+          }
+        },
+        {
+          "key": "LR",
+          "label": "Lexical Resource",
+          "bands": {
+            "1": {
+              "en": "Can only use a few isolated words.",
+              "vi": "Chỉ dùng được vài từ rời rạc."
+            },
+            "2": {
+              "en": "Uses an extremely limited range of vocabulary; essentially no control of word formation/spelling.",
+              "vi": "Vốn từ cực kỳ hạn chế, gần như không kiểm soát được từ."
+            },
+            "3": {
+              "en": "Uses a very limited range of words/expressions with very limited control of word formation/spelling; errors may severely distort the message.",
+              "vi": "Vốn từ rất hạn chế, lỗi làm sai lệch nghĩa nghiêm trọng."
+            },
+            "4": {
+              "en": "Uses only basic vocabulary, possibly repetitive or inappropriate for the task; limited control of word formation/spelling; errors may strain the reader.",
+              "vi": "Chỉ dùng từ cơ bản, lặp từ, lỗi ảnh hưởng người đọc."
+            },
+            "5": {
+              "en": "Uses a limited range of vocabulary that is minimally adequate for the task; noticeable spelling/word-formation errors that may cause difficulty for the reader.",
+              "vi": "Vốn từ hạn chế, lỗi chính tả/từ vựng gây khó hiểu."
+            },
+            "6": {
+              "en": "Uses an adequate range of vocabulary for the task; attempts less common vocabulary with some inaccuracy; some spelling/word-formation errors that don't impede communication.",
+              "vi": "Vốn từ đủ dùng, có cố gắng dùng từ nâng cao nhưng chưa chuẩn."
+            },
+            "7": {
+              "en": "Uses a sufficient range of vocabulary allowing some flexibility and precision; uses less common items with awareness of style/collocation; occasional errors in word choice, spelling or word formation.",
+              "vi": "Vốn từ khá đa dạng, thỉnh thoảng sai từ vựng/chính tả."
+            },
+            "8": {
+              "en": "Uses a wide range of vocabulary fluently and flexibly for precise meaning; skilfully uses less common items with rare inaccuracies in word choice/collocation; rare spelling/word-formation errors.",
+              "vi": "Vốn từ rộng, linh hoạt, hiếm lỗi chọn từ/chính tả."
+            },
+            "9": {
+              "en": "Uses a wide range of vocabulary with very natural, sophisticated control; rare errors occur only as slips.",
+              "vi": "Vốn từ rộng, dùng tự nhiên, gần như không lỗi."
+            }
+          }
+        },
+        {
+          "key": "GRA",
+          "label": "Grammatical Range & Accuracy",
+          "bands": {
+            "1": {
+              "en": "Cannot use sentence forms at all.",
+              "vi": "Không đặt được câu."
+            },
+            "2": {
+              "en": "Cannot use sentence forms except in memorised phrases.",
+              "vi": "Chỉ dùng được câu học thuộc lòng."
+            },
+            "3": {
+              "en": "Attempts sentence forms but grammar/punctuation errors predominate and distort meaning.",
+              "vi": "Cố gắng đặt câu nhưng lỗi nhiều làm sai nghĩa."
+            },
+            "4": {
+              "en": "Uses only a very limited range of structures with rare subordinate clauses; some structures accurate but errors predominate; punctuation often faulty.",
+              "vi": "Cấu trúc rất hạn chế, lỗi ngữ pháp chiếm đa số."
+            },
+            "5": {
+              "en": "Uses only a limited range of structures; attempts complex sentences but these are less accurate than simple ones; frequent grammar errors, faulty punctuation causing some difficulty.",
+              "vi": "Cấu trúc hạn chế, câu phức thường sai, lỗi gây khó hiểu."
+            },
+            "6": {
+              "en": "Uses a mix of simple and complex sentence forms; some grammar/punctuation errors but they rarely reduce communication.",
+              "vi": "Kết hợp câu đơn và câu phức, có lỗi nhưng không cản trở giao tiếp."
+            },
+            "7": {
+              "en": "Uses a variety of complex structures; produces frequent error-free sentences; good control of grammar/punctuation with a few errors.",
+              "vi": "Dùng câu phức đa dạng, khá nhiều câu không lỗi."
+            },
+            "8": {
+              "en": "Uses a wide range of structures; the majority of sentences are error-free; only very occasional errors/inappropriacies.",
+              "vi": "Cấu trúc đa dạng, hầu hết câu không lỗi."
+            },
+            "9": {
+              "en": "Uses a wide range of structures with full flexibility and accuracy; rare errors occur only as slips.",
+              "vi": "Cấu trúc câu đa dạng, chính xác gần như tuyệt đối."
+            }
+          }
+        }
+      ]
+    }
+  },
+  "speaking": {
+    "label": "Speaking",
+    "criteria": [
+      {
+        "key": "FC",
+        "label": "Fluency & Coherence",
+        "bands": {
+          "1": {
+            "en": "No communication possible; no rateable language."
+          },
+          "2": {
+            "en": "Pauses lengthily before most words; little communication possible."
+          },
+          "3": {
+            "en": "Speaks with long pauses; limited ability to link simple sentences; gives only simple responses, often unable to convey the basic message."
+          },
+          "4": {
+            "en": "Cannot respond without noticeable pauses, speaks slowly with frequent repetition; often self-corrects; links simple sentences but with repetitious connectives; some breakdowns in coherence."
+          },
+          "5": {
+            "en": "Usually maintains flow but uses repetition/self-correction/slow speech to keep going; may overuse certain connectives; simple speech is fluent but complex ideas cause problems."
+          },
+          "6": {
+            "en": "Willing to speak at length though may lose coherence at times due to repetition/self-correction/hesitation; uses connectives/discourse markers but not always appropriately."
+          },
+          "7": {
+            "en": "Speaks at length without noticeable effort or loss of coherence; some language-related hesitation/repetition/self-correction; uses a range of connectives/discourse markers with some flexibility."
+          },
+          "8": {
+            "en": "Speaks fluently with only occasional repetition/self-correction; hesitation is usually content-related; develops topics coherently and appropriately."
+          },
+          "9": {
+            "en": "Speaks fluently with only rare repetition/self-correction; any hesitation is content-related, not language-related; fully coherent with fully appropriate cohesive features; develops topics fully."
+          }
+        }
+      },
+      {
+        "key": "LR",
+        "label": "Lexical Resource",
+        "bands": {
+          "1": {
+            "en": "No communication possible; no rateable language."
+          },
+          "2": {
+            "en": "Only produces isolated words or memorised utterances."
+          },
+          "3": {
+            "en": "Uses simple vocabulary to convey personal information; insufficient vocabulary for less familiar topics."
+          },
+          "4": {
+            "en": "Can talk about familiar topics but only conveys basic meaning on unfamiliar ones, with frequent word-choice errors; rarely paraphrases."
+          },
+          "5": {
+            "en": "Can talk about familiar and unfamiliar topics but with limited vocabulary flexibility; attempts paraphrase with mixed success."
+          },
+          "6": {
+            "en": "Has enough vocabulary to discuss topics at length and make meaning clear despite inappropriacies; generally paraphrases successfully."
+          },
+          "7": {
+            "en": "Uses vocabulary flexibly to discuss a variety of topics; uses some less common/idiomatic vocabulary with awareness of style/collocation, some inappropriate choices; paraphrases effectively."
+          },
+          "8": {
+            "en": "Uses a wide vocabulary readily and flexibly for precise meaning; uses less common/idiomatic vocabulary skilfully with rare inaccuracies; paraphrases effectively."
+          },
+          "9": {
+            "en": "Uses vocabulary with full flexibility and precision on all topics; uses idiomatic language naturally and accurately."
+          }
+        }
+      },
+      {
+        "key": "GRA",
+        "label": "Grammatical Range & Accuracy",
+        "bands": {
+          "1": {
+            "en": "No communication possible; no rateable language."
+          },
+          "2": {
+            "en": "Cannot produce basic sentence forms."
+          },
+          "3": {
+            "en": "Attempts basic sentence forms with limited success or relies on memorised utterances; numerous errors outside memorised phrases."
+          },
+          "4": {
+            "en": "Produces basic sentence forms and some correct simple sentences but rarely uses subordinate structures; frequent errors may cause misunderstanding."
+          },
+          "5": {
+            "en": "Produces basic sentence forms with reasonable accuracy; limited range of complex structures which usually contain errors, may cause some difficulty."
+          },
+          "6": {
+            "en": "Uses a mix of simple and complex structures with limited flexibility; frequent mistakes with complex structures but these rarely cause problems understanding."
+          },
+          "7": {
+            "en": "Uses a range of complex structures with some flexibility; frequently produces error-free sentences though some mistakes persist."
+          },
+          "8": {
+            "en": "Uses a wide range of structures flexibly; produces mostly error-free sentences with only occasional minor errors."
+          },
+          "9": {
+            "en": "Uses a full range of structures naturally and appropriately; produces consistently accurate structures apart from slips typical of native speech."
+          }
+        }
+      },
+      {
+        "key": "PR",
+        "label": "Pronunciation",
+        "bands": {
+          "1": {
+            "en": "No communication possible; no rateable language."
+          },
+          "2": {
+            "en": "Speech is often unintelligible."
+          },
+          "3": {
+            "en": "Shows some features of Band 2 and some, but not all, positive features of Band 4."
+          },
+          "4": {
+            "en": "Uses a limited range of pronunciation features; attempts control but lapses are frequent; frequent mispronunciations cause some difficulty for the listener."
+          },
+          "5": {
+            "en": "Shows all positive features of Band 4 and some, but not all, positive features of Band 6."
+          },
+          "6": {
+            "en": "Uses a range of pronunciation features with mixed control; effective at times but not sustained; generally understood though some words/sounds reduce clarity."
+          },
+          "7": {
+            "en": "Shows all positive features of Band 6 and some, but not all, positive features of Band 8."
+          },
+          "8": {
+            "en": "Uses a wide range of pronunciation features, sustained with only occasional lapses; easy to understand throughout; L1 accent minimally affects intelligibility."
+          },
+          "9": {
+            "en": "Uses a full range of pronunciation features with precision and subtlety, sustained throughout; effortless to understand."
+          }
+        }
+      }
+    ]
+  }
+}

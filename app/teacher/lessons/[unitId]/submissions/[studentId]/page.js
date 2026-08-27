@@ -3,10 +3,36 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
+import RubricGrader from "@/components/teacher/RubricGrader";
+import RubricResult from "@/components/RubricResult";
 
 function pct(score, total) {
   if (!total) return null;
   return Math.round((score / total) * 100);
+}
+
+const fmtDateTime = (d) =>
+  d
+    ? new Date(d).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "";
+
+function LateLine({ item }) {
+  if (!item.isLate) return null;
+  const days = item.daysLate;
+  return (
+    <p style={{ margin: "4px 0 0", color: "var(--red)", fontWeight: 600, fontSize: ".82rem" }}>
+      <svg className="icon"><use href="#icon-warning" /></svg>{" "}
+      Submitted late
+      {days ? ` — ${days} day${days === 1 ? "" : "s"} after the deadline` : ""}
+      {item.dueAt ? ` (due ${fmtDateTime(item.dueAt)})` : ""}
+    </p>
+  );
 }
 
 function QuestionTable({ detail }) {
@@ -64,6 +90,7 @@ function ExerciseRow({ ex }) {
               <span className="pill pill-muted">Not started</span>
             )}
           </p>
+          {done && <LateLine item={ex} />}
         </div>
         {done && ex.detail && ex.detail.length > 0 && (
           <button type="button" className="btn secondary" style={{ padding: "6px 12px" }} onClick={() => setOpen((v) => !v)}>
@@ -78,18 +105,19 @@ function ExerciseRow({ ex }) {
 
 function GradeForm({ prompt, onGraded }) {
   const graded = prompt.gradingStatus === "graded";
-  const [score, setScore] = useState(graded && prompt.manualScore != null ? String(prompt.manualScore) : "");
-  const [feedback, setFeedback] = useState(prompt.manualFeedback || "");
   const [editing, setEditing] = useState(!graded);
   const [busy, setBusy] = useState(false);
 
   if (graded && !editing) {
     return (
       <div style={{ marginTop: 10 }}>
-        <span className="pill pill-ok">Graded: {prompt.manualScore} pts</span>
-        {prompt.manualFeedback && (
-          <div style={{ marginTop: 6, color: "var(--muted)" }}>Feedback: {prompt.manualFeedback}</div>
-        )}
+        <RubricResult
+          rubricVariant={prompt.rubricVariant}
+          criteria={prompt.criteria}
+          manualScore={prompt.manualScore}
+          manualFeedback={prompt.manualFeedback}
+          showDescriptors={false}
+        />
         <button type="button" className="btn secondary" style={{ marginTop: 8, padding: "6px 12px" }} onClick={() => setEditing(true)}>
           Edit grade
         </button>
@@ -97,17 +125,11 @@ function GradeForm({ prompt, onGraded }) {
     );
   }
 
-  async function save() {
-    if (score === "") {
-      window.alert("Please enter a score.");
-      return;
-    }
+  async function save(payload) {
     setBusy(true);
     try {
-      await api.teacher.gradeSubmission(prompt.submissionId, {
-        manualScore: Number(score),
-        manualFeedback: feedback,
-      });
+      await api.teacher.gradeSubmission(prompt.submissionId, payload);
+      setEditing(false);
       onGraded && (await onGraded());
     } catch (e) {
       window.alert("Failed to save grade: " + e.message);
@@ -116,26 +138,19 @@ function GradeForm({ prompt, onGraded }) {
   }
 
   return (
-    <div className="grading-form" style={{ marginTop: 10 }}>
-      <input
-        type="number"
-        step="0.5"
-        min="0"
-        placeholder="Score"
-        style={{ width: 90 }}
-        value={score}
-        onChange={(e) => setScore(e.target.value)}
+    <div style={{ marginTop: 12 }}>
+      <RubricGrader
+        submission={{
+          kind: prompt.kind,
+          rubricVariant: prompt.rubricVariant,
+          writingTask: prompt.writingTask,
+          criteria: prompt.criteria,
+          manualScore: prompt.manualScore,
+          manualFeedback: prompt.manualFeedback,
+        }}
+        busy={busy}
+        onSave={save}
       />
-      <textarea
-        rows={2}
-        placeholder="Feedback for student..."
-        style={{ flex: 1, minWidth: 200 }}
-        value={feedback}
-        onChange={(e) => setFeedback(e.target.value)}
-      />
-      <button type="button" className="btn" style={{ padding: "8px 16px" }} disabled={busy} onClick={save}>
-        Save Grade
-      </button>
     </div>
   );
 }
@@ -157,6 +172,7 @@ function PromptRow({ prompt, onGraded }) {
           <p style={{ margin: "0 0 6px", color: "var(--muted)", fontSize: ".8rem" }}>
             Submitted {new Date(prompt.submittedAt).toLocaleString("en-US")}
           </p>
+          <LateLine item={prompt} />
           {prompt.essayText && (
             <div
               style={{
@@ -226,10 +242,26 @@ export default function StudentUnitSubmissionPage() {
   if (!data)
     return <div className="tab-panel active">{head}<div className="notice info">Loading...</div></div>;
 
+  const lateCount = data.categories.reduce((n, cat) => {
+    const items = cat.kind === "exercise" ? cat.exercises : cat.prompts;
+    return n + (items || []).filter((i) => i.isLate).length;
+  }, 0);
+
   return (
     <div className="tab-panel active">
       {head}
       {back}
+      {data.student.dueAt && (
+        <p className="back-link" style={{ cursor: "default", color: "var(--muted)" }}>
+          <svg className="icon"><use href="#icon-clock" /></svg> Deadline: {fmtDateTime(data.student.dueAt)}
+        </p>
+      )}
+      {lateCount > 0 && (
+        <div className="notice error">
+          <svg className="icon"><use href="#icon-warning" /></svg> This student has {lateCount} late
+          submission{lateCount === 1 ? "" : "s"} in this unit.
+        </div>
+      )}
       {data.categories.map((cat) => (
         <div className="card" key={cat.key} style={{ marginBottom: 16 }}>
           <div className="page-head" style={{ marginBottom: 8 }}>

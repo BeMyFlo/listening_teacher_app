@@ -6,7 +6,13 @@ const Class = require("../../lib/models/Class");
 
 // Strips answer keys before a unit is sent to a student's browser — same
 // rule as toPublicTest in api/tests.js (kept local on purpose).
-function toPublicUnit(unit) {
+// Hạn nộp của Unit cho 1 lớp (Unit.deadlines). null nếu lớp không có hạn.
+function deadlineForClass(unit, classId) {
+  const dl = (unit.deadlines || []).find((d) => String(d.classId) === String(classId));
+  return dl && dl.dueAt ? dl.dueAt : null;
+}
+
+function toPublicUnit(unit, cls) {
   const publicSections = (sections) =>
     (sections || []).map((s) => ({
       name: s.name,
@@ -35,10 +41,14 @@ function toPublicUnit(unit) {
     sections: publicSections(ex.sections),
   });
 
+  const dueAt = deadlineForClass(unit, cls && cls._id);
+
   return {
     id: unit._id,
     name: unit.name,
     level: unit.level,
+    dueAt,
+    isOverdue: !!dueAt && Date.now() > new Date(dueAt).getTime(),
     categories: (unit.categories || []).map((c) => ({
       key: c.key,
       theory: {
@@ -129,7 +139,7 @@ async function handler(req, res) {
     if (!unit) {
       return res.status(404).json({ ok: false, error: "Lesson unit not found" });
     }
-    return res.status(200).json({ ok: true, unit: toPublicUnit(unit) });
+    return res.status(200).json({ ok: true, unit: toPublicUnit(unit, cls) });
   }
 
   const units = await Unit.find({ status: "published", level, ...classFilter })
@@ -139,27 +149,32 @@ async function handler(req, res) {
   // Tóm tắt từng category (không lộ đáp án/nội dung câu hỏi) — đủ để trang
   // danh sách Lessons hiện badge kỹ năng + số lượng + tính % hoàn thành mà
   // không cần tải chi tiết từng Unit.
-  const rows = units.map((u) => ({
-    id: u._id,
-    name: u.name,
-    order: u.order,
-    createdAt: u.createdAt,
-    categories: (u.categories || []).map((c) => {
-      const topicEx = (c.topics || []).reduce((n, t) => n + (t.exercises || []).length, 0);
-      const groupEx = (c.groups || []).reduce((n, g) => n + (g.exercises || []).length, 0);
-      return {
-        key: c.key,
-        hasContent: !!(
-          (c.theory && c.theory.html && c.theory.html.trim()) ||
-          (c.exercises || []).length ||
-          (c.prompts || []).length ||
-          (c.topics || []).length ||
-          (c.groups || []).length
-        ),
-        itemCount: (c.exercises || []).length + (c.prompts || []).length + topicEx + groupEx,
-      };
-    })
-  }));
+  const rows = units.map((u) => {
+    const dueAt = deadlineForClass(u, cls._id);
+    return {
+      id: u._id,
+      name: u.name,
+      order: u.order,
+      createdAt: u.createdAt,
+      dueAt,
+      isOverdue: !!dueAt && Date.now() > new Date(dueAt).getTime(),
+      categories: (u.categories || []).map((c) => {
+        const topicEx = (c.topics || []).reduce((n, t) => n + (t.exercises || []).length, 0);
+        const groupEx = (c.groups || []).reduce((n, g) => n + (g.exercises || []).length, 0);
+        return {
+          key: c.key,
+          hasContent: !!(
+            (c.theory && c.theory.html && c.theory.html.trim()) ||
+            (c.exercises || []).length ||
+            (c.prompts || []).length ||
+            (c.topics || []).length ||
+            (c.groups || []).length
+          ),
+          itemCount: (c.exercises || []).length + (c.prompts || []).length + topicEx + groupEx,
+        };
+      }),
+    };
+  });
   return res.status(200).json({ ok: true, rows });
 }
 

@@ -1,7 +1,11 @@
 "use client";
 
 // Trình soạn "prompts" (Writing/Speaking) — markup khớp renderPromptsEditor.
-export default function PromptsEditor({ prompts, media, onChange }) {
+// skill: "writing" | "speaking" — Writing hiện thêm ô chọn Task 1 / Task 2
+// (quyết định rubric chấm điểm).
+export default function PromptsEditor({ prompts, media, onChange, skill }) {
+  const isWriting = skill === "writing";
+
   function patch(mut) {
     const draft = structuredClone(prompts);
     mut(draft);
@@ -32,6 +36,27 @@ export default function PromptsEditor({ prompts, media, onChange }) {
               <svg className="icon"><use href="#icon-trash" /></svg>
             </button>
           </div>
+          {isWriting && (
+            <div className="form-row" style={{ marginBottom: 10 }}>
+              <label>Task type (grading rubric)</label>
+              <div style={{ display: "flex", gap: 16 }}>
+                {[
+                  ["task1", "Task 1 — chart / process / letter"],
+                  ["task2", "Task 2 — essay"],
+                ].map(([v, label]) => (
+                  <label key={v} style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
+                    <input
+                      type="radio"
+                      name={"writingTask-" + i}
+                      checked={(p.writingTask || "task2") === v}
+                      onChange={() => patch((d) => (d[i].writingTask = v))}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="form-row" style={{ marginBottom: 10 }}>
             <label>Instructions / Prompt details</label>
             <textarea
@@ -64,7 +89,12 @@ export default function PromptsEditor({ prompts, media, onChange }) {
         type="button"
         className="dashed-add-btn"
         style={{ marginTop: 10 }}
-        onClick={() => onChange([...prompts, { title: "", instructions: "", imageId: "" }])}
+        onClick={() =>
+          onChange([
+            ...prompts,
+            { title: "", instructions: "", imageId: "", ...(isWriting ? { writingTask: "task2" } : {}) },
+          ])
+        }
       >
         <svg className="icon"><use href="#icon-plus" /></svg> Add Prompt
       </button>

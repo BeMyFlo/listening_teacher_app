@@ -7,6 +7,16 @@ import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { LESSON_CATS } from "@/lib/student/constants";
 import { unitProgress } from "@/lib/student/submissions";
 
+// Chip hạn nộp cho lesson list. null nếu Unit không có hạn hoặc đã làm xong.
+function DeadlineChip({ dueAt, pct }) {
+  if (!dueAt || pct === 100) return null;
+  const ms = new Date(dueAt).getTime() - Date.now();
+  if (ms <= 0) return <span className="pill pill-danger">Overdue</span>;
+  const days = Math.ceil(ms / 86400000);
+  const cls = ms <= 24 * 3600000 ? "pill pill-warn" : "pill pill-info";
+  return <span className={cls}>Due in {days} day{days === 1 ? "" : "s"}</span>;
+}
+
 function CategoryBadges({ unit }) {
   return (
     <div className="unit-overview-badges">
@@ -93,7 +103,10 @@ export default function LessonsPage() {
             <div className="unit-featured-card">
               <div className="unit-featured-icon"><svg className="icon"><use href="#icon-book-open" /></svg></div>
               <div style={{ flex: 1, minWidth: 220 }}>
-                <h3 style={{ margin: "0 0 4px" }}>{featured.u.name}</h3>
+                <h3 style={{ margin: "0 0 4px" }}>
+                  {featured.u.name}{" "}
+                  <DeadlineChip dueAt={featured.u.dueAt} pct={featured.p.pct} />
+                </h3>
                 <CategoryBadges unit={featured.u} />
               </div>
               <div className="unit-featured-progress">
@@ -153,7 +166,9 @@ export default function LessonsPage() {
                   >
                     <div className="unit-list-num">{String(idx + 1).padStart(2, "0")}</div>
                     <div className="unit-list-meta">
-                      <h4>{u.name}</h4>
+                      <h4>
+                        {u.name} <DeadlineChip dueAt={u.dueAt} pct={p.pct} />
+                      </h4>
                       <p>
                         <span className="meta-icon">
                           <svg className="icon"><use href="#icon-headphones" /></svg> {skillsWithContent}/

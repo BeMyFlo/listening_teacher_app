@@ -7,7 +7,7 @@ export default function StudentsPage() {
   const [rows, setRows] = useState(null);
   const [classes, setClasses] = useState([]);
   const [listErr, setListErr] = useState("");
-  const [form, setForm] = useState({ name: "", username: "", password: "", classId: "" });
+  const [form, setForm] = useState({ name: "", username: "", password: "", classId: "", email: "" });
   const [status, setStatus] = useState(null);
 
   function load() {
@@ -34,9 +34,10 @@ export default function StudentsPage() {
         username: form.username.trim(),
         password: form.password,
         classId: form.classId,
+        email: form.email.trim(),
       });
       setStatus({ cls: "success", msg: "Student account created successfully." });
-      setForm({ name: "", username: "", password: "", classId: "" });
+      setForm({ name: "", username: "", password: "", classId: "", email: "" });
       load();
     } catch (e) {
       setStatus({ cls: "error", msg: e.message });
@@ -111,6 +112,10 @@ export default function StudentsPage() {
             <input type="text" placeholder="At least 4 characters" value={form.password} onChange={set("password")} />
           </div>
           <div className="form-row" style={{ marginBottom: 0 }}>
+            <label>Email (optional)</label>
+            <input type="email" placeholder="For deadline reminders (later)" value={form.email} onChange={set("email")} />
+          </div>
+          <div className="form-row" style={{ marginBottom: 0 }}>
             <label>Class</label>
             <select className="select-inline" value={form.classId} onChange={set("classId")}>
               <option value="">— Select a class —</option>
@@ -148,6 +153,7 @@ export default function StudentsPage() {
                 <tr>
                   <th>Full Name</th>
                   <th>Username</th>
+                  <th>Email</th>
                   <th>Class</th>
                   <th>Registered</th>
                   <th>Submissions</th>
@@ -159,6 +165,7 @@ export default function StudentsPage() {
                   <tr key={s._id}>
                     <td>{s.name}</td>
                     <td>{s.username}</td>
+                    <td>{s.email || <span style={{ color: "var(--muted)" }}>—</span>}</td>
                     <td>
                       <select
                         className="select-inline"

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useMediaLibraries } from "@/lib/teacher/useMediaLibraries";
 import { sectionsToEditor, sectionsToPayload, refId } from "@/lib/teacher/sectionTransforms";
+import { toDatetimeLocal } from "@/lib/teacher/testBuilder";
 import { LESSON_CATS, PROMPT_CATS } from "@/lib/student/constants";
 import SectionsEditor from "@/components/teacher/SectionsEditor";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
@@ -29,6 +30,12 @@ function toEditorUnit(u) {
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
     classIds: (u.classIds || []).map((x) => refId(x)).filter(Boolean),
+    // { [classId]: "<datetime-local>" } — dễ bind vào input, đổi lại mảng khi lưu.
+    deadlines: Object.fromEntries(
+      (u.deadlines || [])
+        .map((d) => [refId(d.classId), toDatetimeLocal(d.dueAt)])
+        .filter(([id, v]) => id && v)
+    ),
     categories: (u.categories || []).map((c) => ({
       _id: c._id,
       key: c.key,
@@ -47,6 +54,7 @@ function toEditorUnit(u) {
         title: p.title || "",
         instructions: p.instructions || "",
         imageId: refId(p.imageId),
+        writingTask: p.writingTask || "task2",
       })),
       topics: (c.topics || []).map((t) => ({
         _id: t._id,
@@ -94,6 +102,9 @@ function toPayload(unit, status) {
   const body = {
     name: unit.name.trim(),
     classIds: unit.classIds || [],
+    deadlines: Object.entries(unit.deadlines || {})
+      .filter(([, v]) => v && !isNaN(new Date(v).getTime()))
+      .map(([classId, v]) => ({ classId, dueAt: new Date(v).toISOString() })),
     categories: unit.categories.map((cat) => ({
       _id: cat._id,
       key: cat.key,
@@ -108,6 +119,7 @@ function toPayload(unit, status) {
         title: p.title,
         instructions: p.instructions,
         imageId: p.imageId || null,
+        writingTask: p.writingTask || "task2",
       })),
       topics: (cat.topics || []).map((t) => ({
         _id: t._id,
@@ -146,6 +158,7 @@ export default function UnitEditorPage() {
   const media = useMediaLibraries();
   const [unit, setUnit] = useState(null);
   const [err, setErr] = useState("");
+  const [activeTab, setActiveTab] = useState("settings"); // "settings" | "content"
   const [catKey, setCatKey] = useState("grammar");
   const [subTab, setSubTab] = useState("theory");
   const [saveErr, setSaveErr] = useState("");
@@ -169,6 +182,15 @@ export default function UnitEditorPage() {
     });
   }
 
+  function setDeadline(classId, value) {
+    setUnit((u) => {
+      const next = { ...(u.deadlines || {}) };
+      if (value) next[classId] = value;
+      else delete next[classId];
+      return { ...u, deadlines: next };
+    });
+  }
+
   function updateCat(mut) {
     setUnit((u) => {
       const draft = structuredClone(u);
@@ -179,6 +201,7 @@ export default function UnitEditorPage() {
 
   async function save(status) {
     if (!unit.name.trim()) {
+      setActiveTab("settings");
       setSaveErr("Please enter a Unit name.");
       return;
     }
@@ -208,6 +231,7 @@ export default function UnitEditorPage() {
 
   const cat = unit.categories.find((c) => c.key === catKey);
   const isPrompt = PROMPT_CATS.includes(catKey);
+  const levelClasses = classes.filter((c) => c.level === unit.level);
 
   // unit overview stats
   let ov = { totalStudents: 0, totalSubmissions: 0, avgCompletionPct: 0, avgScorePct: null };
@@ -272,39 +296,25 @@ export default function UnitEditorPage() {
           </div>
         </div>
 
-        <div className="form-row" style={{ marginTop: 8 }}>
-          <label>Assign to classes (none checked = every student at Level {unit.level})</label>
-          {classes.filter((c) => c.level === unit.level).length === 0 ? (
-            <p style={{ color: "var(--muted)", fontSize: ".85rem", margin: 0 }}>
-              No classes at Level {unit.level}.
-            </p>
-          ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-              {classes
-                .filter((c) => c.level === unit.level)
-                .map((c) => (
-                  <label key={c._id} style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
-                    <input
-                      type="checkbox"
-                      checked={(unit.classIds || []).includes(String(c._id))}
-                      onChange={() => toggleClass(String(c._id))}
-                    />
-                    {c.name}
-                  </label>
-                ))}
-            </div>
-          )}
-        </div>
-
         <div className="unit-cat-tabs" id="unitCatTabs">
+          <button
+            type="button"
+            className={"unit-cat-tab" + (activeTab === "settings" ? " active" : "")}
+            onClick={() => setActiveTab("settings")}
+          >
+            <svg className="icon"><use href="#icon-settings" /></svg> Settings
+          </button>
           {LESSON_CATS.map((c) => {
             const cc = unit.categories.find((x) => x.key === c.key);
             return (
               <button
                 key={c.key}
                 type="button"
-                className={"unit-cat-tab" + (c.key === catKey ? " active" : "")}
+                className={
+                  "unit-cat-tab" + (activeTab === "content" && c.key === catKey ? " active" : "")
+                }
                 onClick={() => {
+                  setActiveTab("content");
                   setCatKey(c.key);
                   setSubTab("theory");
                 }}
@@ -318,33 +328,125 @@ export default function UnitEditorPage() {
           })}
         </div>
 
-        {!LESSON_LIST_CATS.includes(catKey) && (
-          <div className="unit-subtabs" id="unitSubTabs">
-            <button type="button" className={"unit-subtab" + (subTab === "theory" ? " active" : "")} onClick={() => setSubTab("theory")}>
-              Theory
-            </button>
-            <button
-              type="button"
-              className={"unit-subtab" + (subTab === "practice" ? " active" : "")}
-              onClick={() => setSubTab("practice")}
-            >
-              {isPrompt ? "Prompts" : "Exercises"}
-            </button>
-          </div>
-        )}
+        {activeTab === "settings" ? (
+          <div className="settings-list" id="unitSettings">
+            <div className="settings-row">
+              <div className="settings-row-icon"><svg className="icon"><use href="#icon-edit" /></svg></div>
+              <div className="settings-row-label">
+                <div className="settings-row-title">Unit Name</div>
+                <div className="settings-row-desc">Enter a clear and concise name for this unit.</div>
+              </div>
+              <div className="settings-row-control">
+                <input
+                  type="text"
+                  className="unit-name-input"
+                  value={unit.name}
+                  onChange={(e) => setUnit((u) => ({ ...u, name: e.target.value }))}
+                />
+              </div>
+            </div>
 
-        <div id="unitCatContent">
-          <div className="form-row">
-            <label>Unit Name</label>
-            <input
-              type="text"
-              className="unit-name-input"
-              value={unit.name}
-              onChange={(e) => setUnit((u) => ({ ...u, name: e.target.value }))}
-            />
-          </div>
+            <div className="settings-row">
+              <div className="settings-row-icon"><svg className="icon"><use href="#icon-student" /></svg></div>
+              <div className="settings-row-label">
+                <div className="settings-row-title">Assign to classes</div>
+                <div className="settings-row-desc">Select the classes that will use this unit.</div>
+              </div>
+              <div className="settings-row-control">
+                {levelClasses.length === 0 ? (
+                  <p className="settings-hint">No classes at Level {unit.level} yet.</p>
+                ) : (
+                  <>
+                    <div className="settings-check-group">
+                      {levelClasses.map((c) => (
+                        <label key={c._id}>
+                          <input
+                            type="checkbox"
+                            checked={(unit.classIds || []).includes(String(c._id))}
+                            onChange={() => toggleClass(String(c._id))}
+                          />
+                          {c.name}
+                        </label>
+                      ))}
+                    </div>
+                    <p className="settings-hint">(None checked = every student at Level {unit.level})</p>
+                  </>
+                )}
+              </div>
+            </div>
 
-          {catKey === "grammar" ? (
+            {levelClasses.length > 0 && (
+              <div className="settings-row">
+                <div className="settings-row-icon"><svg className="icon"><use href="#icon-calendar" /></svg></div>
+                <div className="settings-row-label">
+                  <div className="settings-row-title">
+                    Submission deadlines{" "}
+                    <span style={{ fontWeight: 400, color: "var(--muted)" }}>(optional)</span>
+                  </div>
+                  <div className="settings-row-desc">Leave blank if no deadline is required.</div>
+                </div>
+                <div className="settings-row-control">
+                  {levelClasses.map((c) => {
+                    const val = (unit.deadlines || {})[String(c._id)] || "";
+                    return (
+                      <div className="settings-deadline-row" key={c._id}>
+                        <span>{c.name}</span>
+                        <div className="settings-deadline-input">
+                          <input
+                            type="datetime-local"
+                            value={val}
+                            onChange={(e) => setDeadline(String(c._id), e.target.value)}
+                          />
+                          {val && (
+                            <button
+                              type="button"
+                              className="icon-btn danger"
+                              title="Clear deadline"
+                              onClick={() => setDeadline(String(c._id), "")}
+                            >
+                              <svg className="icon"><use href="#icon-cross" /></svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <p className="settings-note">
+                    <svg className="icon"><use href="#icon-info" /></svg>
+                    <span>
+                      Students can still submit after the deadline, but their work is flagged <b>Late</b>.
+                    </span>
+                  </p>
+                  <p className="settings-note">
+                    <svg className="icon"><use href="#icon-info" /></svg>
+                    <span>
+                      Each student gets a reminder in their notification bell <b>24 hours</b> before
+                      the deadline.
+                    </span>
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {!LESSON_LIST_CATS.includes(catKey) && (
+              <div className="unit-subtabs" id="unitSubTabs">
+                <button type="button" className={"unit-subtab" + (subTab === "theory" ? " active" : "")} onClick={() => setSubTab("theory")}>
+                  Theory
+                </button>
+                <button
+                  type="button"
+                  className={"unit-subtab" + (subTab === "practice" ? " active" : "")}
+                  onClick={() => setSubTab("practice")}
+                >
+                  {isPrompt ? "Prompts" : "Exercises"}
+                </button>
+              </div>
+            )}
+
+            <div id="unitCatContent">
+              {catKey === "grammar" ? (
             <GrammarTopicsEditor
               topics={cat.topics || []}
               media={media}
@@ -364,11 +466,13 @@ export default function UnitEditorPage() {
               onChange={(next) => updateCat((c) => (c.theory = next))}
             />
           ) : isPrompt ? (
-            <PromptsEditor prompts={cat.prompts} media={media} onChange={(next) => updateCat((c) => (c.prompts = next))} />
+            <PromptsEditor prompts={cat.prompts} media={media} skill={catKey} onChange={(next) => updateCat((c) => (c.prompts = next))} />
           ) : (
             <ExercisesEditor cat={cat} media={media} onChange={(next) => updateCat((c) => (c.exercises = next))} />
           )}
-        </div>
+            </div>
+          </>
+        )}
 
         {saveErr && (
           <p className="notice error" style={{ marginTop: 16 }}>

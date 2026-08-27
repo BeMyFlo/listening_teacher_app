@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/client/api";
+import RubricGrader from "@/components/teacher/RubricGrader";
+import RubricResult from "@/components/RubricResult";
 
 const KIND_LABELS = { test: "Mock Test", exercise: "Lesson Exercise", writing: "Writing", speaking: "Speaking" };
 
@@ -257,27 +259,36 @@ function DetailBody({ r, onGraded }) {
 }
 
 function GradingForm({ r, onGraded }) {
-  const [score, setScore] = useState("");
-  const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(r.gradingStatus !== "graded");
 
-  if (r.gradingStatus === "graded") {
+  if (r.gradingStatus === "graded" && !editing) {
     return (
       <>
-        <div className="pill pill-ok">Graded: {r.manualScore} pts</div>
-        <div style={{ marginTop: 6, color: "var(--muted)" }}>Feedback: {r.manualFeedback || "(none)"}</div>
+        <RubricResult
+          rubricVariant={r.rubricVariant}
+          criteria={r.criteria}
+          manualScore={r.manualScore}
+          manualFeedback={r.manualFeedback}
+          showDescriptors={false}
+        />
+        <button
+          type="button"
+          className="btn secondary"
+          style={{ marginTop: 8, padding: "6px 12px" }}
+          onClick={() => setEditing(true)}
+        >
+          Edit grade
+        </button>
       </>
     );
   }
 
-  async function save() {
-    if (score === "") {
-      window.alert("Please enter a score.");
-      return;
-    }
+  async function save(payload) {
     setBusy(true);
     try {
-      await api.teacher.gradeSubmission(r._id, { manualScore: Number(score), manualFeedback: feedback });
+      await api.teacher.gradeSubmission(r._id, payload);
+      setEditing(false);
       onGraded && onGraded();
     } catch (e) {
       window.alert("Failed to save grade: " + e.message);
@@ -286,28 +297,18 @@ function GradingForm({ r, onGraded }) {
   }
 
   return (
-    <div className="grading-form">
-      <input
-        type="number"
-        className="grade-score"
-        step="0.5"
-        min="0"
-        placeholder="Score"
-        style={{ width: 90 }}
-        value={score}
-        onChange={(e) => setScore(e.target.value)}
+    <div style={{ marginTop: 10 }}>
+      <RubricGrader
+        submission={{
+          kind: r.kind,
+          rubricVariant: r.rubricVariant,
+          criteria: r.criteria,
+          manualScore: r.manualScore,
+          manualFeedback: r.manualFeedback,
+        }}
+        busy={busy}
+        onSave={save}
       />
-      <textarea
-        className="grade-feedback"
-        rows={2}
-        placeholder="Feedback for student..."
-        style={{ flex: 1, minWidth: 200 }}
-        value={feedback}
-        onChange={(e) => setFeedback(e.target.value)}
-      />
-      <button type="button" className="btn btn-grade-save" style={{ padding: "8px 16px" }} disabled={busy} onClick={save}>
-        Save Grade
-      </button>
     </div>
   );
 }

@@ -6,6 +6,34 @@ const Student = require("../../lib/models/Student");
 const Class = require("../../lib/models/Class");
 const Submission = require("../../lib/models/Submission");
 const { gradeSubmission } = require("../../lib/grade");
+const notifications = require("../../lib/notifications");
+const { resolveVariant } = require("../../lib/grading/rubric");
+
+// Hạn nộp của Unit áp cho lớp của học sinh (Unit.deadlines). Trả cờ trễ +
+// snapshot dueAt để lưu vào Submission.
+function unitLateness(unit, student, now = new Date()) {
+  const dl = (unit.deadlines || []).find(
+    (d) => String(d.classId) === String(student.classId)
+  );
+  if (!dl || !dl.dueAt) return { isLate: false, dueAt: undefined };
+  return { isLate: now > new Date(dl.dueAt), dueAt: dl.dueAt };
+}
+
+// Gửi thông báo "nộp trễ" cho học sinh (1 lần / submission).
+async function notifyLate(student, unit, submission, itemLabel) {
+  await notifications.emit({
+    studentId: student._id,
+    type: "submission_late",
+    dedupeKey: `${submission._id}:submission_late`,
+    unitId: unit._id,
+    submissionId: submission._id,
+    dueAt: submission.dueAt,
+    title: "Late submission",
+    body:
+      `You submitted "${itemLabel || "a task"}" in ${unit.name} after the deadline ` +
+      `(${notifications.fmtDateTime(submission.dueAt)}). It has been marked Late.`,
+  });
+}
 
 async function handler(req, res) {
   if (req.method === "GET") {
@@ -117,6 +145,7 @@ async function handler(req, res) {
     if (!exercise) return res.status(404).json({ ok: false, error: "Exercise not found" });
 
     const { score, total, detail } = gradeSubmission(exercise, answers || {});
+    const { isLate, dueAt } = unitLateness(unit, student);
     const submission = await Submission.create({
       studentId: student._id,
       studentName: student.name,
@@ -128,9 +157,12 @@ async function handler(req, res) {
       answers: answers || {},
       detail,
       score,
-      total
+      total,
+      isLate,
+      dueAt
     });
-    return res.status(201).json({ ok: true, submissionId: submission._id, score, total, detail });
+    if (isLate) await notifyLate(student, unit, submission, exercise.title);
+    return res.status(201).json({ ok: true, submissionId: submission._id, score, total, detail, isLate });
   }
 
   if (kind === "writing" || kind === "speaking") {
@@ -172,7 +204,8 @@ async function handler(req, res) {
         essayText: kind === "writing" ? essayText : undefined,
         audioUrl: kind === "speaking" ? audioUrl : undefined,
         audioPublicId: kind === "speaking" ? audioPublicId : undefined,
-        gradingStatus: "submitted"
+        gradingStatus: "submitted",
+        rubricVariant: resolveVariant(kind, prompt.writingTask)
       });
       return res.status(201).json({ ok: true, submissionId: submission._id, message: "Submitted successfully, pending teacher review" });
     }
@@ -188,6 +221,7 @@ async function handler(req, res) {
     const category = unit.categories.find((c) => c.key === categoryKey);
     const prompt = category && category.prompts.id(promptId);
     if (!prompt) return res.status(404).json({ ok: false, error: "Prompt not found" });
+    const { isLate, dueAt } = unitLateness(unit, student);
     const submission = await Submission.create({
       studentId: student._id,
       studentName: student.name,
@@ -198,9 +232,13 @@ async function handler(req, res) {
       essayText: kind === "writing" ? essayText : undefined,
       audioUrl: kind === "speaking" ? audioUrl : undefined,
       audioPublicId: kind === "speaking" ? audioPublicId : undefined,
-      gradingStatus: "submitted"
+      gradingStatus: "submitted",
+      rubricVariant: resolveVariant(kind, prompt.writingTask),
+      isLate,
+      dueAt
     });
-    return res.status(201).json({ ok: true, submissionId: submission._id, message: "Submitted successfully, pending teacher review" });
+    if (isLate) await notifyLate(student, unit, submission, prompt.title);
+    return res.status(201).json({ ok: true, submissionId: submission._id, isLate, message: "Submitted successfully, pending teacher review" });
   }
 
   return res.status(400).json({ ok: false, error: "Invalid submission type" });

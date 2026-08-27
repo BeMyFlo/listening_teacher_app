@@ -221,6 +221,7 @@ export default function TestBuilderPage() {
               <PromptsEditor
                 prompts={skill.prompts}
                 media={media}
+                skill={active}
                 onChange={(next) => updateSkill(active, (s) => (s.prompts = next))}
               />
             </>

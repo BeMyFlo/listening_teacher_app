@@ -7,6 +7,16 @@ import { api } from "@/lib/client/api";
 export function WritingPrompt({ prompt, submitContext, onSubmitted }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pasteHint, setPasteHint] = useState(false);
+  const hintTimer = useRef(null);
+
+  // Bài Writing phải tự gõ — chặn dán / kéo-thả văn bản vào ô soạn.
+  function blockPaste(e) {
+    e.preventDefault();
+    setPasteHint(true);
+    clearTimeout(hintTimer.current);
+    hintTimer.current = setTimeout(() => setPasteHint(false), 2500);
+  }
 
   async function submit() {
     if (!text.trim()) {
@@ -15,13 +25,14 @@ export function WritingPrompt({ prompt, submitContext, onSubmitted }) {
     }
     setBusy(true);
     try {
-      await api.student.submit({
+      const res = await api.student.submit({
         kind: "writing",
         ...submitContext,
         promptId: prompt.id,
         essayText: text.trim(),
       });
       setText("");
+      if (res && res.isLate) alert("Submitted after the deadline — marked Late.");
       onSubmitted && (await onSubmitted());
     } catch (e) {
       alert("Submission failed: " + e.message);
@@ -39,7 +50,17 @@ export function WritingPrompt({ prompt, submitContext, onSubmitted }) {
         style={{ width: "100%" }}
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onPaste={blockPaste}
+        onDrop={blockPaste}
       />
+      <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: ".8rem" }}>
+        <svg className="icon"><use href="#icon-info" /></svg> Copy &amp; paste is disabled — please type your answer.
+      </p>
+      {pasteHint && (
+        <p className="notice warn" style={{ marginTop: 8 }}>
+          <svg className="icon"><use href="#icon-warning" /></svg> Pasting is not allowed for this task.
+        </p>
+      )}
       <button
         type="button"
         className="btn btn-essay-submit"
@@ -100,7 +121,7 @@ export function SpeakingPrompt({ prompt, submitContext, onSubmitted }) {
     setBusy(true);
     try {
       const { audioUrl, audioPublicId } = await api.student.uploadSpeakingAudio(blob);
-      await api.student.submit({
+      const res = await api.student.submit({
         kind: "speaking",
         ...submitContext,
         promptId: prompt.id,
@@ -109,6 +130,7 @@ export function SpeakingPrompt({ prompt, submitContext, onSubmitted }) {
       });
       recRef.current = null;
       setBlobUrl("");
+      if (res && res.isLate) alert("Submitted after the deadline — marked Late.");
       onSubmitted && (await onSubmitted());
     } catch (e) {
       alert("Submission failed: " + e.message);

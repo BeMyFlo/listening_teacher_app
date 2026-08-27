@@ -410,6 +410,7 @@ tr:hover td { background: #fafcfe; }
 .notice.info { background: var(--blue-light); color: var(--navy); }
 .notice.error { background: #fdecea; color: var(--red); }
 .notice.success { background: #e6f6ea; color: var(--green); }
+.notice.warn { background: #fff4e0; color: #b26a00; }
 
 .footer-note {
   text-align: center;
@@ -1352,6 +1353,50 @@ tr:hover td { background: #fafcfe; }
 .topbar-user-menu-item:hover { background: var(--blue-light); color: var(--blue); }
 .topbar-user-menu-item .icon { width: 1rem; height: 1rem; }
 
+/* Notification bell + dropdown panel (student) */
+.topbar-bell-wrap { position: relative; margin-left: auto; }
+.topbar-bell-wrap .topbar-bell { margin-left: 0; }
+
+.notif-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  max-width: 86vw;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  z-index: 30;
+  overflow: hidden;
+}
+.notif-panel-head {
+  padding: 12px 14px;
+  font-weight: 700;
+  font-size: .9rem;
+  border-bottom: 1px solid var(--border);
+}
+.notif-panel-body { max-height: 380px; overflow-y: auto; }
+.notif-empty { padding: 20px 14px; color: var(--muted); font-size: .88rem; text-align: center; }
+.notif-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 11px 14px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: var(--bg); }
+.notif-item.unread { background: var(--blue-light); }
+.notif-item.unread:hover { background: var(--blue-light); }
+.notif-item-title { font-weight: 700; font-size: .86rem; color: var(--ink); }
+.notif-item-body { font-size: .82rem; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+.notif-item-time { font-size: .72rem; color: var(--muted); margin-top: 4px; }
+
 .content { padding: 26px 28px 60px; }
 
 .page-head {
@@ -1658,6 +1703,100 @@ tr:hover td { background: #fafcfe; }
   border-bottom-color: var(--blue);
 }
 
+/* ---------- Unit editor — Settings tab ---------- */
+.settings-list {
+  margin-top: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.settings-row {
+  display: grid;
+  grid-template-columns: 40px minmax(170px, 230px) 1fr;
+  gap: 18px;
+  align-items: start;
+  padding: 20px 22px;
+}
+.settings-row + .settings-row { border-top: 1px solid var(--border); }
+.settings-row-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--blue-light);
+  color: var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.settings-row-icon .icon { width: 19px; height: 19px; }
+.settings-row-label { padding-top: 3px; }
+.settings-row-title { font-weight: 700; font-size: .95rem; color: var(--ink); }
+.settings-row-desc {
+  font-size: .8rem;
+  color: var(--muted);
+  margin-top: 3px;
+  line-height: 1.45;
+}
+.settings-row-control { min-width: 0; }
+.settings-row-control > input[type=text],
+.settings-row-control > input[type=datetime-local] { width: 100%; }
+
+.settings-check-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 13px 15px;
+}
+.settings-check-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .9rem;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+}
+.settings-check-group input[type=checkbox] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+.settings-hint { font-size: .8rem; color: var(--muted); margin: 8px 0 0; }
+
+.settings-deadline-row { margin-bottom: 14px; }
+.settings-deadline-row:last-of-type { margin-bottom: 0; }
+.settings-deadline-row > span {
+  display: block;
+  font-weight: 700;
+  font-size: .84rem;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.settings-deadline-input { display: flex; align-items: center; gap: 8px; }
+.settings-deadline-input input { flex: 1; }
+
+.settings-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: .8rem;
+  color: var(--muted);
+  margin: 10px 0 0;
+  line-height: 1.45;
+}
+.settings-note:first-of-type { margin-top: 14px; }
+.settings-note .icon { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; }
+
+@media (max-width: 720px) {
+  .settings-row { grid-template-columns: 1fr; gap: 10px; padding: 16px; }
+  .settings-row-icon { display: none; }
+}
+
 /* ---------- Grading form (Phase 3 chấm tay) ---------- */
 .grading-form {
   display: flex;
@@ -1665,6 +1804,115 @@ tr:hover td { background: #fafcfe; }
   gap: 10px;
   align-items: flex-start;
 }
+
+/* ---------- Rubric grader (IELTS Writing/Speaking) ---------- */
+.rubric-grader { max-width: 720px; }
+.rubric-tasktoggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.rubric-pilltab {
+  padding: 5px 12px;
+  font-size: .82rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+}
+.rubric-pilltab.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+.rubric-crit {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: var(--card);
+}
+.rubric-crit-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.rubric-crit-name { font-weight: 700; font-size: .9rem; color: var(--ink); flex: 1; min-width: 160px; }
+.rubric-crit-key { color: var(--muted); font-weight: 500; }
+.rubric-crit-head select { padding: 6px 10px; font-size: .85rem; }
+.rubric-showbands {
+  background: none;
+  border: none;
+  color: var(--blue);
+  font-weight: 600;
+  font-size: .8rem;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.rubric-crit-desc {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: 7px;
+  font-size: .84rem;
+  line-height: 1.45;
+}
+.rubric-crit-desc p { margin: 0; }
+.rubric-crit-desc .vi { color: var(--muted); margin-top: 3px; }
+
+.rubric-bandtable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: .8rem;
+}
+.rubric-bandtable td { border: 1px solid var(--border); padding: 6px 8px; vertical-align: top; }
+.rubric-bandtable td.b { width: 30px; text-align: center; font-weight: 700; color: var(--muted); }
+.rubric-bandtable tr { cursor: pointer; }
+.rubric-bandtable tr:hover td { background: var(--bg); }
+.rubric-bandtable tr.active td { background: var(--blue-light); }
+.rubric-bandtable .vi { color: var(--muted); }
+
+.rubric-crit-note { width: 100%; margin-top: 8px; font-size: .85rem; }
+
+.rubric-overall {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 14px 0 10px;
+  padding: 12px 14px;
+  background: var(--blue-light);
+  border-radius: 10px;
+}
+.rubric-overall-label { font-weight: 600; color: var(--muted); font-size: .85rem; margin-right: 8px; }
+.rubric-overall-value { font-weight: 800; font-size: 1.3rem; color: var(--navy); }
+.rubric-overall-auto { margin-left: 8px; font-size: .8rem; color: var(--muted); }
+.rubric-override { display: flex; align-items: center; gap: 6px; font-size: .84rem; font-weight: 500; cursor: pointer; }
+.rubric-override input { width: 15px; height: 15px; accent-color: var(--blue); }
+
+.rubric-feedback { width: 100%; font-size: .9rem; }
+
+/* Student-side breakdown */
+.rubric-result { margin-top: 10px; }
+.rubric-result-band {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: var(--navy);
+}
+.rubric-result-band small { font-size: .8rem; font-weight: 600; color: var(--muted); }
+.rubric-result table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .84rem; }
+.rubric-result td { border: 1px solid var(--border); padding: 7px 9px; vertical-align: top; }
+.rubric-result td.b { width: 44px; text-align: center; font-weight: 800; color: var(--navy); }
+.rubric-result td .crit { font-weight: 700; color: var(--ink); }
+.rubric-result td .note { color: var(--muted); margin-top: 2px; }
 
 /* ---------- Student lessons (Phase 3) ---------- */
 .lesson-text {

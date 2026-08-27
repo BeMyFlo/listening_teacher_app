@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { NAV } from "@/lib/nav";
 import { clearSession } from "@/lib/client/session";
 import { useShellBadges } from "@/lib/client/shellBadges";
+import NotificationBell from "./NotificationBell";
 
 function initials(name) {
   const parts = String(name || "?").trim().split(/\s+/);
@@ -123,10 +124,7 @@ export default function Shell({ role, userName, userSub, children }) {
             <input type="text" placeholder={cfg.searchPlaceholder || "Search..."} readOnly />
             <span className="kbd-hint">Ctrl K</span>
           </div>
-          <button type="button" className="icon-btn topbar-bell" title="Notifications">
-            <svg className="icon"><use href="#icon-bell" /></svg>
-            <span className="notify-dot" />
-          </button>
+          <NotificationBell role={role} />
           <div
             className={"topbar-user" + (userMenu ? " open" : "")}
             data-action="toggle-user-menu"

@@ -53,10 +53,18 @@ async function handler(req, res) {
     if (!student) return res.status(404).json({ ok: false, error: "Student not found in this unit" });
     const mine = submissions.filter((s) => S(s.studentId) === S(studentId));
     const cls = student.classId ? classById[S(student.classId)] : null;
+    const myDeadline = (unit.deadlines || []).find(
+      (d) => cls && S(d.classId) === S(cls._id) && d.dueAt
+    );
     return res.status(200).json({
       ok: true,
       unit: { _id: unit._id, name: unit.name, level: unit.level },
-      student: { _id: student._id, name: student.name, className: cls ? cls.name : null },
+      student: {
+        _id: student._id,
+        name: student.name,
+        className: cls ? cls.name : null,
+        dueAt: myDeadline ? myDeadline.dueAt : null,
+      },
       categories: buildStudentDetail({ unit, submissions: mine }),
     });
   }
@@ -70,15 +78,23 @@ async function handler(req, res) {
 
   const rows = buildUnitOverview({ unit, submissions, students, classById });
 
+  // Hạn nộp theo lớp: { [classId]: ISO date }.
+  const deadlineByClass = {};
+  (unit.deadlines || []).forEach((d) => {
+    if (d && d.classId && d.dueAt) deadlineByClass[S(d.classId)] = d.dueAt;
+  });
+
   return res.status(200).json({
     ok: true,
     unit: { _id: unit._id, name: unit.name, level: unit.level, classIds: assignedClassIds },
     scope,
+    deadlineByClass,
     classes: relevantClasses.map((c) => ({
       _id: c._id,
       name: c.name,
       level: c.level,
       studentCount: studentCountByClass[S(c._id)] || 0,
+      dueAt: deadlineByClass[S(c._id)] || null,
     })),
     students: rows,
   });

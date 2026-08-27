@@ -12,10 +12,51 @@ import {
 } from "@/lib/student/submissions";
 import { useAnswers, SectionBlock } from "@/components/student/questions";
 import { WritingPrompt, SpeakingPrompt } from "@/components/student/PromptBlock";
+import RubricResult from "@/components/RubricResult";
 import GrammarTopicView from "@/components/student/GrammarTopicView";
 import { VocabFlashcards, VocabWordList } from "@/components/student/VocabFlashcards";
 
 const LESSON_LIST_CATS = ["grammar", "vocabulary"];
+
+const fmtDeadline = (d) =>
+  new Date(d).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+function DeadlineBanner({ dueAt }) {
+  if (!dueAt) return null;
+  const ms = new Date(dueAt).getTime() - Date.now();
+  const when = fmtDeadline(dueAt);
+
+  if (ms <= 0)
+    return (
+      <div className="notice warn">
+        <svg className="icon"><use href="#icon-warning" /></svg> Past due ({when}). You can still
+        submit, but your work will be marked <b>Late</b>.
+      </div>
+    );
+
+  const hours = ms / 3600000;
+  if (hours <= 24) {
+    const left = hours >= 1 ? `${Math.round(hours)} hour${Math.round(hours) === 1 ? "" : "s"} left` : "less than an hour left";
+    return (
+      <div className="notice warn">
+        <svg className="icon"><use href="#icon-clock" /></svg> Due soon — {when} ({left})
+      </div>
+    );
+  }
+
+  const days = Math.ceil(hours / 24);
+  return (
+    <div className="notice info">
+      <svg className="icon"><use href="#icon-clock" /></svg> Due {when} · {days} day{days === 1 ? "" : "s"} left
+    </div>
+  );
+}
 
 function renderTheoryText(raw) {
   const esc = String(raw || "")
@@ -70,6 +111,7 @@ export default function UnitDetailPage() {
           <svg className="icon"><use href="#icon-arrow-left" /></svg> Back to lesson list
         </p>
         <h2>{unit.name}</h2>
+        <DeadlineBanner dueAt={unit.dueAt} />
 
         <div className="unit-cat-tabs">
           {LESSON_CATS.map((c) => (
@@ -331,8 +373,11 @@ function ExerciseBlock({ index, ex, unitId, categoryKey, skill, last, onSubmitte
       });
       const detailById = {};
       (res.detail || []).forEach((d) => (detailById[d.id] = d));
-      setResult({ score: res.score, total: res.total, detailById });
-      alert(`Score: ${res.score}/${res.total} correct.`);
+      setResult({ score: res.score, total: res.total, detailById, late: !!res.isLate });
+      alert(
+        `Score: ${res.score}/${res.total} correct.` +
+          (res.isLate ? "\n\nSubmitted after the deadline — marked Late." : "")
+      );
       onSubmitted && onSubmitted();
     } catch (e) {
       alert("Submission failed: " + e.message);
@@ -341,12 +386,25 @@ function ExerciseBlock({ index, ex, unitId, categoryKey, skill, last, onSubmitte
     }
   }
 
+  const lateTag = (isLate) =>
+    isLate ? <span className="pill pill-danger" style={{ marginLeft: 4 }}>Late</span> : null;
+
   let badge;
   if (open && !result) badge = <span className="pill pill-warn">In Progress</span>;
   else if (result)
-    badge = <span className="pill pill-ok">Completed · {Math.round((result.score / Math.max(result.total, 1)) * 100)}%</span>;
+    badge = (
+      <>
+        <span className="pill pill-ok">Completed · {Math.round((result.score / Math.max(result.total, 1)) * 100)}%</span>
+        {lateTag(result.late)}
+      </>
+    );
   else if (last)
-    badge = <span className="pill pill-ok">Completed · {Math.round((last.score / Math.max(last.total, 1)) * 100)}%</span>;
+    badge = (
+      <>
+        <span className="pill pill-ok">Completed · {Math.round((last.score / Math.max(last.total, 1)) * 100)}%</span>
+        {lateTag(last.isLate)}
+      </>
+    );
   else badge = <span className="pill pill-muted">Not started</span>;
 
   const ctaLabel = open ? "Continue" : last || result ? "Review" : "Start";
@@ -415,12 +473,15 @@ function PromptList({ unitId, cat, subs, onSubmitted }) {
         let badge;
         if (!last) badge = <span className="pill pill-muted">Not started</span>;
         else if (last.gradingStatus === "graded")
-          badge = <span className="pill pill-ok">Graded · {last.manualScore} pts</span>;
+          badge = <span className="pill pill-ok">Graded · Band {last.manualScore}</span>;
         else badge = <span className="pill pill-warn">Pending review</span>;
         return (
           <div className="lesson-block" key={p.id}>
             <h4 style={{ margin: "0 0 8px" }}>
               {i + 1}. {p.title || "Prompt"} {badge}
+              {last && last.isLate && (
+                <span className="pill pill-danger" style={{ marginLeft: 4 }}>Late</span>
+              )}
             </h4>
             {p.instructions && <div className="lesson-text">{p.instructions}</div>}
             {p.imageUrl && (
@@ -445,9 +506,13 @@ function PromptList({ unitId, cat, subs, onSubmitted }) {
               {last &&
                 (last.gradingStatus === "graded" ? (
                   <div className="notice success">
-                    <svg className="icon"><use href="#icon-check-circle" /></svg> Graded:{" "}
-                    <b>{last.manualScore} pts</b>
-                    {last.manualFeedback ? " — Feedback: " + last.manualFeedback : ""}
+                    <svg className="icon"><use href="#icon-check-circle" /></svg> Graded by your teacher
+                    <RubricResult
+                      rubricVariant={last.rubricVariant}
+                      criteria={last.criteria}
+                      manualScore={last.manualScore}
+                      manualFeedback={last.manualFeedback}
+                    />
                   </div>
                 ) : (
                   <div className="notice info">Submitted — pending teacher review.</div>
