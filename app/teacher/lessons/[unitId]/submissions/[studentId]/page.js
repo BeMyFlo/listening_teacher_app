@@ -52,7 +52,7 @@ function QuestionTable({ detail }) {
         </thead>
         <tbody>
           {detail.map((d) => (
-            <tr key={d.id} style={{ background: d.correct ? "#f0faf3" : "#fdf1f1" }}>
+            <tr key={d.id} style={{ background: d.correct ? "#DFF7E9" : "#FFE0E2" }}>
               <td>{d.id}</td>
               <td>{d.label}</td>
               <td>{d.submittedText}</td>

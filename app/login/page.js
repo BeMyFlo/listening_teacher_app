@@ -61,26 +61,26 @@ export default function LoginPage() {
             Learn.<br />Practice.<br />Achieve.
           </div>
           <svg className="login-arrow" viewBox="0 0 120 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path d="M5 5 C 40 5, 60 40, 110 45" stroke="#a9b8e0" strokeWidth="2" strokeDasharray="5 5" fill="none" markerEnd="url(#arrowhead)" />
+            <path d="M5 5 C 40 5, 60 40, 110 45" stroke="#A9DBFF" strokeWidth="2" strokeDasharray="5 5" fill="none" markerEnd="url(#arrowhead)" />
             <defs>
               <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
-                <path d="M0 0 L8 4 L0 8 Z" fill="#a9b8e0" />
+                <path d="M0 0 L8 4 L0 8 Z" fill="#A9DBFF" />
               </marker>
             </defs>
           </svg>
           <svg className="login-books" viewBox="0 0 220 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <g transform="translate(2,60)">
-              <path d="M10 90 L50 90 L46 130 L14 130 Z" fill="#e7e2f7" />
-              <ellipse cx="30" cy="90" rx="20" ry="5" fill="#d6cff2" />
-              <path d="M30 90 C10 70 8 40 20 20 C24 45 28 60 30 90Z" fill="#5fa86a" />
-              <path d="M30 90 C50 65 55 35 42 15 C36 42 32 60 30 90Z" fill="#79c084" />
-              <path d="M30 90 C15 75 10 55 16 40 C22 58 27 72 30 90Z" fill="#8fd39a" />
+              <path d="M10 90 L50 90 L46 130 L14 130 Z" fill="#FFE3EE" />
+              <ellipse cx="30" cy="90" rx="20" ry="5" fill="#FFB4D2" />
+              <path d="M30 90 C10 70 8 40 20 20 C24 45 28 60 30 90Z" fill="#2FA36B" />
+              <path d="M30 90 C50 65 55 35 42 15 C36 42 32 60 30 90Z" fill="#5BC48E" />
+              <path d="M30 90 C15 75 10 55 16 40 C22 58 27 72 30 90Z" fill="#8FD9B5" />
             </g>
             <g transform="translate(50,40)">
-              <rect x="0" y="118" width="150" height="26" rx="6" fill="#8b9ce8" />
-              <rect x="6" y="88" width="138" height="26" rx="6" fill="#4a9b6e" />
-              <rect x="0" y="58" width="150" height="26" rx="6" fill="#e8a23a" />
-              <rect x="8" y="24" width="134" height="32" rx="8" fill="#4653d6" />
+              <rect x="0" y="118" width="150" height="26" rx="6" fill="#5BB4EE" />
+              <rect x="6" y="88" width="138" height="26" rx="6" fill="#2FA36B" />
+              <rect x="0" y="58" width="150" height="26" rx="6" fill="#E08A2E" />
+              <rect x="8" y="24" width="134" height="32" rx="8" fill="#3D97D6" />
               <text x="75" y="45" textAnchor="middle" fontSize="13" fontWeight="700" fill="#fff" fontFamily="Segoe UI, sans-serif">IELTS</text>
             </g>
           </svg>
@@ -182,20 +182,20 @@ export default function LoginPage() {
           <div className="floating-card progress-card">
             <div className="fc-label">Progress</div>
             <svg className="progress-ring" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <circle cx="50" cy="50" r="42" fill="none" stroke="#e8ecfb" strokeWidth="10" />
+              <circle cx="50" cy="50" r="42" fill="none" stroke="#DCEFFF" strokeWidth="10" />
               <circle
                 cx="50"
                 cy="50"
                 r="42"
                 fill="none"
-                stroke="#4653d6"
+                stroke="#3D97D6"
                 strokeWidth="10"
                 strokeLinecap="round"
                 strokeDasharray="264"
                 strokeDashoffset="40"
                 transform="rotate(-90 50 50)"
               />
-              <text x="50" y="57" textAnchor="middle" fontSize="20" fontWeight="800" fill="#1c2733" fontFamily="Segoe UI, sans-serif">
+              <text x="50" y="57" textAnchor="middle" fontSize="20" fontWeight="800" fill="#37324A" fontFamily="Segoe UI, sans-serif">
                 85%
               </text>
             </svg>

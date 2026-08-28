@@ -131,25 +131,22 @@ export default function OverviewPage() {
         </div>
         <div className="hero-illustration">
           <svg viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <g fill="#ffd35c"><path d="M172 18l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" /></g>
-            <g fill="#9b8afb"><path d="M18 108l2.5 5.5 5.5 2.5-5.5 2.5-2.5 5.5-2.5-5.5-5.5-2.5 5.5-2.5z" /></g>
+            <g fill="#FFD27A"><path d="M172 18l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" /></g>
+            <g fill="#FF7FAE"><path d="M18 108l2.5 5.5 5.5 2.5-5.5 2.5-2.5 5.5-2.5-5.5-5.5-2.5 5.5-2.5z" /></g>
             <g transform="translate(10,22) rotate(-9)">
-              <rect width="50" height="42" rx="10" fill="#fff" stroke="#e3e7fb" />
-              <rect x="10" y="24" width="6" height="10" rx="2" fill="#8b7cf6" />
-              <rect x="19" y="18" width="6" height="16" rx="2" fill="#6a5bd6" />
-              <rect x="28" y="12" width="6" height="22" rx="2" fill="#4b3fc4" />
+              <rect width="50" height="42" rx="10" fill="#fff" stroke="#DCEFFF" />
+              <rect x="10" y="24" width="6" height="10" rx="2" fill="#5BB4EE" />
+              <rect x="19" y="18" width="6" height="16" rx="2" fill="#3D97D6" />
+              <rect x="28" y="12" width="6" height="22" rx="2" fill="#245F8F" />
             </g>
             <g transform="translate(138,88) rotate(8)">
-              <rect width="50" height="42" rx="10" fill="#fff" stroke="#e3e7fb" />
-              <circle cx="25" cy="21" r="13" fill="#e6f6ea" />
-              <path d="M18 21l5 5 9-10" stroke="#1e8e3e" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              <rect width="50" height="42" rx="10" fill="#fff" stroke="#DCEFFF" />
+              <circle cx="25" cy="21" r="13" fill="#DFF7E9" />
+              <path d="M18 21l5 5 9-10" stroke="#2FA36B" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
             </g>
-            <ellipse cx="100" cy="150" rx="44" ry="7" fill="#4b3fc4" opacity=".12" />
-            <path d="M64 150c0-40 12-58 36-58s36 18 36 58z" fill="#4b3fc4" />
-            <path d="M80 150c0-30 8-42 20-42s20 12 20 42z" fill="#6a5bd6" />
-            <rect x="90" y="118" width="20" height="14" rx="2" fill="#fff" opacity=".9" />
-            <circle cx="100" cy="64" r="24" fill="#ffd9b0" />
-            <path d="M76 60a24 24 0 0 1 48 0c0-16-11-26-24-26s-24 10-24 26z" fill="#2b2440" />
+            <g fill="#F2669C"><path d="M150 132l2.5 5.5 5.5 2.5-5.5 2.5-2.5 5.5-2.5-5.5-5.5-2.5 5.5-2.5z" /></g>
+            <circle cx="104" cy="86" r="6" fill="#A9DBFF" />
+            <circle cx="60" cy="40" r="4" fill="#FFB4D2" />
           </svg>
         </div>
       </div>
@@ -166,7 +163,7 @@ export default function OverviewPage() {
           <div className="dash-stats">
             <DashStat icon="student" value={s.totalClasses ?? 0} label="Total Classes" linkLabel="View classes" onClick={() => go("/teacher/classes")} />
             <DashStat icon="inbox" value={s.unreadSubmissions ?? 0} label="My Unread Submissions" linkLabel="View submissions" tone="amber" onClick={() => go("/teacher/submissions")} />
-            <DashStat icon="clipboard" value={s.activeAssignments ?? 0} label="Active Assignments" linkLabel="View assignments" onClick={() => go("/teacher/lessons")} />
+            <DashStat icon="clipboard" value={s.activeAssignments ?? 0} label="Active Assignments" linkLabel="View assignments" tone="pink" onClick={() => go("/teacher/lessons")} />
             <DashStat icon="clock" value={s.needAttentionStudents ?? 0} label="Students Needing Attention" linkLabel="View students" tone="danger" onClick={() => go("/teacher/students")} />
           </div>
 

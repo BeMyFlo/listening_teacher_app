@@ -35,22 +35,22 @@ function BellIllustration({ late }) {
         <g transform="translate(18 12)">
           <path
             d="M42 8c0-3.3-2.7-6-6-6s-6 2.7-6 6C18 11 12 21 12 40c0 12-6 16-6 16h60s-6-4-6-16c0-19-6-29-18-32Z"
-            fill="#8b7cf6"
+            fill="#FF7FAE"
           />
-          <path d="M28 62a8 8 0 0 0 16 0Z" fill="#6a5bd6" />
-          <circle cx="55" cy="10" r="4" fill="#c9c0fb" />
-          <path d="M64 4l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#c9c0fb" />
+          <path d="M28 62a8 8 0 0 0 16 0Z" fill="#F2669C" />
+          <circle cx="55" cy="10" r="4" fill="#FFD1E4" />
+          <path d="M64 4l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#FFD1E4" />
         </g>
         {late ? (
           <g transform="translate(74 66)">
             <circle cx="18" cy="18" r="18" fill="#fff" />
-            <circle cx="18" cy="18" r="14" fill="#ef5aa0" />
+            <circle cx="18" cy="18" r="14" fill="#F2669C" />
             <path d="M18 10v9l6 4" stroke="#fff" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </g>
         ) : (
           <g transform="translate(74 66)">
             <circle cx="18" cy="18" r="18" fill="#fff" />
-            <circle cx="18" cy="18" r="14" fill="#1e8e3e" />
+            <circle cx="18" cy="18" r="14" fill="#2FA36B" />
             <path d="M11 18l5 5 10-11" stroke="#fff" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </g>
         )}

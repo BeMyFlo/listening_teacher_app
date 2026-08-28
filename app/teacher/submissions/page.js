@@ -196,7 +196,7 @@ function SubmissionRows({ r, onGraded }) {
       </tr>
       {open && (
         <tr>
-          <td colSpan={7} style={{ background: "#fafcfe" }}>
+          <td colSpan={7} style={{ background: "#FFF7FB" }}>
             <DetailBody r={r} onGraded={onGraded} />
           </td>
         </tr>
