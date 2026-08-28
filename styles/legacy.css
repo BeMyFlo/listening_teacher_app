@@ -2695,3 +2695,21 @@ tr:hover td { background: #fafcfe; }
 .sr-transcript { margin-top: 8px; }
 .sr-transcript summary { cursor: pointer; font-size: .82rem; font-weight: 600; color: var(--indigo); }
 .sr-transcript p { margin: 6px 0 0; white-space: pre-wrap; line-height: 1.6; font-size: .9rem; color: var(--ink); }
+
+/* Cài đặt AI Grading */
+.ai-model-list { list-style: none; padding: 0; margin: 8px 0 0; counter-reset: m; }
+.ai-model-list li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; background: #fff;
+}
+.ai-model-list li::before { counter-increment: m; content: counter(m); width: 20px; color: var(--muted); font-weight: 700; font-size: .8rem; }
+.ai-model-id { font-family: ui-monospace, monospace; font-size: .9rem; color: var(--ink); }
+.ai-model-actions { margin-left: auto; display: flex; gap: 2px; }
+.ai-model-suggest { display: flex; flex-wrap: wrap; gap: 8px; }
+.ai-suggest-chip {
+  border: 1px solid var(--border); background: #fff; border-radius: 8px; padding: 7px 11px;
+  font-size: .82rem; cursor: pointer; color: var(--ink); text-align: left;
+}
+.ai-suggest-chip span { display: block; font-family: ui-monospace, monospace; font-size: .72rem; color: var(--muted); }
+.ai-suggest-chip:hover:not(:disabled) { border-color: var(--indigo); background: var(--indigo-light); }
+.ai-suggest-chip:disabled { opacity: .4; cursor: not-allowed; }

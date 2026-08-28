@@ -129,7 +129,7 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
     if (draft.overallFeedback) setFeedback(draft.overallFeedback);
     setGradeSource("ai-reviewed");
     setAiNote(
-      "AI draft loaded — review every band and note, edit as needed, then Save Grade." +
+      `AI draft loaded${draft.model ? ` (${draft.model})` : ""} — review every band and note, edit as needed, then Save Grade.` +
         (draft.unresolved ? ` (${draft.unresolved} suggestion(s) could not be placed)` : "")
     );
   }

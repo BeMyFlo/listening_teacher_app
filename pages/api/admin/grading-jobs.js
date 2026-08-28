@@ -71,9 +71,10 @@ async function handler(req, res) {
   }
 
   try {
-    const { draft } = await runAiGrade(claimed.submissionId);
+    const { draft, model } = await runAiGrade(claimed.submissionId);
     claimed.status = "done";
-    claimed.result = draft;
+    claimed.result = { ...draft, model };
+    claimed.model = model;
     claimed.finishedAt = new Date();
     await claimed.save();
   } catch (err) {
