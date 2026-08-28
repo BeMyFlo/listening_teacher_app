@@ -86,7 +86,13 @@ export default function TakeTestPage() {
             return (
               <div className="lesson-block" key={p.id}>
                 <h4 style={{ margin: "0 0 8px" }}>{p.title || "Prompt"}</h4>
-                {p.instructions && <div className="lesson-text">{p.instructions}</div>}
+                {p.instructions && (
+                  <div className="prompt-instructions">
+                    {p.instructions.split(/\n{2,}/).map((para, k) => (
+                      <p key={k}>{para}</p>
+                    ))}
+                  </div>
+                )}
                 {p.imageUrl && (
                   <img src={p.imageUrl} className="diagram-image" style={{ margin: "10px 0" }} alt="" />
                 )}
@@ -107,6 +113,11 @@ export default function TakeTestPage() {
                           criteria={last.criteria}
                           manualScore={last.manualScore}
                           manualFeedback={last.manualFeedback}
+                      essayText={last.essayText}
+                      annotations={last.annotations}
+                      audioUrl={last.audioUrl}
+                      transcript={last.transcript}
+                      speakingNotes={last.speakingNotes}
                         />
                       </div>
                     ) : (

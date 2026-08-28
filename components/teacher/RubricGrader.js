@@ -1,7 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getRubric, resolveVariant, overallBand } from "@/lib/grading/rubric";
+import { resumeAiGrade } from "@/lib/client/aiGrade";
+import EssayAnnotator from "./EssayAnnotator";
+import SpeakingReview from "./SpeakingReview";
 
 const BANDS = [9, 8, 7, 6, 5, 4, 3, 2, 1];
 
@@ -9,11 +12,22 @@ const BANDS = [9, 8, 7, 6, 5, 4, 3, 2, 1];
 // tổng tự tính. Dùng chung cho màn chấm Lesson và Mock Test.
 //
 // props:
-//   submission : { kind, rubricVariant?, writingTask?, criteria?, manualScore?, manualFeedback? }
+//   submission : { kind, rubricVariant?, writingTask?, criteria?, manualScore?, manualFeedback?, essayText?, annotations? }
 //   busy       : bool
-//   onSave({ criteria, rubricVariant, manualScore, manualFeedback })
-export default function RubricGrader({ submission, busy, onSave }) {
+//   onSave({ criteria, rubricVariant, manualScore, manualFeedback, annotations, gradeSource })
+//   onAiGrade  : optional () => Promise<draft>  (Gemini) — nạp band + annotation + feedback vào form
+export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
   const isWriting = submission.kind === "writing";
+  const isSpeaking = submission.kind === "speaking";
+  const hasEssay = isWriting && !!submission.essayText;
+
+  const [annotations, setAnnotations] = useState(submission.annotations || []);
+  const [transcript, setTranscript] = useState(submission.transcript || "");
+  const [speakingNotes, setSpeakingNotes] = useState(submission.speakingNotes || []);
+  const [gradeSource, setGradeSource] = useState(submission.gradeSource || "teacher");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiNote, setAiNote] = useState("");
+  const stopRef = useRef(false);
 
   const initialVariant =
     submission.rubricVariant ||
@@ -89,13 +103,99 @@ export default function RubricGrader({ submission, busy, onSave }) {
       rubricVariant: variant,
       manualScore: finalBand,
       manualFeedback: feedback.trim(),
+      gradeSource,
+      ...(hasEssay ? { annotations } : {}),
+      ...(isSpeaking ? { transcript, speakingNotes } : {}),
     });
   }
+
+  function applyDraft(draft) {
+    if (!draft) return;
+    if (draft.annotations) setAnnotations(draft.annotations);
+    if (typeof draft.transcript === "string") setTranscript(draft.transcript);
+    if (Array.isArray(draft.speakingNotes)) setSpeakingNotes(draft.speakingNotes);
+    if (Array.isArray(draft.criteria)) {
+      setBands((b) => {
+        const o = { ...b };
+        draft.criteria.forEach((c) => { if (c.band != null) o[c.key] = String(c.band); });
+        return o;
+      });
+      setNotes((n) => {
+        const o = { ...n };
+        draft.criteria.forEach((c) => { if (c.comment) o[c.key] = c.comment; });
+        return o;
+      });
+    }
+    if (draft.overallFeedback) setFeedback(draft.overallFeedback);
+    setGradeSource("ai-reviewed");
+    setAiNote(
+      "AI draft loaded — review every band and note, edit as needed, then Save Grade." +
+        (draft.unresolved ? ` (${draft.unresolved} suggestion(s) could not be placed)` : "")
+    );
+  }
+
+  async function runAi() {
+    if (!onAiGrade || aiBusy) return;
+    setAiBusy(true);
+    setErr("");
+    setAiNote("AI is grading… 0s");
+    try {
+      applyDraft(await onAiGrade((secs) => setAiNote(`AI is grading… ${secs}s`)));
+    } catch (e) {
+      setErr("AI grading failed: " + e.message);
+      setAiNote("");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  // Load lại trang giữa lúc AI đang chấm -> tự bắt lại tiến trình.
+  useEffect(() => {
+    stopRef.current = false;
+    if (!onAiGrade || !submission.submissionId) return;
+    resumeAiGrade(submission.submissionId, {
+      onActive: () => !stopRef.current && setAiBusy(true),
+      onTick: (s) => !stopRef.current && setAiNote(`AI is grading… ${s}s`),
+      shouldStop: () => stopRef.current,
+    })
+      .then((draft) => {
+        if (!stopRef.current && draft) applyDraft(draft);
+      })
+      .catch(() => {})
+      .finally(() => !stopRef.current && setAiBusy(false));
+    return () => {
+      stopRef.current = true;
+    };
+    // eslint-disable-line react-hooks/exhaustive-deps
+  }, [submission.submissionId]);
 
   if (!rubric) return <p className="notice error">Grading rubric not found.</p>;
 
   return (
     <div className="rubric-grader">
+      {hasEssay && (
+        <EssayAnnotator
+          essayText={submission.essayText}
+          annotations={annotations}
+          kind={submission.kind}
+          onChange={setAnnotations}
+          onAiGrade={onAiGrade ? runAi : undefined}
+          aiBusy={aiBusy}
+        />
+      )}
+      {isSpeaking && (
+        <SpeakingReview
+          audioUrl={submission.audioUrl}
+          transcript={transcript}
+          notes={speakingNotes}
+          onChange={setSpeakingNotes}
+          onTranscriptChange={setTranscript}
+          onAiGrade={onAiGrade ? runAi : undefined}
+          aiBusy={aiBusy}
+        />
+      )}
+      {aiNote && <p className="notice info" style={{ marginTop: 8 }}>{aiNote}</p>}
+
       {isWriting && (
         <div className="rubric-tasktoggle">
           <span>Rubric:</span>

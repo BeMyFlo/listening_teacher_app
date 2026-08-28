@@ -2,6 +2,7 @@ const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
 const Submission = require("../../../lib/models/Submission");
 const { resolveVariant, getRubric, overallBand, validateCriteria } = require("../../../lib/grading/rubric");
+const { validateAnnotations, normalizeAnnotation } = require("../../../lib/grading/annotate");
 
 const KINDS = ["test", "exercise", "writing", "speaking"];
 
@@ -52,7 +53,34 @@ async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Only Writing and Speaking submissions can be manually graded" });
     }
 
-    const { manualScore, manualFeedback, criteria } = req.body || {};
+    const { manualScore, manualFeedback, criteria, annotations, gradeSource, transcript, speakingNotes } = req.body || {};
+
+    // Chú thích inline (tuỳ chọn) — chỉ Writing (có essayText gốc).
+    if (annotations !== undefined) {
+      if (submission.kind !== "writing") {
+        return res.status(400).json({ ok: false, error: "Annotations are only for Writing submissions" });
+      }
+      const aerr = validateAnnotations(submission.essayText || "", annotations || []);
+      if (aerr) return res.status(400).json({ ok: false, error: aerr });
+      submission.annotations = (annotations || []).map((a) => normalizeAnnotation(a, submission.essayText || ""));
+    }
+
+    // Speaking: transcript + ghi chú theo mốc giây.
+    if (submission.kind === "speaking") {
+      if (typeof transcript === "string") submission.transcript = transcript;
+      if (Array.isArray(speakingNotes)) {
+        submission.speakingNotes = speakingNotes.map((n) => ({
+          id: n.id || Math.random().toString(36).slice(2, 10),
+          atSeconds: Number.isFinite(Number(n.atSeconds)) ? Number(n.atSeconds) : null,
+          category: String(n.category || "other"),
+          criterion: n.criterion || null,
+          comment: String(n.comment || ""),
+          source: n.source === "ai" ? "ai" : "teacher",
+        }));
+      }
+    }
+
+    if (["teacher", "ai", "ai-reviewed"].includes(gradeSource)) submission.gradeSource = gradeSource;
 
     if (Array.isArray(criteria)) {
       // ----- Chấm theo rubric IELTS (4 tiêu chí) -----

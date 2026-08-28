@@ -6,6 +6,7 @@ import { api } from "@/lib/client/api";
 import RubricGrader from "@/components/teacher/RubricGrader";
 import RubricResult from "@/components/RubricResult";
 import { useDialog } from "@/components/ui/Dialog";
+import { pollAiGrade } from "@/lib/client/aiGrade";
 
 function pct(score, total) {
   if (!total) return null;
@@ -118,6 +119,11 @@ function GradeForm({ prompt, onGraded }) {
           criteria={prompt.criteria}
           manualScore={prompt.manualScore}
           manualFeedback={prompt.manualFeedback}
+          essayText={prompt.essayText}
+          annotations={prompt.annotations}
+          audioUrl={prompt.audioUrl}
+          transcript={prompt.transcript}
+          speakingNotes={prompt.speakingNotes}
           showDescriptors={false}
         />
         <button type="button" className="btn secondary" style={{ marginTop: 8, padding: "6px 12px" }} onClick={() => setEditing(true)}>
@@ -145,14 +151,26 @@ function GradeForm({ prompt, onGraded }) {
       <RubricGrader
         submission={{
           kind: prompt.kind,
+          submissionId: prompt.submissionId,
           rubricVariant: prompt.rubricVariant,
           writingTask: prompt.writingTask,
           criteria: prompt.criteria,
           manualScore: prompt.manualScore,
           manualFeedback: prompt.manualFeedback,
+          essayText: prompt.essayText,
+          annotations: prompt.annotations,
+          audioUrl: prompt.audioUrl,
+          transcript: prompt.transcript,
+          speakingNotes: prompt.speakingNotes,
+          gradeSource: prompt.gradeSource,
         }}
         busy={busy}
         onSave={save}
+        onAiGrade={
+          (prompt.kind === "writing" && prompt.essayText) || (prompt.kind === "speaking" && prompt.audioUrl)
+            ? (onTick) => pollAiGrade(prompt.submissionId, { onTick })
+            : undefined
+        }
       />
     </div>
   );
@@ -164,9 +182,11 @@ function PromptRow({ prompt, onGraded }) {
     <div className="lesson-block" style={{ marginBottom: 10 }}>
       <h4 style={{ margin: "0 0 4px" }}>{prompt.title || "Prompt"}</h4>
       {prompt.instructions && (
-        <p style={{ margin: "0 0 8px", color: "var(--muted)", fontSize: ".86rem", whiteSpace: "pre-line" }}>
-          {prompt.instructions}
-        </p>
+        <div className="prompt-instructions" style={{ fontSize: ".86rem" }}>
+          {prompt.instructions.split(/\n{2,}/).map((para, k) => (
+            <p key={k}>{para}</p>
+          ))}
+        </div>
       )}
       {!done ? (
         <span className="pill pill-muted">Not started</span>
@@ -176,22 +196,6 @@ function PromptRow({ prompt, onGraded }) {
             Submitted {new Date(prompt.submittedAt).toLocaleString("en-US")}
           </p>
           <LateLine item={prompt} />
-          {prompt.essayText && (
-            <div
-              style={{
-                whiteSpace: "pre-wrap",
-                padding: 10,
-                background: "#fff",
-                border: "1px solid var(--border)",
-                borderRadius: 6,
-              }}
-            >
-              {prompt.essayText}
-            </div>
-          )}
-          {prompt.audioUrl && (
-            <audio controls src={prompt.audioUrl} style={{ width: "100%", marginTop: 4 }} />
-          )}
           <GradeForm prompt={prompt} onGraded={onGraded} />
         </>
       )}

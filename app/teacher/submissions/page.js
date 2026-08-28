@@ -5,6 +5,7 @@ import { api } from "@/lib/client/api";
 import RubricGrader from "@/components/teacher/RubricGrader";
 import RubricResult from "@/components/RubricResult";
 import { useDialog } from "@/components/ui/Dialog";
+import { pollAiGrade } from "@/lib/client/aiGrade";
 
 const KIND_LABELS = { test: "Mock Test", exercise: "Lesson Exercise", writing: "Writing", speaking: "Speaking" };
 
@@ -210,19 +211,6 @@ function DetailBody({ r, onGraded }) {
   if (kind === "writing") {
     return (
       <div style={{ padding: "10px 14px" }}>
-        <b>Student Essay:</b>
-        <div
-          style={{
-            whiteSpace: "pre-wrap",
-            margin: "8px 0 12px",
-            padding: 10,
-            background: "#fff",
-            border: "1px solid var(--border)",
-            borderRadius: 6,
-          }}
-        >
-          {r.essayText || "(empty)"}
-        </div>
         <GradingForm r={r} onGraded={onGraded} />
       </div>
     );
@@ -230,10 +218,6 @@ function DetailBody({ r, onGraded }) {
   if (kind === "speaking") {
     return (
       <div style={{ padding: "10px 14px" }}>
-        <b>Student Audio Recording:</b>
-        <div style={{ margin: "8px 0 12px" }}>
-          <audio controls src={r.audioUrl || ""} />
-        </div>
         <GradingForm r={r} onGraded={onGraded} />
       </div>
     );
@@ -272,6 +256,11 @@ function GradingForm({ r, onGraded }) {
           criteria={r.criteria}
           manualScore={r.manualScore}
           manualFeedback={r.manualFeedback}
+          essayText={r.essayText}
+          annotations={r.annotations}
+          audioUrl={r.audioUrl}
+          transcript={r.transcript}
+          speakingNotes={r.speakingNotes}
           showDescriptors={false}
         />
         <button
@@ -304,13 +293,25 @@ function GradingForm({ r, onGraded }) {
       <RubricGrader
         submission={{
           kind: r.kind,
+          submissionId: r._id,
           rubricVariant: r.rubricVariant,
           criteria: r.criteria,
           manualScore: r.manualScore,
           manualFeedback: r.manualFeedback,
+          essayText: r.essayText,
+          annotations: r.annotations,
+          audioUrl: r.audioUrl,
+          transcript: r.transcript,
+          speakingNotes: r.speakingNotes,
+          gradeSource: r.gradeSource,
         }}
         busy={busy}
         onSave={save}
+        onAiGrade={
+          (r.kind === "writing" && r.essayText) || (r.kind === "speaking" && r.audioUrl)
+            ? (onTick) => pollAiGrade(r._id, { onTick })
+            : undefined
+        }
       />
     </div>
   );

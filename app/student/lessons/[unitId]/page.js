@@ -496,7 +496,13 @@ function PromptList({ unitId, cat, subs, onSubmitted }) {
                 <span className="pill pill-danger" style={{ marginLeft: 4 }}>Late</span>
               )}
             </h4>
-            {p.instructions && <div className="lesson-text">{p.instructions}</div>}
+            {p.instructions && (
+              <div className="prompt-instructions">
+                {p.instructions.split(/\n{2,}/).map((para, k) => (
+                  <p key={k}>{para}</p>
+                ))}
+              </div>
+            )}
             {p.imageUrl && (
               <img src={p.imageUrl} className="diagram-image" style={{ margin: "10px 0" }} alt="" />
             )}
@@ -525,6 +531,11 @@ function PromptList({ unitId, cat, subs, onSubmitted }) {
                       criteria={last.criteria}
                       manualScore={last.manualScore}
                       manualFeedback={last.manualFeedback}
+                      essayText={last.essayText}
+                      annotations={last.annotations}
+                      audioUrl={last.audioUrl}
+                      transcript={last.transcript}
+                      speakingNotes={last.speakingNotes}
                     />
                   </div>
                 ) : (
