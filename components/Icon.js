@@ -43,6 +43,7 @@ export const ICON_SYMBOLS = {
   "user-plus":
     '<path d="M6 20.5V19a5 5 0 0 1 5-5h1.5"/><circle cx="10.5" cy="8" r="4"/><path d="M18 9v6"/><path d="M15 12h6"/>',
   bell: '<path d="M6 9a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9Z"/><path d="M10 19a2.2 2.2 0 0 0 4 0"/>',
+  chat: '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9A1.5 1.5 0 0 1 18.5 16H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 14.5v-9Z"/><path d="M8 9h8"/><path d="M8 12h5"/>',
   calendar:
     '<rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M8 3v4"/><path d="M16 3v4"/><path d="M3.5 10h17"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',

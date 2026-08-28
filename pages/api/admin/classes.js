@@ -4,6 +4,10 @@ const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const Unit = require("../../../lib/models/Unit");
 const Test = require("../../../lib/models/Test");
+const Message = require("../../../lib/models/Message");
+const Conversation = require("../../../lib/models/Conversation");
+const Teacher = require("../../../lib/models/Teacher");
+const { deleteClassChatMedia } = require("../../../lib/cloudinary");
 
 async function handler(req, res) {
   await connectDB();
@@ -73,12 +77,17 @@ async function handler(req, res) {
   }
 
   if (req.method === "DELETE") {
-    // Gỡ lớp khỏi học sinh (giữ nguyên level của họ) và khỏi Unit/Test đã gán.
+    // Gỡ lớp khỏi học sinh (giữ nguyên level của họ), khỏi Unit/Test/Teacher đã
+    // gán, và xoá phòng chat của lớp.
     await Promise.all([
       Student.updateMany({ classId: cls._id }, { $set: { classId: null } }),
       Unit.updateMany({ classIds: cls._id }, { $pull: { classIds: cls._id } }),
       Test.updateMany({ classIds: cls._id }, { $pull: { classIds: cls._id } }),
+      Teacher.updateMany({ classIds: cls._id }, { $pull: { classIds: cls._id } }),
+      Message.deleteMany({ classId: cls._id }),
+      Conversation.deleteOne({ classId: cls._id }),
     ]);
+    deleteClassChatMedia(String(cls._id)).catch((e) => console.error("[chat] media cleanup:", e.message));
     await cls.deleteOne();
     return res.status(200).json({ ok: true });
   }
