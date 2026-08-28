@@ -7,6 +7,7 @@ const Class = require("../../lib/models/Class");
 const Submission = require("../../lib/models/Submission");
 const { gradeSubmission } = require("../../lib/grade");
 const notifications = require("../../lib/notifications");
+const { notifyTeachersOfSubmission } = require("../../lib/notifications/teacher");
 const { resolveVariant } = require("../../lib/grading/rubric");
 const { resolveDeadline } = require("../../lib/deadlines");
 
@@ -32,6 +33,16 @@ async function notifyLate(student, unit, submission, itemLabel) {
       `You submitted "${itemLabel || "a task"}" in ${unit.name} after the deadline ` +
       `(${notifications.fmtDateTime(submission.dueAt)}). It has been marked Late.`,
   });
+}
+
+// Báo giáo viên có bài Writing/Speaking mới. Không được để lỗi thông báo làm
+// hỏng response nộp bài.
+async function notifyTeachersSafe(args) {
+  try {
+    await notifyTeachersOfSubmission(args);
+  } catch (err) {
+    console.error("[notifications] notifyTeachersOfSubmission failed:", err.message);
+  }
 }
 
 async function handler(req, res) {
@@ -161,7 +172,7 @@ async function handler(req, res) {
       dueAt
     });
     if (isLate) await notifyLate(student, unit, submission, exercise.title);
-    return res.status(201).json({ ok: true, submissionId: submission._id, score, total, detail, isLate });
+    return res.status(201).json({ ok: true, submissionId: submission._id, score, total, detail, isLate, dueAt });
   }
 
   if (kind === "writing" || kind === "speaking") {
@@ -206,6 +217,13 @@ async function handler(req, res) {
         gradingStatus: "submitted",
         rubricVariant: resolveVariant(kind, prompt.writingTask)
       });
+      await notifyTeachersSafe({
+        student,
+        submission,
+        unitOrTestName: submission.testTitle,
+        skill: kind,
+        itemLabel: prompt.title,
+      });
       return res.status(201).json({ ok: true, submissionId: submission._id, message: "Submitted successfully, pending teacher review" });
     }
 
@@ -237,7 +255,14 @@ async function handler(req, res) {
       dueAt
     });
     if (isLate) await notifyLate(student, unit, submission, prompt.title);
-    return res.status(201).json({ ok: true, submissionId: submission._id, isLate, message: "Submitted successfully, pending teacher review" });
+    await notifyTeachersSafe({
+      student,
+      submission,
+      unitOrTestName: unit.name,
+      skill: kind,
+      itemLabel: prompt.title,
+    });
+    return res.status(201).json({ ok: true, submissionId: submission._id, isLate, dueAt, message: "Submitted successfully, pending teacher review" });
   }
 
   return res.status(400).json({ ok: false, error: "Invalid submission type" });

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Shell from "./Shell";
+import { DialogProvider } from "./ui/Dialog";
 import { readSession } from "@/lib/client/session";
 
 // Bảo vệ toàn bộ khu vực /teacher hoặc /student: chưa đăng nhập đúng vai
@@ -28,8 +29,10 @@ export default function RoleGate({ role, children }) {
   const userSub = role === "student" ? "" : "Administrator";
 
   return (
-    <Shell role={role} userName={session.name} userSub={userSub}>
-      {children}
-    </Shell>
+    <DialogProvider>
+      <Shell role={role} userName={session.name} userSub={userSub}>
+        {children}
+      </Shell>
+    </DialogProvider>
   );
 }

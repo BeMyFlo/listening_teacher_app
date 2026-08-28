@@ -12,6 +12,7 @@ import PromptsEditor from "@/components/teacher/PromptsEditor";
 import TheoryEditor from "@/components/teacher/TheoryEditor";
 import GrammarTopicsEditor from "@/components/teacher/GrammarTopicsEditor";
 import VocabGroupsEditor from "@/components/teacher/VocabGroupsEditor";
+import { useDialog } from "@/components/ui/Dialog";
 
 // Grammar & Vocabulary dùng danh sách chủ điểm / nhóm từ thay cho
 // theory + exercises phẳng.
@@ -548,6 +549,7 @@ function ClassDeadlineEditor({ cls, slots, onChange }) {
 }
 
 function ExercisesEditor({ cat, media, onChange }) {
+  const dialog = useDialog();
   function patch(mut) {
     const draft = structuredClone(cat.exercises);
     mut(draft);
@@ -570,8 +572,8 @@ function ExercisesEditor({ cat, media, onChange }) {
               type="button"
               className="icon-btn danger"
               title="Delete exercise"
-              onClick={() => {
-                if (window.confirm("Delete this exercise?")) patch((d) => d.splice(i, 1));
+              onClick={async () => {
+                if (await dialog.confirmDelete("Delete this exercise?")) patch((d) => d.splice(i, 1));
               }}
             >
               <svg className="icon"><use href="#icon-trash" /></svg>

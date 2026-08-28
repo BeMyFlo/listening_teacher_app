@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { TEST_SKILLS } from "@/lib/teacher/testBuilder";
+import { useDialog } from "@/components/ui/Dialog";
 
 export default function TeacherTestsPage() {
+  const dialog = useDialog();
   const router = useRouter();
   const [rows, setRows] = useState(null);
   const [classes, setClasses] = useState([]);
@@ -38,12 +40,19 @@ export default function TeacherTestsPage() {
   });
 
   async function del(t) {
-    if (!window.confirm("Delete this mock test? This action cannot be undone.")) return;
+    const ok = await dialog.confirm({
+      title: "Delete mock test",
+      message: "Delete this mock test? This action cannot be undone.",
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.teacher.deleteTest(t._id);
+      dialog.toast("Mock test deleted");
       load();
     } catch (e) {
-      window.alert("Failed to delete: " + e.message);
+      dialog.alert({ tone: "error", title: "Failed to delete", message: e.message });
     }
   }
 

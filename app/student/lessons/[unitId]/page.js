@@ -12,6 +12,8 @@ import {
 } from "@/lib/student/submissions";
 import { useAnswers, SectionBlock } from "@/components/student/questions";
 import { WritingPrompt, SpeakingPrompt } from "@/components/student/PromptBlock";
+import { useDialog } from "@/components/ui/Dialog";
+import SubmissionResultModal from "@/components/student/SubmissionResultModal";
 import RubricResult from "@/components/RubricResult";
 import GrammarTopicView from "@/components/student/GrammarTopicView";
 import { VocabFlashcards, VocabWordList } from "@/components/student/VocabFlashcards";
@@ -360,9 +362,11 @@ function ExerciseList({ unitId, cat, subs, onSubmitted }) {
 }
 
 function ExerciseBlock({ index, ex, unitId, categoryKey, skill, last, onSubmitted }) {
+  const dialog = useDialog();
   const [open, setOpen] = useState(false);
   const answersApi = useAnswers();
   const [result, setResult] = useState(null);
+  const [popup, setPopup] = useState(null);
   const [busy, setBusy] = useState(false);
 
   async function submit() {
@@ -378,13 +382,10 @@ function ExerciseBlock({ index, ex, unitId, categoryKey, skill, last, onSubmitte
       const detailById = {};
       (res.detail || []).forEach((d) => (detailById[d.id] = d));
       setResult({ score: res.score, total: res.total, detailById, late: !!res.isLate });
-      alert(
-        `Score: ${res.score}/${res.total} correct.` +
-          (res.isLate ? "\n\nSubmitted after the deadline — marked Late." : "")
-      );
+      setPopup({ score: res.score, total: res.total, isLate: !!res.isLate });
       onSubmitted && onSubmitted();
     } catch (e) {
-      alert("Submission failed: " + e.message);
+      dialog.alert({ tone: "error", title: "Submission failed", message: e.message });
     } finally {
       setBusy(false);
     }
@@ -415,6 +416,14 @@ function ExerciseBlock({ index, ex, unitId, categoryKey, skill, last, onSubmitte
 
   return (
     <div className="lesson-block">
+      <SubmissionResultModal
+        open={!!popup}
+        onClose={() => setPopup(null)}
+        variant="exercise"
+        score={popup?.score}
+        total={popup?.total}
+        isLate={popup?.isLate}
+      />
       <div className="lesson-block-head">
         <div>
           <h4 style={{ margin: 0 }}>

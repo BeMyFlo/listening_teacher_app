@@ -25,26 +25,27 @@ export default function NotificationBell({ role }) {
   const [unread, setUnread] = useState(0);
   const boxRef = useRef(null);
 
-  const isStudent = role === "student";
+  // Cả student và teacher đều có chuông; chỉ khác endpoint.
+  const feed = role === "teacher" ? api.teacher : role === "student" ? api.student : null;
 
   const load = useCallback(() => {
-    if (!isStudent) return;
-    api.student
+    if (!feed) return;
+    feed
       .notifications()
       .then((d) => {
         setRows(d.rows || []);
         setUnread(d.unreadCount || 0);
       })
       .catch(() => {});
-  }, [isStudent]);
+  }, [feed]);
 
   // Poll + refresh on route change (catches "entered the 24h window" without a reload).
   useEffect(() => {
-    if (!isStudent) return;
+    if (!feed) return;
     load();
     const id = setInterval(load, POLL_MS);
     return () => clearInterval(id);
-  }, [isStudent, load, pathname]);
+  }, [feed, load, pathname]);
 
   // Close on outside click.
   useEffect(() => {
@@ -63,17 +64,17 @@ export default function NotificationBell({ role }) {
     if (next && unread > 0) {
       setUnread(0);
       setRows((r) => r.map((n) => ({ ...n, read: true })));
-      api.student.markNotifications({ markAllRead: true }).catch(() => {});
+      feed.markNotifications({ markAllRead: true }).catch(() => {});
     }
   }
 
   function openItem(n) {
     setOpen(false);
-    if (n.unitId) router.push("/student/lessons/" + n.unitId);
+    const dest = n.link || (n.unitId ? "/student/lessons/" + n.unitId : "");
+    if (dest) router.push(dest);
   }
 
-  // Teacher: plain bell, no notifications wired yet.
-  if (!isStudent) {
+  if (!feed) {
     return (
       <button type="button" className="icon-btn topbar-bell" title="Notifications">
         <svg className="icon"><use href="#icon-bell" /></svg>

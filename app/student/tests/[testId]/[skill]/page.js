@@ -10,6 +10,7 @@ import { latestPromptSub } from "@/lib/student/submissions";
 import { useAnswers, SectionBlock, answerLabel } from "@/components/student/questions";
 import Countdown from "@/components/student/Countdown";
 import { WritingPrompt, SpeakingPrompt } from "@/components/student/PromptBlock";
+import { useDialog } from "@/components/ui/Dialog";
 import RubricResult from "@/components/RubricResult";
 
 export default function TakeTestPage() {
@@ -134,6 +135,7 @@ export default function TakeTestPage() {
 }
 
 function QuestionRunner({ test, skill, tab, skillData, backLink, onSubmitted }) {
+  const dialog = useDialog();
   const answersApi = useAnswers();
   const [replayCount, setReplayCount] = useState(0);
   const [result, setResult] = useState(null);
@@ -158,7 +160,7 @@ function QuestionRunner({ test, skill, tab, skillData, backLink, onSubmitted }) 
       onSubmitted && onSubmitted();
       window.scrollTo({ top: 0 });
     } catch (e) {
-      alert("Submission failed: " + e.message);
+      dialog.alert({ tone: "error", title: "Submission failed", message: e.message });
     } finally {
       setBusy(false);
     }

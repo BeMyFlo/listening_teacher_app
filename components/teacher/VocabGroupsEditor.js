@@ -4,12 +4,14 @@ import { useState } from "react";
 import LessonImport from "./LessonImport";
 import VocabWordTable from "./VocabWordTable";
 import { TopicExercises } from "./GrammarTopicsEditor";
+import { useDialog } from "@/components/ui/Dialog";
 
 function emptyGroup() {
   return { extId: "", name: "", words: [], exercises: [] };
 }
 
 export default function VocabGroupsEditor({ groups, media, onChange }) {
+  const dialog = useDialog();
   const [importing, setImporting] = useState(false);
   const [open, setOpen] = useState(0);
 
@@ -82,8 +84,8 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
                 type="button"
                 className="icon-btn danger"
                 title="Delete group"
-                onClick={() => {
-                  if (window.confirm("Delete this group?")) patch((d) => d.splice(i, 1));
+                onClick={async () => {
+                  if (await dialog.confirmDelete("Delete this group?")) patch((d) => d.splice(i, 1));
                 }}
               >
                 <svg className="icon"><use href="#icon-trash" /></svg>

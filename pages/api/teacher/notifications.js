@@ -1,8 +1,7 @@
-const { connectDB } = require("../../lib/db");
-const { requireStudent } = require("../../lib/auth");
-const Student = require("../../lib/models/Student");
-const Notification = require("../../lib/models/Notification");
-const { generateDeadlineNotifications } = require("../../lib/notifications/generate");
+const { connectDB } = require("../../../lib/db");
+const { requireTeacher } = require("../../../lib/auth");
+const Teacher = require("../../../lib/models/Teacher");
+const Notification = require("../../../lib/models/Notification");
 
 const LIMIT = 50;
 
@@ -11,7 +10,7 @@ function toPublic(n) {
     _id: n._id,
     type: n.type,
     unitId: n.unitId || null,
-    link: n.link || (n.unitId ? "/student/lessons/" + n.unitId : ""),
+    link: n.link || (n.unitId ? "/teacher/lessons/" + n.unitId : ""),
     title: n.title,
     body: n.body,
     dueAt: n.dueAt || null,
@@ -23,26 +22,18 @@ function toPublic(n) {
 async function handler(req, res) {
   await connectDB();
 
-  const student = await Student.findById(req.auth.studentId);
-  if (!student) {
+  const teacher = await Teacher.findById(req.auth.teacherId).select("_id").lean();
+  if (!teacher) {
     return res.status(401).json({ ok: false, error: "Account no longer exists, please sign in again" });
   }
 
   if (req.method === "GET") {
-    // Sinh thông báo nhắc hạn (lazy) trước khi trả danh sách. Lỗi ở bước này
-    // không được làm hỏng cả response — chuông vẫn phải hiện cái đã có.
-    try {
-      await generateDeadlineNotifications(student);
-    } catch (err) {
-      console.error("[notifications] generate failed:", err.message);
-    }
-
-    const rows = await Notification.find({ studentId: student._id })
+    const rows = await Notification.find({ teacherId: teacher._id })
       .sort({ createdAt: -1 })
       .limit(LIMIT)
       .lean();
     const unreadCount = await Notification.countDocuments({
-      studentId: student._id,
+      teacherId: teacher._id,
       "deliveries.inapp.readAt": null,
     });
     return res.status(200).json({ ok: true, rows: rows.map(toPublic), unreadCount });
@@ -50,7 +41,7 @@ async function handler(req, res) {
 
   if (req.method === "PUT") {
     const { markAllRead, ids } = req.body || {};
-    const filter = { studentId: student._id, "deliveries.inapp.readAt": null };
+    const filter = { teacherId: teacher._id, "deliveries.inapp.readAt": null };
     if (!markAllRead) {
       if (!Array.isArray(ids) || !ids.length) {
         return res.status(400).json({ ok: false, error: "Nothing to mark" });
@@ -59,7 +50,7 @@ async function handler(req, res) {
     }
     await Notification.updateMany(filter, { $set: { "deliveries.inapp.readAt": new Date() } });
     const unreadCount = await Notification.countDocuments({
-      studentId: student._id,
+      teacherId: teacher._id,
       "deliveries.inapp.readAt": null,
     });
     return res.status(200).json({ ok: true, unreadCount });
@@ -69,6 +60,6 @@ async function handler(req, res) {
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
-module.exports = requireStudent(handler);
+module.exports = requireTeacher(handler);
 
 module.exports.default = module.exports;

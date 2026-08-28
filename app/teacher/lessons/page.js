@@ -3,8 +3,10 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { useDialog } from "@/components/ui/Dialog";
 
 function LessonsInner() {
+  const dialog = useDialog();
   const router = useRouter();
   const search = useSearchParams();
   const levelParam = search.get("level");
@@ -70,12 +72,19 @@ function LessonsInner() {
   }
 
   async function del(u) {
-    if (!window.confirm(`Delete Unit "${u.name}"? This action cannot be undone.`)) return;
+    const ok = await dialog.confirm({
+      title: "Delete lesson unit",
+      message: `Delete Unit "${u.name}"? This action cannot be undone.`,
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.teacher.deleteUnit(u._id);
+      dialog.toast("Unit deleted");
       load();
     } catch (e) {
-      window.alert("Failed to delete Unit: " + e.message);
+      dialog.alert({ tone: "error", title: "Failed to delete Unit", message: e.message });
     }
   }
 

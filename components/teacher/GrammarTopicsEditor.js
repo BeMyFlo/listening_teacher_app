@@ -3,6 +3,7 @@
 import { useState } from "react";
 import SectionsEditor from "./SectionsEditor";
 import LessonImport from "./LessonImport";
+import { useDialog } from "@/components/ui/Dialog";
 
 function emptyTopic() {
   return {
@@ -21,6 +22,7 @@ const LESSON_FIELDS = [
 ];
 
 export default function GrammarTopicsEditor({ topics, media, onChange }) {
+  const dialog = useDialog();
   const [importing, setImporting] = useState(false);
   const [open, setOpen] = useState(0);
 
@@ -97,8 +99,8 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
                 type="button"
                 className="icon-btn danger"
                 title="Delete topic"
-                onClick={() => {
-                  if (window.confirm("Delete this topic?")) patch((d) => d.splice(i, 1));
+                onClick={async () => {
+                  if (await dialog.confirmDelete("Delete this topic?")) patch((d) => d.splice(i, 1));
                 }}
               >
                 <svg className="icon"><use href="#icon-trash" /></svg>
@@ -167,6 +169,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
 
 // Bài tập của 1 topic/group — mỗi exercise có title + _sections (SectionsEditor).
 export function TopicExercises({ exercises, media, subject, onChange }) {
+  const dialog = useDialog();
   function patch(mut) {
     const draft = structuredClone(exercises);
     mut(draft);
@@ -189,8 +192,8 @@ export function TopicExercises({ exercises, media, subject, onChange }) {
               type="button"
               className="icon-btn danger"
               title="Delete exercise"
-              onClick={() => {
-                if (window.confirm("Delete this exercise?")) patch((d) => d.splice(i, 1));
+              onClick={async () => {
+                if (await dialog.confirmDelete("Delete this exercise?")) patch((d) => d.splice(i, 1));
               }}
             >
               <svg className="icon"><use href="#icon-trash" /></svg>

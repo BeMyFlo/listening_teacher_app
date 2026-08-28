@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client/api";
+import { useDialog } from "@/components/ui/Dialog";
 
 export default function StudentsPage() {
+  const dialog = useDialog();
   const [rows, setRows] = useState(null);
   const [classes, setClasses] = useState([]);
   const [listErr, setListErr] = useState("");
   const [form, setForm] = useState({ name: "", username: "", password: "", classId: "", email: "" });
   const [status, setStatus] = useState(null);
+  const [emailDraft, setEmailDraft] = useState({}); // studentId -> value đang gõ
 
   function load() {
     Promise.all([api.teacher.listStudents(), api.teacher.listClasses().catch(() => ({ rows: [] }))])
@@ -44,35 +47,60 @@ export default function StudentsPage() {
     }
   }
 
+  async function saveEmail(s) {
+    const next = (emailDraft[s._id] ?? s.email ?? "").trim();
+    if (next === (s.email || "")) return; // không đổi
+    try {
+      await api.teacher.updateStudent(s._id, { email: next });
+      setEmailDraft((m) => { const n = { ...m }; delete n[s._id]; return n; });
+      dialog.toast(next ? "Email saved" : "Email removed");
+      load();
+    } catch (e) {
+      dialog.alert({ tone: "error", title: "Failed to save email", message: e.message });
+    }
+  }
+
   async function changeClass(s, classId) {
     try {
       await api.teacher.updateStudent(s._id, { classId: classId || null });
+      dialog.toast("Class updated");
       load();
     } catch (e) {
-      window.alert("Failed: " + e.message);
+      dialog.alert({ tone: "error", title: "Failed to update class", message: e.message });
     }
   }
 
   async function resetPw(s) {
-    const pw = window.prompt(`Enter new password for student ${s.name} (minimum 6 characters):`);
+    const pw = await dialog.prompt({
+      title: "Reset password",
+      message: `Set a new password for ${s.name}.`,
+      label: "New password",
+      placeholder: "At least 6 characters",
+      validate: (v) => (v.trim().length < 6 ? "Password must be at least 6 characters" : null),
+    });
     if (pw === null) return;
-    if (pw.trim().length < 6) return window.alert("New password is too short.");
     try {
       await api.teacher.resetStudentPassword(s._id, pw.trim());
-      window.alert("Password reset successfully.");
+      dialog.toast("Password reset");
     } catch (e) {
-      window.alert("Failed to reset password: " + e.message);
+      dialog.alert({ tone: "error", title: "Failed to reset password", message: e.message });
     }
   }
 
   async function del(s) {
-    if (!window.confirm(`Delete student account for ${s.name}? All submission history will be lost and cannot be restored.`))
-      return;
+    const ok = await dialog.confirm({
+      title: "Delete student account",
+      message: `Delete the account for ${s.name}? All submission history will be lost and cannot be restored.`,
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.teacher.deleteStudent(s._id);
+      dialog.toast("Student deleted");
       load();
     } catch (e) {
-      window.alert("Failed to delete student: " + e.message);
+      dialog.alert({ tone: "error", title: "Failed to delete student", message: e.message });
     }
   }
 
@@ -113,7 +141,7 @@ export default function StudentsPage() {
           </div>
           <div className="form-row" style={{ marginBottom: 0 }}>
             <label>Email (optional)</label>
-            <input type="email" placeholder="For deadline reminders (later)" value={form.email} onChange={set("email")} />
+            <input type="email" placeholder="For deadline reminder emails" value={form.email} onChange={set("email")} />
           </div>
           <div className="form-row" style={{ marginBottom: 0 }}>
             <label>Class</label>
@@ -165,7 +193,18 @@ export default function StudentsPage() {
                   <tr key={s._id}>
                     <td>{s.name}</td>
                     <td>{s.username}</td>
-                    <td>{s.email || <span style={{ color: "var(--muted)" }}>—</span>}</td>
+                    <td>
+                      <input
+                        type="email"
+                        className="select-inline"
+                        style={{ minWidth: 190 }}
+                        placeholder="student@email.com"
+                        value={emailDraft[s._id] ?? s.email ?? ""}
+                        onChange={(e) => setEmailDraft((m) => ({ ...m, [s._id]: e.target.value }))}
+                        onBlur={() => saveEmail(s)}
+                        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                      />
+                    </td>
                     <td>
                       <select
                         className="select-inline"

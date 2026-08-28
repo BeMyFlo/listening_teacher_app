@@ -3,7 +3,10 @@
 // Trình soạn "prompts" (Writing/Speaking) — markup khớp renderPromptsEditor.
 // skill: "writing" | "speaking" — Writing hiện thêm ô chọn Task 1 / Task 2
 // (quyết định rubric chấm điểm).
+import { useDialog } from "@/components/ui/Dialog";
+
 export default function PromptsEditor({ prompts, media, onChange, skill }) {
+  const dialog = useDialog();
   const isWriting = skill === "writing";
 
   function patch(mut) {
@@ -29,8 +32,8 @@ export default function PromptsEditor({ prompts, media, onChange, skill }) {
               type="button"
               className="icon-btn danger"
               title="Delete prompt"
-              onClick={() => {
-                if (window.confirm("Delete this prompt?")) patch((d) => d.splice(i, 1));
+              onClick={async () => {
+                if (await dialog.confirmDelete("Delete this prompt?")) patch((d) => d.splice(i, 1));
               }}
             >
               <svg className="icon"><use href="#icon-trash" /></svg>

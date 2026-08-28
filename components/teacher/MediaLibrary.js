@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, uploadToCloudinary } from "@/lib/client/api";
+import { useDialog } from "@/components/ui/Dialog";
 
 const CFG = {
   audio: {
@@ -37,6 +38,7 @@ const CFG = {
 };
 
 export default function MediaLibrary({ kind }) {
+  const dialog = useDialog();
   const cfg = CFG[kind];
   const [rows, setRows] = useState(null);
   const [listErr, setListErr] = useState("");
@@ -78,12 +80,13 @@ export default function MediaLibrary({ kind }) {
   }
 
   async function remove(id) {
-    if (!window.confirm("Delete this item? This action cannot be undone.")) return;
+    if (!(await dialog.confirmDelete("Delete this item? This action cannot be undone."))) return;
     try {
       await cfg.remove(id);
+      dialog.toast("Deleted");
       load();
     } catch (e) {
-      window.alert("Failed to delete: " + e.message);
+      dialog.alert({ tone: "error", title: "Failed to delete", message: e.message });
     }
   }
 

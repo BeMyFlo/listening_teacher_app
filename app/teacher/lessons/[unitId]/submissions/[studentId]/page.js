@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import RubricGrader from "@/components/teacher/RubricGrader";
 import RubricResult from "@/components/RubricResult";
+import { useDialog } from "@/components/ui/Dialog";
 
 function pct(score, total) {
   if (!total) return null;
@@ -104,6 +105,7 @@ function ExerciseRow({ ex }) {
 }
 
 function GradeForm({ prompt, onGraded }) {
+  const dialog = useDialog();
   const graded = prompt.gradingStatus === "graded";
   const [editing, setEditing] = useState(!graded);
   const [busy, setBusy] = useState(false);
@@ -130,9 +132,10 @@ function GradeForm({ prompt, onGraded }) {
     try {
       await api.teacher.gradeSubmission(prompt.submissionId, payload);
       setEditing(false);
+      dialog.toast("Grade saved");
       onGraded && (await onGraded());
     } catch (e) {
-      window.alert("Failed to save grade: " + e.message);
+      dialog.alert({ tone: "error", title: "Failed to save grade", message: e.message });
       setBusy(false);
     }
   }

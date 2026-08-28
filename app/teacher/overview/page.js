@@ -3,44 +3,107 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { readSession } from "@/lib/client/session";
 import { setBadge } from "@/lib/client/shellBadges";
 
 function initials(name) {
   const parts = String(name || "?").trim().split(/\s+/);
-  return (parts[parts.length - 1] || "?").slice(0, 2);
+  if (parts.length === 1) return parts[0].slice(0, 2);
+  return (parts[0][0] || "") + (parts[parts.length - 1][0] || "");
 }
 
-function ScorePill({ pct }) {
-  const n = Number(pct) || 0;
-  const tone = n >= 70 ? "pill-ok" : n >= 40 ? "pill-warn" : "pill-danger";
-  return <span className={"pill " + tone}>{n}%</span>;
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
 }
 
-function StatCard({ icon, value, label, sub, tone, navKey, featured }) {
-  const router = useRouter();
+function classCode(name) {
+  const first = String(name || "").trim().split(/[\s–-]+/)[0];
+  return (first || "?").slice(0, 3);
+}
+
+function fmtDue(d) {
+  if (!d) return "";
+  return new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function timeAgo(d) {
+  if (!d) return "";
+  const s = Math.max(0, Math.floor((Date.now() - new Date(d).getTime()) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} hour${h > 1 ? "s" : ""} ago`;
+  const day = Math.floor(h / 24);
+  return `${day} day${day > 1 ? "s" : ""} ago`;
+}
+
+const CAT_ICON = {
+  writing: "writing",
+  speaking: "mic",
+  listening: "headphones",
+  reading: "book-open",
+  grammar: "grammar",
+  vocabulary: "vocabulary",
+};
+const catIcon = (k) => CAT_ICON[k] || "clipboard";
+
+function DashStat({ icon, value, label, linkLabel, tone, onClick }) {
   return (
-    <div className={"stat-card-v2" + (tone ? " tone-" + tone : "") + (featured ? " featured" : "")}>
-      <div className="stat-top">
-        <span className="label">{label}</span>
-        <span className="stat-icon"><svg className="icon"><use href={"#icon-" + icon} /></svg></span>
+    <div className={"dash-stat" + (tone ? " tone-" + tone : "")}>
+      <div className="dash-stat-top">
+        <span className="dash-stat-ico"><svg className="icon"><use href={"#icon-" + icon} /></svg></span>
+        <span className="dash-stat-label">{label}</span>
       </div>
-      <div className="value">{value}</div>
-      {sub && <div className="sub">{sub}</div>}
-      {navKey && (
-        <button type="button" className="stat-link" onClick={() => router.push(navKey)}>
-          View details <svg className="icon flip"><use href="#icon-arrow-left" /></svg>
-        </button>
+      <div className="dash-stat-value">{value}</div>
+      <button type="button" className="dash-stat-link" onClick={onClick}>
+        {linkLabel} <svg className="icon flip"><use href="#icon-arrow-left" /></svg>
+      </button>
+    </div>
+  );
+}
+
+function CardHead({ icon, title, actionLabel, onAction }) {
+  return (
+    <div className="card-head-v2">
+      <div className="head-left">
+        <span className="icon-chip"><svg className="icon"><use href={"#icon-" + icon} /></svg></span>
+        <h3>{title}</h3>
+      </div>
+      {onAction && (
+        <a href="#" className="view-all" onClick={(e) => { e.preventDefault(); onAction(); }}>
+          {actionLabel || "View all"} <svg className="icon flip"><use href="#icon-arrow-left" /></svg>
+        </a>
       )}
+    </div>
+  );
+}
+
+function Empty({ icon, title, text }) {
+  return (
+    <div className="dash-empty">
+      <span className="dash-empty-ico"><svg className="icon"><use href={"#icon-" + icon} /></svg></span>
+      <div>
+        <h4>{title}</h4>
+        <p>{text}</p>
+      </div>
     </div>
   );
 }
 
 export default function OverviewPage() {
   const router = useRouter();
+  const go = (p) => router.push(p);
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
+  const [name, setName] = useState("");
 
   useEffect(() => {
+    const sess = readSession("teacher");
+    setName((sess && sess.name) || "Teacher");
     api.teacher
       .dashboard()
       .then((d) => {
@@ -53,18 +116,16 @@ export default function OverviewPage() {
       .catch((e) => setErr(e.message));
   }, []);
 
-  const s = data && data.summary ? data.summary : {};
+  const s = (data && data.summary) || {};
 
   return (
     <div className="tab-panel active">
       <div className="hero-banner">
         <div className="hero-banner-text">
-          <div className="hero-banner-greet">
-            Welcome back, <span>Teacher</span>! 👋
-          </div>
-          <h2>Today is a great day to make a difference!</h2>
-          <p>Track student learning progress and inspire your class.</p>
-          <button type="button" className="btn" onClick={() => router.push("/teacher/tests/new")}>
+          <div className="hero-banner-greet">{greeting()}, <span>{name}</span>! 👋</div>
+          <h2>Here&apos;s what&apos;s happening with your classes</h2>
+          <p>Plan your day, track progress, and help your students grow.</p>
+          <button type="button" className="btn" onClick={() => go("/teacher/tests/new")}>
             <svg className="icon"><use href="#icon-plus" /></svg> Create New
           </button>
         </div>
@@ -98,127 +159,164 @@ export default function OverviewPage() {
           <svg className="icon"><use href="#icon-warning" /></svg> {err}
         </div>
       )}
-      {!data && !err && <div className="notice info">Loading stats...</div>}
+      {!data && !err && <div className="notice info">Loading dashboard...</div>}
 
       {data && (
         <div id="overviewContent">
-          <div className="stat-card-grid" id="statGrid">
-            <StatCard icon="clipboard" value={s.publishedTests + "/" + s.totalTests} label="Published Mock Tests" navKey="/teacher/tests" />
-            <StatCard icon="book-open" value={s.totalUnits ?? 0} label="Lesson Units" tone="teal" navKey="/teacher/lessons" />
-            <StatCard icon="headphones" value={s.totalAudio} label="Audio Library Tracks" tone="sky" navKey="/teacher/audio" />
-            <StatCard icon="list" value={s.totalSubmissions} label="Total Submissions" tone="pink" navKey="/teacher/submissions" />
-            <StatCard icon="clock" value={s.submissionsThisWeek ?? 0} label="Submissions (7 Days)" tone="warn" navKey="/teacher/submissions" />
-            <StatCard icon="trophy" value={s.uniqueStudents} label="Active Students" tone="success" navKey="/teacher/students" />
-            {(s.pendingGrading ?? 0) > 0 ? (
-              <StatCard icon="warning" value={s.pendingGrading} label="Pending Review" sub="Requires manual grading" tone="warn" navKey="/teacher/submissions" featured />
-            ) : (
-              <StatCard icon="check-circle" value={0} label="Pending Review" sub="All graded" tone="success" navKey="/teacher/submissions" featured />
-            )}
-            <StatCard icon="chart-bar" value={(s.avgScorePct ?? 0) + "%"} label="Average Score" tone="success" navKey="/teacher/submissions" featured />
+          <div className="dash-stats">
+            <DashStat icon="student" value={s.totalClasses ?? 0} label="Total Classes" linkLabel="View classes" onClick={() => go("/teacher/classes")} />
+            <DashStat icon="inbox" value={s.unreadSubmissions ?? 0} label="My Unread Submissions" linkLabel="View submissions" tone="amber" onClick={() => go("/teacher/submissions")} />
+            <DashStat icon="clipboard" value={s.activeAssignments ?? 0} label="Active Assignments" linkLabel="View assignments" onClick={() => go("/teacher/lessons")} />
+            <DashStat icon="clock" value={s.needAttentionStudents ?? 0} label="Students Needing Attention" linkLabel="View students" tone="danger" onClick={() => go("/teacher/students")} />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20, alignItems: "start" }}>
+          <div className="dash-row-2">
             <div className="card">
-              <div className="card-head-v2">
-                <div className="head-left">
-                  <span className="icon-chip"><svg className="icon"><use href="#icon-clipboard" /></svg></span>
-                  <h3>By Mock Test</h3>
-                </div>
-              </div>
-              {data.byTest && data.byTest.length > 0 ? (
-                <div className="table-wrap">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Test Title</th>
-                        <th>Skill</th>
-                        <th>Submissions</th>
-                        <th>Avg Score</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.byTest.map((r, i) => (
-                        <tr key={i}>
-                          <td><span className="cell-title">{r.testTitle}</span></td>
-                          <td>
-                            <span className="pill pill-info">
-                              {r.testSkill ? r.testSkill[0].toUpperCase() + r.testSkill.slice(1) : "—"}
-                            </span>
-                          </td>
-                          <td>{r.submissions}</td>
-                          <td><ScorePill pct={r.avgScorePct} /></td>
-                          <td>
-                            <button
-                              type="button"
-                              className="icon-btn"
-                              title="View submissions"
-                              onClick={() => router.push("/teacher/submissions")}
-                            >
-                              <svg className="icon"><use href="#icon-external" /></svg>
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <CardHead icon="student" title="Class Overview" actionLabel="View all classes" onAction={() => go("/teacher/classes")} />
+              {(!data.classes || data.classes.length === 0) ? (
+                <Empty icon="student" title="No classes yet" text="Create a class to start tracking progress." />
               ) : (
-                <div className="empty-state-v2">
-                  <div className="empty-icon-circle"><svg className="icon"><use href="#icon-inbox" /></svg></div>
-                  <h4>No data available</h4>
-                  <p>Create and publish tests to view statistics here.</p>
-                  <button type="button" className="btn" onClick={() => router.push("/teacher/tests/new")}>
-                    Create Test
-                  </button>
-                </div>
+                data.classes.map((c) => (
+                  <div className="list-item" key={c._id}>
+                    <div className="meta">
+                      <span className="dash-badge">{classCode(c.name)}</span>
+                      <div className="meta-text">
+                        <h4>{c.name}</h4>
+                        <p>{c.studentCount} student{c.studentCount === 1 ? "" : "s"}</p>
+                      </div>
+                    </div>
+                    <div className="dash-completion">
+                      <div className="pct">{c.progressPct}%</div>
+                      <div className="progress-bar"><div className="progress-bar-fill" style={{ width: c.progressPct + "%" }} /></div>
+                      <div className="lbl">Avg. completion</div>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
 
-            <div className="card">
-              <div className="card-head-v2">
-                <div className="head-left">
-                  <span className="icon-chip"><svg className="icon"><use href="#icon-clock" /></svg></span>
-                  <h3>Recent Submissions</h3>
-                </div>
-                <a
-                  href="#"
-                  className="view-all"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    router.push("/teacher/submissions");
-                  }}
-                >
-                  View All <svg className="icon flip"><use href="#icon-arrow-left" /></svg>
-                </a>
-              </div>
-              <div id="recentList">
-                {!data.recent || data.recent.length === 0 ? (
-                  <div className="empty-state-v2">
-                    <div className="empty-icon-circle"><svg className="icon"><use href="#icon-send" /></svg></div>
-                    <h4>No submissions yet</h4>
-                    <p>Student submissions will appear here once submitted.</p>
-                  </div>
+            <div className="dash-col">
+              <div className="card">
+                <CardHead icon="calendar" title="Upcoming Deadlines" actionLabel="View calendar" onAction={() => go("/teacher/lessons")} />
+                {(!data.upcoming || data.upcoming.length === 0) ? (
+                  <Empty icon="calendar" title="Nothing due this week" text="Deadlines in the next 7 days appear here." />
                 ) : (
-                  data.recent.map((r, i) => (
-                    <div className="list-item" key={i}>
+                  data.upcoming.map((u, i) => {
+                    const dt = new Date(u.dueAt);
+                    return (
+                      <div className="list-item" key={i}>
+                        <div className="meta">
+                          <span className="dash-datechip">
+                            <span className="m">{dt.toLocaleString("en-US", { month: "short" })}</span>
+                            <span className="d">{dt.getDate()}</span>
+                          </span>
+                          <div className="meta-text">
+                            <h4>{u.label}</h4>
+                            <p>{u.className}</p>
+                          </div>
+                        </div>
+                        <div className="list-value">
+                          <span className={"pill " + (u.daysLeft <= 2 ? "pill-warn" : "pill-info")}>
+                            {u.daysLeft === 0 ? "Due today" : `Due in ${u.daysLeft} day${u.daysLeft > 1 ? "s" : ""}`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="card">
+                <CardHead icon="user" title="Students Needing Attention" actionLabel="View all" onAction={() => go("/teacher/students")} />
+                {(!data.watch || data.watch.length === 0) ? (
+                  <Empty icon="trophy" title="Everyone's on track" text="No students are overdue, inactive, or dropping in score." />
+                ) : (
+                  data.watch.map((w) => (
+                    <div className="list-item" key={w.studentId}>
                       <div className="meta">
-                        <div className="avatar">{initials(r.studentName)}</div>
+                        <div className="avatar">{initials(w.name)}</div>
                         <div className="meta-text">
-                          <h4>{r.studentName}</h4>
-                          <p>
-                            {r.testTitle || r.exerciseTitle || r.kind} ·{" "}
-                            {r.submittedAt ? new Date(r.submittedAt).toLocaleString("en-US") : ""}
-                          </p>
+                          <h4>{w.name}</h4>
+                          <p>{w.summary}</p>
                         </div>
                       </div>
                       <div className="list-value">
-                        <ScorePill pct={r.total ? Math.round((r.score / r.total) * 100) : 0} />
+                        <button type="button" className="dash-review-btn" onClick={() => go("/teacher/students")}>
+                          <svg className="icon"><use href="#icon-sparkles" /></svg> Review
+                        </button>
                       </div>
                     </div>
                   ))
                 )}
               </div>
+            </div>
+          </div>
+
+          <div className="dash-row-3">
+            <div className="card">
+              <CardHead icon="clipboard" title="Recent Assignments" actionLabel="View all" onAction={() => go("/teacher/lessons")} />
+              {(!data.recentAssignments || data.recentAssignments.length === 0) ? (
+                <Empty icon="inbox" title="No assignments yet" text="Set a deadline on a lesson unit to create one." />
+              ) : (
+                data.recentAssignments.map((a, i) => (
+                  <div className="list-item" key={i}>
+                    <div className="meta">
+                      <span className="dash-ico-circle"><svg className="icon"><use href={"#icon-" + catIcon(a.categoryKey)} /></svg></span>
+                      <div className="meta-text">
+                        <h4>{a.label}</h4>
+                        <p>{a.className}{a.dueAt ? " · Due " + fmtDue(a.dueAt) : ""}</p>
+                      </div>
+                    </div>
+                    <div className="list-value">
+                      <div className="dash-submitted">{a.submitted}/{a.classSize}</div>
+                      <div className="dash-submitted-label">Submitted</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="card">
+              <CardHead icon="chart-bar" title="Grading Queue" actionLabel="View all" onAction={() => go("/teacher/submissions")} />
+              {(!data.gradingQueue || data.gradingQueue.length === 0) ? (
+                <Empty icon="check-circle" title="Grading is up to date" text="No submissions are waiting to be graded." />
+              ) : (
+                <>
+                  {data.gradingQueue.map((q, i) => (
+                    <div className="list-item" key={i}>
+                      <div className="meta">
+                        <div className="meta-text">
+                          <h4>{q.label}</h4>
+                          <p>{q.className}</p>
+                        </div>
+                      </div>
+                      <div className="list-value"><span className="dash-count">{q.toGrade}</span></div>
+                    </div>
+                  ))}
+                  <button type="button" className="dash-queue-foot" onClick={() => go("/teacher/submissions")}>
+                    Go to Gradebook
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="card">
+              <CardHead icon="clock" title="Recent Activity" actionLabel="View all" onAction={() => go("/teacher/submissions")} />
+              {(!data.recent || data.recent.length === 0) ? (
+                <Empty icon="send" title="No activity yet" text="Student submissions will show up here." />
+              ) : (
+                data.recent.map((r, i) => (
+                  <div className="list-item" key={i}>
+                    <div className="meta">
+                      <span className="dash-ico-circle ok"><svg className="icon"><use href={"#icon-" + (r.kind === "speaking" ? "mic" : r.kind === "listening" ? "headphones" : "check-circle")} /></svg></span>
+                      <div className="meta-text">
+                        <h4>{r.studentName} submitted {r.testTitle || r.exerciseTitle || r.kind}</h4>
+                        <p>{timeAgo(r.submittedAt)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

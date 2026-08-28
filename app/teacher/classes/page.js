@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { useDialog } from "@/components/ui/Dialog";
 
 export default function ClassesPage() {
+  const dialog = useDialog();
   const router = useRouter();
   const [rows, setRows] = useState(null);
   const [listErr, setListErr] = useState("");
@@ -38,13 +40,19 @@ export default function ClassesPage() {
   }
 
   async function del(c) {
-    if (!window.confirm(`Delete class "${c.name}"? Students stay but become unassigned; the class is removed from any assigned lessons/tests.`))
-      return;
+    const ok = await dialog.confirm({
+      title: "Delete class",
+      message: `Delete class "${c.name}"? Students stay but become unassigned; the class is removed from any assigned lessons/tests.`,
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.teacher.deleteClass(c._id);
+      dialog.toast("Class deleted");
       load();
     } catch (e) {
-      window.alert("Failed to delete: " + e.message);
+      dialog.alert({ tone: "error", title: "Failed to delete", message: e.message });
     }
   }
 

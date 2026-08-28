@@ -2,12 +2,16 @@
 
 import { useRef, useState } from "react";
 import { api } from "@/lib/client/api";
+import { useDialog } from "@/components/ui/Dialog";
+import SubmissionResultModal from "@/components/student/SubmissionResultModal";
 
 // submitContext: { unitId, categoryKey } (Lesson) hoặc { testId, skill } (Mock Test)
 export function WritingPrompt({ prompt, submitContext, onSubmitted }) {
+  const dialog = useDialog();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [pasteHint, setPasteHint] = useState(false);
+  const [result, setResult] = useState(null); // { isLate, dueAt }
   const hintTimer = useRef(null);
 
   // Bài Writing phải tự gõ — chặn dán / kéo-thả văn bản vào ô soạn.
@@ -20,7 +24,7 @@ export function WritingPrompt({ prompt, submitContext, onSubmitted }) {
 
   async function submit() {
     if (!text.trim()) {
-      alert("Please type your essay before submitting.");
+      dialog.toast("Please type your essay before submitting.", "error");
       return;
     }
     setBusy(true);
@@ -32,10 +36,10 @@ export function WritingPrompt({ prompt, submitContext, onSubmitted }) {
         essayText: text.trim(),
       });
       setText("");
-      if (res && res.isLate) alert("Submitted after the deadline — marked Late.");
+      setResult({ isLate: !!(res && res.isLate), dueAt: res && res.dueAt });
       onSubmitted && (await onSubmitted());
     } catch (e) {
-      alert("Submission failed: " + e.message);
+      dialog.alert({ tone: "error", title: "Submission failed", message: e.message });
     } finally {
       setBusy(false);
     }
@@ -70,15 +74,27 @@ export function WritingPrompt({ prompt, submitContext, onSubmitted }) {
       >
         Submit Essay
       </button>
+
+      <SubmissionResultModal
+        open={!!result}
+        onClose={() => setResult(null)}
+        variant="prompt"
+        skill="writing"
+        itemLabel={prompt.title}
+        isLate={result?.isLate}
+        dueAt={result?.dueAt}
+      />
     </>
   );
 }
 
 export function SpeakingPrompt({ prompt, submitContext, onSubmitted }) {
+  const dialog = useDialog();
   const [recording, setRecording] = useState(false);
   const [blobUrl, setBlobUrl] = useState("");
   const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
   const recRef = useRef(null);
 
   async function toggle() {
@@ -87,7 +103,7 @@ export function SpeakingPrompt({ prompt, submitContext, onSubmitted }) {
       return;
     }
     if (!navigator.mediaDevices || !window.MediaRecorder) {
-      alert("Your browser does not support audio recording.");
+      dialog.alert({ tone: "error", title: "Not supported", message: "Your browser does not support audio recording." });
       return;
     }
     try {
@@ -108,14 +124,14 @@ export function SpeakingPrompt({ prompt, submitContext, onSubmitted }) {
       setBlobUrl("");
       setHint("Recording...");
     } catch (e) {
-      alert("Unable to access microphone: " + e.message);
+      dialog.alert({ tone: "error", title: "Microphone error", message: "Unable to access microphone: " + e.message });
     }
   }
 
   async function submit() {
     const blob = recRef.current?.blob;
     if (!blob) {
-      alert("Please record audio before submitting.");
+      dialog.toast("Please record audio before submitting.", "error");
       return;
     }
     setBusy(true);
@@ -130,10 +146,10 @@ export function SpeakingPrompt({ prompt, submitContext, onSubmitted }) {
       });
       recRef.current = null;
       setBlobUrl("");
-      if (res && res.isLate) alert("Submitted after the deadline — marked Late.");
+      setResult({ isLate: !!(res && res.isLate), dueAt: res && res.dueAt });
       onSubmitted && (await onSubmitted());
     } catch (e) {
-      alert("Submission failed: " + e.message);
+      dialog.alert({ tone: "error", title: "Submission failed", message: e.message });
       setBusy(false);
     }
   }
@@ -159,6 +175,16 @@ export function SpeakingPrompt({ prompt, submitContext, onSubmitted }) {
           {busy ? "Uploading..." : "Submit Recording"}
         </button>
       </div>
+
+      <SubmissionResultModal
+        open={!!result}
+        onClose={() => setResult(null)}
+        variant="prompt"
+        skill="speaking"
+        itemLabel={prompt.title}
+        isLate={result?.isLate}
+        dueAt={result?.dueAt}
+      />
     </>
   );
 }

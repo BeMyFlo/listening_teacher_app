@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { useDialog } from "@/components/ui/Dialog";
 
 export default function ClassDetailPage() {
+  const dialog = useDialog();
   const { classId } = useParams();
   const router = useRouter();
   const [cls, setCls] = useState(null);
@@ -45,20 +47,27 @@ export default function ClassDetailPage() {
     try {
       await api.teacher.updateStudent(addId, { classId });
       setAddId("");
+      dialog.toast("Student added");
       load();
     } catch (e) {
-      window.alert("Failed: " + e.message);
+      dialog.alert({ tone: "error", title: "Failed to add student", message: e.message });
     }
   }
 
   async function removeStudent(s) {
-    if (!window.confirm(`Remove ${s.name} from this class? They will have no class (and no lessons) until reassigned.`))
-      return;
+    const ok = await dialog.confirm({
+      title: "Remove from class",
+      message: `Remove ${s.name} from this class? They will have no class (and no lessons) until reassigned.`,
+      confirmText: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.teacher.updateStudent(s._id, { classId: null });
+      dialog.toast("Student removed");
       load();
     } catch (e) {
-      window.alert("Failed: " + e.message);
+      dialog.alert({ tone: "error", title: "Failed to remove student", message: e.message });
     }
   }
 

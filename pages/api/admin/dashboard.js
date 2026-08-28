@@ -3,7 +3,11 @@ const { requireAuth } = require("../../../lib/auth");
 const Submission = require("../../../lib/models/Submission");
 const Test = require("../../../lib/models/Test");
 const Unit = require("../../../lib/models/Unit");
-const Audio = require("../../../lib/models/Audio");
+const Class = require("../../../lib/models/Class");
+const Student = require("../../../lib/models/Student");
+const Teacher = require("../../../lib/models/Teacher");
+const Notification = require("../../../lib/models/Notification");
+const { buildTeacherDashboard } = require("../../../lib/teacher/dashboard");
 
 async function handler(req, res) {
   if (req.method !== "GET") {
@@ -13,60 +17,45 @@ async function handler(req, res) {
 
   await connectDB();
 
-  const [totalTests, publishedTests, totalAudio, totalUnits, pendingGrading, submissions, byTest, recent] = await Promise.all([
-    Test.countDocuments(),
-    Test.countDocuments({ status: "published" }),
-    Audio.countDocuments(),
+  // Phạm vi = lớp giáo viên phụ trách; chưa gán lớp nào -> tất cả lớp.
+  const teacher = await Teacher.findById(req.auth.teacherId).select("classIds").lean();
+  const allClasses = await Class.find().sort({ level: 1, name: 1 }).lean();
+  const scoped = teacher && Array.isArray(teacher.classIds) && teacher.classIds.length;
+  const scopeIds = new Set((scoped ? teacher.classIds : allClasses.map((c) => c._id)).map(String));
+  const classes = allClasses.filter((c) => scopeIds.has(String(c._id)));
+  const classIdList = classes.map((c) => c._id);
+
+  const [students, units, totalUnits, totalTests, unreadSubmissions] = await Promise.all([
+    Student.find({ classId: { $in: classIdList } }).select("name classId").lean(),
+    Unit.find({ status: "published", "deadlines.classId": { $in: classIdList } }).lean(),
     Unit.countDocuments(),
-    Submission.countDocuments({ kind: { $in: ["writing", "speaking"] }, gradingStatus: "submitted" }),
-    Submission.find().lean(),
-    // Nhóm theo cả testSkill — 1 Test giờ có 4 kỹ năng độc lập, gộp chung
-    // testId sẽ trộn lẫn điểm Listening/Reading/Writing/Speaking (khác
-    // thang điểm) vào 1 trung bình vô nghĩa.
-    Submission.aggregate([
-      { $match: { testId: { $exists: true, $ne: null } } },
-      {
-        $group: {
-          _id: { testId: "$testId", testTitle: "$testTitle", testSkill: "$testSkill" },
-          submissions: { $sum: 1 },
-          avgScorePct: { $avg: { $cond: [{ $gt: ["$total", 0] }, { $multiply: [{ $divide: ["$score", "$total"] }, 100] }, 0] } }
-        }
-      },
-      { $sort: { submissions: -1 } }
-    ]),
-    Submission.find().sort({ submittedAt: -1 }).limit(8).lean()
+    Test.countDocuments(),
+    Notification.countDocuments({
+      teacherId: req.auth.teacherId,
+      type: "submission_received",
+      "deliveries.inapp.readAt": null,
+    }),
   ]);
 
-  const totalSubmissions = submissions.length;
-  const uniqueStudents = new Set(submissions.map((s) => s.studentName.trim().toLowerCase())).size;
-  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const submissionsThisWeek = submissions.filter((s) => new Date(s.submittedAt).getTime() >= weekAgo).length;
-  const avgScorePct = totalSubmissions
-    ? submissions.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / totalSubmissions
-    : 0;
+  const studentIds = students.map((s) => s._id);
+  const submissions = await Submission.find({ studentId: { $in: studentIds } })
+    .select(
+      "studentId studentName kind categoryKey unitId exerciseId promptId testTitle exerciseTitle score total manualScore gradingStatus submittedAt gradedAt isLate"
+    )
+    .lean();
 
-  return res.status(200).json({
-    ok: true,
-    summary: {
-      totalTests,
-      publishedTests,
-      totalAudio,
-      totalUnits,
-      pendingGrading,
-      totalSubmissions,
-      submissionsThisWeek,
-      uniqueStudents,
-      avgScorePct: Math.round(avgScorePct)
-    },
-    byTest: byTest.map((t) => ({
-      testId: t._id.testId,
-      testTitle: t._id.testTitle,
-      testSkill: t._id.testSkill || null,
-      submissions: t.submissions,
-      avgScorePct: Math.round(t.avgScorePct)
-    })),
-    recent
+  const payload = buildTeacherDashboard({
+    classes,
+    students,
+    units,
+    submissions,
+    now: new Date(),
+    totalUnits,
+    totalTests,
+    unreadSubmissions,
   });
+
+  return res.status(200).json({ ok: true, ...payload });
 }
 
 module.exports = requireAuth(handler);

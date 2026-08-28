@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/client/api";
 import RubricGrader from "@/components/teacher/RubricGrader";
 import RubricResult from "@/components/RubricResult";
+import { useDialog } from "@/components/ui/Dialog";
 
 const KIND_LABELS = { test: "Mock Test", exercise: "Lesson Exercise", writing: "Writing", speaking: "Speaking" };
 
@@ -259,6 +260,7 @@ function DetailBody({ r, onGraded }) {
 }
 
 function GradingForm({ r, onGraded }) {
+  const dialog = useDialog();
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(r.gradingStatus !== "graded");
 
@@ -289,9 +291,10 @@ function GradingForm({ r, onGraded }) {
     try {
       await api.teacher.gradeSubmission(r._id, payload);
       setEditing(false);
+      dialog.toast("Grade saved");
       onGraded && onGraded();
     } catch (e) {
-      window.alert("Failed to save grade: " + e.message);
+      dialog.alert({ tone: "error", title: "Failed to save grade", message: e.message });
       setBusy(false);
     }
   }
