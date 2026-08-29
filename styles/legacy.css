@@ -26,6 +26,10 @@
   --amber-light: #FFEBD1;
   --sky: #5BB4EE;
   --sky-light: #DCEFFF;
+  /* Tím thật (khác --purple, vốn thực chất là hồng) — dùng riêng cho nhóm
+     màu chấm bài "Cohesion" (xem lib/grading/annotate.js colorGroup). */
+  --violet: #8B6FD9;
+  --violet-light: #ECE6FB;
   --shadow-sm: 0 2px 10px rgba(150, 120, 145, .06);
   --shadow-md: 0 8px 24px rgba(150, 120, 145, .1);
   --shadow-lg: 0 20px 50px rgba(150, 120, 145, .14);
@@ -1187,11 +1191,18 @@ tr:hover td { background: #FFF7FB; }
   color: #fff;
   position: relative;
   overflow: hidden;
+  /* .sidebar is a column flexbox with overflow-y:auto — without this, the
+     "overflow: hidden" above resets this item's auto min-height to 0 (per
+     the flexbox spec), so on short viewports (e.g. browser zoomed in) it
+     gets squeezed down to just its padding instead of the sidebar simply
+     scrolling, clipping the title/text away and leaving only a bare bar. */
+  flex-shrink: 0;
 }
 .sidebar-promo-icon {
   width: 1.3rem; height: 1.3rem;
   color: #FFF4F8;
   margin-bottom: 10px;
+  flex-shrink: 0;
 }
 .sidebar-promo-title { font-weight: 700; font-size: .88rem; line-height: 1.4; margin-bottom: 4px; }
 .sidebar-promo-text { font-size: .76rem; color: rgba(255,255,255,.78); line-height: 1.5; }
@@ -1861,7 +1872,10 @@ tr:hover td { background: #FFF7FB; }
 }
 
 /* ---------- Rubric grader (IELTS Writing/Speaking) ---------- */
-.rubric-grader { max-width: 720px; }
+/* 720px từng đủ khi chỉ có 1 cột (band picker + feedback); giờ có thêm cột
+   "bài tô màu + sửa nhanh" cạnh nhau nên bỏ trần để dùng hết chiều rộng thẻ
+   cha, tránh chừa mảng trắng lớn bên phải. */
+.rubric-grader { max-width: none; }
 .rubric-tasktoggle {
   display: flex;
   align-items: center;
@@ -2660,14 +2674,33 @@ tr:hover td { background: #FFF7FB; }
   color: var(--ink);
 }
 .essay-annot.readonly { line-height: 1.9; }
+
+/* Bảng màu chấm bài theo 4 nhóm (lib/grading/annotate.js colorGroup) — chữ
+   sửa/chèn LUÔN xanh lá bất kể nhóm lỗi; gạch ngang (delete/replace) và
+   gạch chân (comment, dùng cho lỗi Idea/Logic — gạch chân cả câu) đổi màu
+   theo nhóm. data-cat trên các span/del/ins mang GIÁ TRỊ NHÓM MÀU (grammar
+   / vocabulary / cohesion / idea), không phải category gốc. */
 .essay-annot ins.ea-add { color: #2FA36B; background: #DFF7E9; text-decoration: none; border-radius: 3px; padding: 0 1px; }
-.essay-annot del.ea-del { color: var(--red); background: #FFE0E2; text-decoration: line-through; border-radius: 3px; padding: 0 1px; }
+
+.essay-annot del.ea-del { text-decoration: line-through; border-radius: 3px; padding: 0 1px; }
+.essay-annot del.ea-del[data-cat="grammar"],
+.essay-annot del.ea-del:not([data-cat]) { color: var(--red); background: #FFE0E2; }
+.essay-annot del.ea-del[data-cat="vocabulary"] { color: var(--blue); background: var(--blue-light); }
+.essay-annot del.ea-del[data-cat="cohesion"] { color: var(--violet); background: var(--violet-light); }
+.essay-annot del.ea-del[data-cat="idea"] { color: var(--amber); background: var(--amber-light); }
+
 .essay-annot .ea-hl { border-bottom: 2px solid var(--amber); cursor: help; }
-.essay-annot .ea-hl[data-cat="vocabulary"] { border-bottom-color: var(--purple); }
-.essay-annot .ea-hl[data-cat="cohesion"] { border-bottom-color: var(--sky); }
 .essay-annot .ea-hl[data-cat="grammar"] { border-bottom-color: var(--red); }
-.essay-annot .ea-hl[data-cat="spelling"] { border-bottom-color: var(--pink); }
-.essay-annot .ea-hl[data-cat="task"] { border-bottom-color: var(--green); }
+.essay-annot .ea-hl[data-cat="vocabulary"] { border-bottom-color: var(--blue); }
+.essay-annot .ea-hl[data-cat="cohesion"] { border-bottom-color: var(--violet); }
+.essay-annot .ea-hl[data-cat="idea"] {
+  /* Idea/Logic gạch chân CẢ CÂU — dày hơn để phân biệt với gạch chân từ/cụm. */
+  border-bottom-color: var(--amber);
+  border-bottom-width: 3px;
+  background: var(--amber-light);
+  border-radius: 2px;
+  padding: 0 1px;
+}
 
 .ea-toolbar {
   position: absolute;
@@ -2788,3 +2821,97 @@ tr:hover td { background: #FFF7FB; }
 .reflog-tag-add .reflog-input { flex: 1; }
 .reflog-tag { display: inline-flex; align-items: center; gap: 4px; }
 .reflog-tag-remove { background: none; border: none; cursor: pointer; color: inherit; font-size: 1rem; line-height: 1; padding: 0; }
+
+/* Trang làm bài của học viên (Unit detail) — hồng-xanh hoà lẫn qua gradient
+   nhạt thay vì chia phe từng khu vực: tiêu đề, banner, tab active, icon,
+   các dòng danh sách đều dùng nền gradient hồng->xanh pastel, chữ/icon
+   giữ 1 màu đậm để dễ đọc. Chỉ đổi màu, không đổi bố cục/icon. */
+.unit-detail-page > .card > h2 {
+  color: var(--pink);
+}
+.unit-detail-page .notice.info {
+  background: linear-gradient(100deg, var(--pink-light) 0%, var(--blue-light) 100%);
+  color: var(--navy);
+}
+.unit-detail-page .unit-cat-tab.active {
+  background: linear-gradient(100deg, var(--pink) 0%, var(--blue) 100%);
+  border-color: transparent;
+  color: #fff;
+}
+.unit-detail-page .unit-list-num,
+.unit-detail-page .lesson-header-icon {
+  background: linear-gradient(135deg, var(--pink-light) 0%, var(--blue-light) 100%);
+  color: var(--navy);
+}
+.unit-detail-page .unit-list-row.selected .unit-list-num {
+  background: linear-gradient(100deg, var(--pink) 0%, var(--blue) 100%);
+  color: #fff;
+}
+.unit-detail-page button.unit-list-goto {
+  background: var(--pink-light);
+  color: var(--pink);
+}
+.unit-detail-page .lesson-subtab.active {
+  background: linear-gradient(100deg, var(--pink) 0%, var(--blue) 100%);
+  border-color: transparent;
+  color: #fff;
+}
+
+/* "Suggested Actions" — box cố định 3 mục (Priorities / Topic vocabulary /
+   Improved sample), hiện cùng bảng điểm Writing/Speaking. */
+.suggested-actions-box {
+  margin-top: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(155deg, var(--pink-light) 0%, var(--blue-light) 100%);
+}
+.suggested-actions-box h4 { display: flex; align-items: center; gap: 6px; color: var(--ink); }
+.suggested-actions-box h4 .icon { width: 1rem; height: 1rem; color: var(--pink); }
+.sa-section-title { font-weight: 700; font-size: .82rem; color: var(--ink); margin: 12px 0 4px; }
+.sa-section-title:first-of-type { margin-top: 0; }
+.sa-priorities { margin: 0; padding-left: 20px; font-size: .9rem; line-height: 1.7; }
+.sa-vocab-list { list-style: none; margin: 0; padding: 0; }
+.sa-vocab-list li { padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: .9rem; }
+.sa-vocab-list li:last-child { border-bottom: none; }
+.sa-vocab-example { color: var(--muted); font-size: .84rem; font-style: italic; margin-top: 2px; }
+.sa-sample { white-space: pre-wrap; font-size: .9rem; line-height: 1.7; background: #fff; border-radius: 8px; padding: 10px 12px; margin: 0; }
+
+/* Editor (giáo viên chỉnh trước khi Save) */
+.suggested-actions-editor h4 { display: flex; align-items: center; gap: 6px; }
+.suggested-actions-editor h4 .icon { width: 1rem; height: 1rem; color: var(--pink); }
+.sa-label { display: block; font-weight: 600; font-size: .8rem; color: var(--muted); margin-bottom: 4px; }
+.sa-input {
+  width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
+  font-size: .88rem; font-family: inherit; margin-bottom: 6px; resize: vertical;
+}
+.sa-vocab-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+.sa-vocab-row input {
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; font-size: .85rem; font-family: inherit;
+}
+
+/* "Sửa nhanh" — ô nhập song song với bản tô màu (EssayAnnotator), tự áp màu
+   sau khi ngừng gõ ~400ms, không cần nút Apply/chuyển tab. Đặt cạnh nhau
+   (2 cột) để dễ nhìn qua lại; xuống 1 cột trên màn hẹp. */
+.ea-cols { display: flex; gap: 14px; align-items: stretch; }
+.ea-cols > .essay-annot,
+.ea-cols > .ea-quickedit-wrap { flex: 1 1 0; min-width: 0; }
+.ea-cols > .essay-annot { max-height: 420px; overflow-y: auto; }
+.ea-cols .ea-quickedit { height: 100%; min-height: 420px; }
+@media (max-width: 760px) {
+  .ea-cols { flex-direction: column; }
+  .ea-cols > .essay-annot { max-height: 320px; }
+  .ea-cols .ea-quickedit { min-height: 220px; }
+}
+
+.ea-quickedit-wrap { display: flex; flex-direction: column; }
+.ea-quickedit-label {
+  display: flex; align-items: center; gap: 5px;
+  font-size: .78rem; color: var(--muted); font-weight: 600; margin-bottom: 4px;
+}
+.ea-quickedit-label .icon { width: .85rem; height: .85rem; }
+.ea-quickedit {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+  font-family: inherit; font-size: .9rem; line-height: 1.6; resize: vertical;
+}
+.ea-quickedit:focus { border-color: var(--pink); box-shadow: 0 0 0 2px var(--pink-light); outline: none; }

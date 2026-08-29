@@ -107,7 +107,7 @@ export default function UnitDetailPage() {
   const stats = cat ? categoryStats(cat, subs) : { topics: 0, completed: 0, avgScorePct: null };
 
   return (
-    <section>
+    <section className="unit-detail-page">
       <div className="card">
         <p className="back-link" onClick={() => router.push("/student/lessons")}>
           <svg className="icon"><use href="#icon-arrow-left" /></svg> Back to lesson list

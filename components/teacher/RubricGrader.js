@@ -5,6 +5,7 @@ import { getRubric, resolveVariant, overallBand } from "@/lib/grading/rubric";
 import { resumeAiGrade } from "@/lib/client/aiGrade";
 import EssayAnnotator from "./EssayAnnotator";
 import SpeakingReview from "./SpeakingReview";
+import SuggestedActionsEditor from "./SuggestedActionsEditor";
 
 const BANDS = [9, 8, 7, 6, 5, 4, 3, 2, 1];
 
@@ -25,6 +26,9 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
   const [transcript, setTranscript] = useState(submission.transcript || "");
   const [speakingNotes, setSpeakingNotes] = useState(submission.speakingNotes || []);
   const [gradeSource, setGradeSource] = useState(submission.gradeSource || "teacher");
+  const [priorities, setPriorities] = useState(submission.priorities || []);
+  const [topicVocabulary, setTopicVocabulary] = useState(submission.topicVocabulary || []);
+  const [improvedSample, setImprovedSample] = useState(submission.improvedSample || "");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiNote, setAiNote] = useState("");
   const stopRef = useRef(false);
@@ -104,7 +108,10 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
       manualScore: finalBand,
       manualFeedback: feedback.trim(),
       gradeSource,
-      ...(hasEssay ? { annotations } : {}),
+      priorities,
+      topicVocabulary,
+      improvedSample: improvedSample.trim(),
+      ...(hasEssay || isSpeaking ? { annotations } : {}),
       ...(isSpeaking ? { transcript, speakingNotes } : {}),
     });
   }
@@ -127,6 +134,9 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
       });
     }
     if (draft.overallFeedback) setFeedback(draft.overallFeedback);
+    if (Array.isArray(draft.priorities)) setPriorities(draft.priorities);
+    if (Array.isArray(draft.topicVocabulary)) setTopicVocabulary(draft.topicVocabulary);
+    if (typeof draft.improvedSample === "string" && draft.improvedSample) setImprovedSample(draft.improvedSample);
     setGradeSource("ai-reviewed");
     setAiNote(
       `AI draft loaded${draft.model ? ` (${draft.model})` : ""} — review every band and note, edit as needed, then Save Grade.` +
@@ -188,8 +198,10 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
           audioUrl={submission.audioUrl}
           transcript={transcript}
           notes={speakingNotes}
+          annotations={annotations}
           onChange={setSpeakingNotes}
           onTranscriptChange={setTranscript}
+          onAnnotationsChange={setAnnotations}
           onAiGrade={onAiGrade ? runAi : undefined}
           aiBusy={aiBusy}
         />
@@ -327,6 +339,15 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
         placeholder="Overall feedback for the student..."
         value={feedback}
         onChange={(e) => setFeedback(e.target.value)}
+      />
+
+      <SuggestedActionsEditor
+        priorities={priorities}
+        onPrioritiesChange={setPriorities}
+        topicVocabulary={topicVocabulary}
+        onTopicVocabularyChange={setTopicVocabulary}
+        improvedSample={improvedSample}
+        onImprovedSampleChange={setImprovedSample}
       />
 
       {err && <p className="notice error" style={{ marginTop: 8 }}>{err}</p>}

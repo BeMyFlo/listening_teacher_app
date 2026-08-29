@@ -118,6 +118,9 @@ export default function TakeTestPage() {
                       audioUrl={last.audioUrl}
                       transcript={last.transcript}
                       speakingNotes={last.speakingNotes}
+                      priorities={last.priorities}
+                      topicVocabulary={last.topicVocabulary}
+                      improvedSample={last.improvedSample}
                         />
                       </div>
                     ) : (

@@ -5,7 +5,7 @@
 // tiêu chí. Dùng ở màn kết quả của giáo viên và học sinh.
 
 import { useMemo } from "react";
-import { buildSegments, normalizeAnnotation } from "@/lib/grading/annotate";
+import { buildSegments, normalizeAnnotation, colorGroup } from "@/lib/grading/annotate";
 
 const CAT_LABEL = {
   grammar: "Grammar",
@@ -13,8 +13,9 @@ const CAT_LABEL = {
   spelling: "Spelling",
   cohesion: "Cohesion",
   punctuation: "Punctuation",
-  task: "Task",
-  style: "Style",
+  idea: "Idea/Logic",
+  task: "Idea/Logic",
+  style: "Vocabulary",
   other: "Other",
 };
 
@@ -35,8 +36,11 @@ export default function AnnotatedEssay({ essayText = "", annotations = [], showL
           const title = marks.map((m) => `${m.criterion || "—"} · ${CAT_LABEL[m.category]}: ${m.comment}`).join("\n");
           const cls = (seg.kind === "del" ? "ea-del" : "") + (marks.length ? " ea-hl" : "");
           const Tag = seg.kind === "del" ? "del" : "span";
+          // Màu ưu tiên ghi chú (comment) đè lên màu của lỗi gạch ngang khi cả
+          // hai cùng che 1 đoạn; bình thường mỗi đoạn chỉ có 1 trong 2.
+          const cat = marks[0] ? marks[0].category : seg.ann ? seg.ann.category : null;
           return (
-            <Tag key={i} className={cls.trim() || undefined} data-cat={marks[0] ? marks[0].category : undefined} title={title || undefined}>
+            <Tag key={i} className={cls.trim() || undefined} data-cat={cat ? colorGroup(cat) : undefined} title={title || undefined}>
               {seg.text}
             </Tag>
           );

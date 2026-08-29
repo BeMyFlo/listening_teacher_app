@@ -261,6 +261,9 @@ function GradingForm({ r, onGraded }) {
           audioUrl={r.audioUrl}
           transcript={r.transcript}
           speakingNotes={r.speakingNotes}
+          priorities={r.priorities}
+          topicVocabulary={r.topicVocabulary}
+          improvedSample={r.improvedSample}
           showDescriptors={false}
         />
         <button

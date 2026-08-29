@@ -271,6 +271,9 @@ export default function PromptSubmissionPage() {
             audioUrl={attempt1.audioUrl}
             transcript={attempt1.transcript}
             speakingNotes={attempt1.speakingNotes}
+            priorities={attempt1.priorities}
+            topicVocabulary={attempt1.topicVocabulary}
+            improvedSample={attempt1.improvedSample}
             showDescriptors={false}
           />
         )}
@@ -311,6 +314,9 @@ export default function PromptSubmissionPage() {
               audioUrl={attempt2.audioUrl}
               transcript={attempt2.transcript}
               speakingNotes={attempt2.speakingNotes}
+              priorities={attempt2.priorities}
+              topicVocabulary={attempt2.topicVocabulary}
+              improvedSample={attempt2.improvedSample}
               showDescriptors={false}
             />
           )}

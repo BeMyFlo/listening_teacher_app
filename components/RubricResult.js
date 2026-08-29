@@ -2,6 +2,7 @@
 
 import { getRubric } from "@/lib/grading/rubric";
 import AnnotatedEssay from "@/components/AnnotatedEssay";
+import SuggestedActionsBox from "@/components/SuggestedActionsBox";
 
 // Hiển thị kết quả chấm theo rubric IELTS: điểm tổng + bảng 4 tiêu chí
 // (band + mô tả + ghi chú). Dùng cho cả giáo viên (bản tóm tắt đã chấm) lẫn
@@ -22,6 +23,9 @@ export default function RubricResult({
   audioUrl,
   transcript,
   speakingNotes,
+  priorities,
+  topicVocabulary,
+  improvedSample,
   showDescriptors = true,
   showFeedback = true,
 }) {
@@ -37,11 +41,18 @@ export default function RubricResult({
       {audioUrl && (
         <div className="annotated-essay">
           <audio controls src={audioUrl} style={{ width: "100%" }} />
-          {transcript && (
-            <details className="sr-transcript">
-              <summary>Transcript</summary>
-              <p>{transcript}</p>
+          {transcript && annotations && annotations.length > 0 ? (
+            <details className="sr-transcript" open>
+              <summary>Transcript (corrected)</summary>
+              <AnnotatedEssay essayText={transcript} annotations={annotations} />
             </details>
+          ) : (
+            transcript && (
+              <details className="sr-transcript">
+                <summary>Transcript</summary>
+                <p>{transcript}</p>
+              </details>
+            )
           )}
           {speakingNotes && speakingNotes.length > 0 && (
             <ul className="ea-readlist">
@@ -98,6 +109,8 @@ export default function RubricResult({
           <b>Feedback:</b> {manualFeedback}
         </p>
       )}
+
+      <SuggestedActionsBox priorities={priorities} topicVocabulary={topicVocabulary} improvedSample={improvedSample} />
     </div>
   );
 }

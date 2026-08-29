@@ -53,19 +53,10 @@ async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Only Writing and Speaking submissions can be manually graded" });
     }
 
-    const { manualScore, manualFeedback, criteria, annotations, gradeSource, transcript, speakingNotes } = req.body || {};
+    const { manualScore, manualFeedback, criteria, annotations, gradeSource, transcript, speakingNotes, priorities, topicVocabulary, improvedSample } = req.body || {};
 
-    // Chú thích inline (tuỳ chọn) — chỉ Writing (có essayText gốc).
-    if (annotations !== undefined) {
-      if (submission.kind !== "writing") {
-        return res.status(400).json({ ok: false, error: "Annotations are only for Writing submissions" });
-      }
-      const aerr = validateAnnotations(submission.essayText || "", annotations || []);
-      if (aerr) return res.status(400).json({ ok: false, error: aerr });
-      submission.annotations = (annotations || []).map((a) => normalizeAnnotation(a, submission.essayText || ""));
-    }
-
-    // Speaking: transcript + ghi chú theo mốc giây.
+    // Speaking: transcript + ghi chú theo mốc giây. Cập nhật TRƯỚC annotations
+    // vì annotations của speaking neo vào transcript (có thể đổi cùng lúc).
     if (submission.kind === "speaking") {
       if (typeof transcript === "string") submission.transcript = transcript;
       if (Array.isArray(speakingNotes)) {
@@ -80,7 +71,31 @@ async function handler(req, res) {
       }
     }
 
+    // Chú thích inline (tuỳ chọn) — neo vào essayText (Writing) hoặc
+    // transcript (Speaking); không áp dụng cho kind khác.
+    if (annotations !== undefined) {
+      if (submission.kind !== "writing" && submission.kind !== "speaking") {
+        return res.status(400).json({ ok: false, error: "Annotations are only for Writing and Speaking submissions" });
+      }
+      const anchorText = submission.kind === "writing" ? submission.essayText || "" : submission.transcript || "";
+      const aerr = validateAnnotations(anchorText, annotations || []);
+      if (aerr) return res.status(400).json({ ok: false, error: aerr });
+      submission.annotations = (annotations || []).map((a) => normalizeAnnotation(a, anchorText));
+    }
+
     if (["teacher", "ai", "ai-reviewed"].includes(gradeSource)) submission.gradeSource = gradeSource;
+
+    // "Suggested Actions" — 3 mục cố định (Priorities/Topic vocabulary/Improved sample).
+    if (Array.isArray(priorities)) {
+      submission.priorities = priorities.map((p) => String(p || "").trim()).filter(Boolean).slice(0, 3);
+    }
+    if (Array.isArray(topicVocabulary)) {
+      submission.topicVocabulary = topicVocabulary
+        .map((v) => ({ term: String((v && v.term) || "").trim(), meaning: String((v && v.meaning) || "").trim(), example: String((v && v.example) || "").trim() }))
+        .filter((v) => v.term)
+        .slice(0, 8);
+    }
+    if (typeof improvedSample === "string") submission.improvedSample = improvedSample.trim();
 
     if (Array.isArray(criteria)) {
       // ----- Chấm theo rubric IELTS (4 tiêu chí) -----
