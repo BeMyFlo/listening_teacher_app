@@ -1,12 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
   <defs>
+
+    <linearGradient id="pearlRing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFD1E6"/>
+      <stop offset="50%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#BFE2FF"/>
+    </linearGradient>
+    <linearGradient id="sheenGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="46%" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="54%" stop-color="#FFFFFF" stop-opacity="0.6"/>
+      <stop offset="62%" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="softGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="clipM"><text x="80" y="273" font-family="Baloo 2" font-weight="800" font-size="205">M</text></clipPath>
     <linearGradient id="petalGradBack" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0%" stop-color="#E8960C"/>
-      <stop offset="100%" stop-color="#F7C948"/>
+      <stop offset="0%" stop-color="#FF9EC4"/>
+      <stop offset="100%" stop-color="#FFD1E6"/>
     </linearGradient>
     <linearGradient id="petalGradFront" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0%" stop-color="#F9B233"/>
-      <stop offset="100%" stop-color="#FFD54D"/>
+      <stop offset="0%" stop-color="#FFC1DA"/>
+      <stop offset="100%" stop-color="#FFF0F6"/>
     </linearGradient>
     <clipPath id="clipN">
       <text x="177" y="273" font-family="Baloo 2" font-weight="800" font-size="205">N</text>
@@ -19,36 +37,45 @@
     </clipPath>
   </defs>
 
+  <rect width="400" height="400" fill="#FFFFFF"/>
 
-  <g transform="translate(200 200) rotate(0.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#D98A12" stroke-width="1"/></g><g transform="translate(200 200) rotate(36.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#D98A12" stroke-width="1"/></g><g transform="translate(200 200) rotate(72.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#D98A12" stroke-width="1"/></g><g transform="translate(200 200) rotate(108.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#D98A12" stroke-width="1"/></g><g transform="translate(200 200) rotate(144.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#D98A12" stroke-width="1"/></g><g transform="translate(200 200) rotate(180.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#D98A12" stroke-width="1"/></g><g transform="translate(200 200) rotate(216.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#D98A12" stroke-width="1"/></g><g transform="translate(200 200) rotate(252.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#D98A12" stroke-width="1"/></g><g transform="translate(200 200) rotate(288.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#D98A12" stroke-width="1"/></g><g transform="translate(200 200) rotate(324.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#D98A12" stroke-width="1"/></g>
-  <g transform="translate(200 200) rotate(18.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#E8A61A" stroke-width="1"/></g><g transform="translate(200 200) rotate(54.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#E8A61A" stroke-width="1"/></g><g transform="translate(200 200) rotate(90.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#E8A61A" stroke-width="1"/></g><g transform="translate(200 200) rotate(126.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#E8A61A" stroke-width="1"/></g><g transform="translate(200 200) rotate(162.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#E8A61A" stroke-width="1"/></g><g transform="translate(200 200) rotate(198.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#E8A61A" stroke-width="1"/></g><g transform="translate(200 200) rotate(234.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#E8A61A" stroke-width="1"/></g><g transform="translate(200 200) rotate(270.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#E8A61A" stroke-width="1"/></g><g transform="translate(200 200) rotate(306.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#E8A61A" stroke-width="1"/></g><g transform="translate(200 200) rotate(342.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#E8A61A" stroke-width="1"/></g>
+  <g transform="translate(200 200) rotate(0.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#F0A8C6" stroke-width="1"/></g><g transform="translate(200 200) rotate(36.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#F0A8C6" stroke-width="1"/></g><g transform="translate(200 200) rotate(72.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#F0A8C6" stroke-width="1"/></g><g transform="translate(200 200) rotate(108.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#F0A8C6" stroke-width="1"/></g><g transform="translate(200 200) rotate(144.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#F0A8C6" stroke-width="1"/></g><g transform="translate(200 200) rotate(180.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#F0A8C6" stroke-width="1"/></g><g transform="translate(200 200) rotate(216.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#F0A8C6" stroke-width="1"/></g><g transform="translate(200 200) rotate(252.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#F0A8C6" stroke-width="1"/></g><g transform="translate(200 200) rotate(288.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#F0A8C6" stroke-width="1"/></g><g transform="translate(200 200) rotate(324.0)"><path d="M 0,-138.0 C -15.0,-152.1 -8.2,-173.2 0,-182.0 C 8.2,-173.2 15.0,-152.1 0,-138.0 Z" fill="url(#petalGradBack)" stroke="#F0A8C6" stroke-width="1"/></g>
+  <g transform="translate(200 200) rotate(18.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#F5C4DA" stroke-width="1"/></g><g transform="translate(200 200) rotate(54.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#F5C4DA" stroke-width="1"/></g><g transform="translate(200 200) rotate(90.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#F5C4DA" stroke-width="1"/></g><g transform="translate(200 200) rotate(126.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#F5C4DA" stroke-width="1"/></g><g transform="translate(200 200) rotate(162.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#F5C4DA" stroke-width="1"/></g><g transform="translate(200 200) rotate(198.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#F5C4DA" stroke-width="1"/></g><g transform="translate(200 200) rotate(234.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#F5C4DA" stroke-width="1"/></g><g transform="translate(200 200) rotate(270.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#F5C4DA" stroke-width="1"/></g><g transform="translate(200 200) rotate(306.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#F5C4DA" stroke-width="1"/></g><g transform="translate(200 200) rotate(342.0)"><path d="M 0,-140.0 C -10.5,-149.0 -5.8,-162.4 0,-168.0 C 5.8,-162.4 10.5,-149.0 0,-140.0 Z" fill="url(#petalGradFront)" stroke="#F5C4DA" stroke-width="1"/></g>
 
-  <circle cx="200" cy="200" r="150" fill="#FFFDF8" stroke="#2E2A72" stroke-width="4"/>
+  <circle cx="200" cy="200" r="150" fill="#FFFDF8" stroke="#5A5860" stroke-width="2.5"/>
 
   <!-- base letters -->
-  <text x="80" y="273" font-family="Baloo 2" font-weight="800" font-size="205" fill="#5B4FE0">M</text>
-  <text x="177" y="273" font-family="Baloo 2" font-weight="800" font-size="205" fill="#F2B705">N</text>
-  <text x="80" y="273" font-family="Baloo 2" font-weight="800" font-size="205" fill="#2E2A72" clip-path="url(#clipN)">M</text>
+  <text x="80" y="273" font-family="Baloo 2" font-weight="800" font-size="205" fill="#FF8FBB">M</text>
+  <text x="177" y="273" font-family="Baloo 2" font-weight="800" font-size="205" fill="#7FC4EE">N</text>
+  <text x="80" y="273" font-family="Baloo 2" font-weight="800" font-size="205" fill="#2B2B2E" clip-path="url(#clipN)">M</text>
+  <g clip-path="url(#clipM)"><rect x="0" y="0" width="400" height="400" fill="url(#sheenGrad)"/></g>
+  <g clip-path="url(#clipN)"><rect x="0" y="0" width="400" height="400" fill="url(#sheenGrad)"/></g>
 
   <!-- bee sitting IN the letters -->
   <g transform="translate(200 218) rotate(-10) scale(0.95)">
-    <ellipse cx="6" cy="-16" rx="16" ry="10" fill="#F2E9DA" opacity="0.92" stroke="#2E2A72" stroke-width="2" transform="rotate(-18 6 -16)"/>
-    <ellipse cx="14" cy="-10" rx="14" ry="9" fill="#F2E9DA" opacity="0.92" stroke="#2E2A72" stroke-width="2" transform="rotate(8 14 -10)"/>
-    <ellipse cx="0" cy="0" rx="23" ry="15" fill="#F2B705" stroke="#2E2A72" stroke-width="2.5"/>
+    <ellipse cx="6" cy="-16" rx="16" ry="10" fill="#F2E9DA" opacity="0.92" stroke="#2B2B2E" stroke-width="2" transform="rotate(-18 6 -16)"/>
+    <ellipse cx="14" cy="-10" rx="14" ry="9" fill="#F2E9DA" opacity="0.92" stroke="#2B2B2E" stroke-width="2" transform="rotate(8 14 -10)"/>
+    <ellipse cx="0" cy="0" rx="23" ry="15" fill="#FFD8E6" stroke="#2B2B2E" stroke-width="2.5"/>
     <g clip-path="url(#beeBody)">
-      <rect x="-6" y="-16" width="7" height="32" fill="#2E2A72"/>
-      <rect x="9" y="-16" width="7" height="32" fill="#2E2A72"/>
+      <rect x="-6" y="-16" width="7" height="32" fill="#2B2B2E"/>
+      <rect x="9" y="-16" width="7" height="32" fill="#2B2B2E"/>
     </g>
-    <ellipse cx="0" cy="0" rx="23" ry="15" fill="none" stroke="#2E2A72" stroke-width="2.5"/>
-    <circle cx="-21" cy="-1" r="8.5" fill="#2E2A72"/>
-    <path d="M -26 -8 Q -31 -15 -27 -18" fill="none" stroke="#2E2A72" stroke-width="2.5" stroke-linecap="round"/>
-    <path d="M -22 -9 Q -24 -17 -18 -19" fill="none" stroke="#2E2A72" stroke-width="2.5" stroke-linecap="round"/>
+    <ellipse cx="0" cy="0" rx="23" ry="15" fill="none" stroke="#2B2B2E" stroke-width="2.5"/>
+    <circle cx="-21" cy="-1" r="8.5" fill="#2B2B2E"/>
+    <path d="M -26 -8 Q -31 -15 -27 -18" fill="none" stroke="#2B2B2E" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M -22 -9 Q -24 -17 -18 -19" fill="none" stroke="#2B2B2E" stroke-width="2.5" stroke-linecap="round"/>
   </g>
 
   <!-- letter stroke re-drawn ONLY where it should weave IN FRONT of the bee (intersection of M/N crossing shape and a band across the bee body) -->
   <g clip-path="url(#clipN)">
     <g clip-path="url(#beeBand)">
-      <text x="80" y="273" font-family="Baloo 2" font-weight="800" font-size="205" fill="#2E2A72">M</text>
+      <text x="80" y="273" font-family="Baloo 2" font-weight="800" font-size="205" fill="#2B2B2E">M</text>
     </g>
+  </g>
+
+  <circle cx="200" cy="200" r="143" fill="none" stroke="url(#pearlRing)" stroke-width="2.5"/>
+  <g filter="url(#softGlow)" fill="#FFFFFF">
+    <path transform="translate(300 92) scale(1.0)" d="M0 -13 C0.6 -4 4 -0.6 13 0 C4 0.6 0.6 4 0 13 C-0.6 4 -4 0.6 -13 0 C-4 -0.6 -0.6 -4 0 -13 Z"/>
+    <path transform="translate(96 306) scale(0.65)" d="M0 -13 C0.6 -4 4 -0.6 13 0 C4 0.6 0.6 4 0 13 C-0.6 4 -4 0.6 -13 0 C-4 -0.6 -0.6 -4 0 -13 Z"/>
   </g>
 </svg>
