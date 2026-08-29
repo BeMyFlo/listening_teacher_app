@@ -14,7 +14,6 @@ import { useAnswers, SectionBlock } from "@/components/student/questions";
 import { WritingPrompt, SpeakingPrompt } from "@/components/student/PromptBlock";
 import { useDialog } from "@/components/ui/Dialog";
 import SubmissionResultModal from "@/components/student/SubmissionResultModal";
-import RubricResult from "@/components/RubricResult";
 import GrammarTopicView from "@/components/student/GrammarTopicView";
 import { VocabFlashcards, VocabWordList } from "@/components/student/VocabFlashcards";
 
@@ -477,6 +476,7 @@ function ExerciseBlock({ index, ex, unitId, categoryKey, skill, last, onSubmitte
 }
 
 function PromptList({ unitId, cat, subs, onSubmitted }) {
+  const router = useRouter();
   if (!cat.prompts.length)
     return <div className="empty-state">No prompts available for this section.</div>;
   return (
@@ -524,19 +524,26 @@ function PromptList({ unitId, cat, subs, onSubmitted }) {
             <div className="prompt-status" style={{ marginTop: 12 }}>
               {last &&
                 (last.gradingStatus === "graded" ? (
-                  <div className="notice success">
-                    <svg className="icon"><use href="#icon-check-circle" /></svg> Graded by your teacher
-                    <RubricResult
-                      rubricVariant={last.rubricVariant}
-                      criteria={last.criteria}
-                      manualScore={last.manualScore}
-                      manualFeedback={last.manualFeedback}
-                      essayText={last.essayText}
-                      annotations={last.annotations}
-                      audioUrl={last.audioUrl}
-                      transcript={last.transcript}
-                      speakingNotes={last.speakingNotes}
-                    />
+                  <div className="notice success" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                    <span>
+                      <svg className="icon"><use href="#icon-check-circle" /></svg> Graded by your teacher · Band {last.manualScore}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn secondary"
+                      style={{ padding: "6px 12px" }}
+                      onClick={() => router.push(`/student/lessons/${unitId}/prompts/${p.id}`)}
+                    >
+                      {!last.reflectionLog
+                        ? "Viết Reflection Log"
+                        : last.attemptNumber > 1
+                        ? last.gradingStatus === "graded"
+                          ? "Xem kết quả"
+                          : "Xem trạng thái"
+                        : cat.key === "speaking"
+                        ? "Ghi âm lại"
+                        : "Viết lại bài"}
+                    </button>
                   </div>
                 ) : (
                   <div className="notice info">Submitted — pending teacher review.</div>

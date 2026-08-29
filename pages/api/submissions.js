@@ -176,7 +176,7 @@ async function handler(req, res) {
   }
 
   if (kind === "writing" || kind === "speaking") {
-    const { testId, unitId, categoryKey, promptId, essayText, audioUrl, audioPublicId } = req.body || {};
+    const { testId, unitId, categoryKey, promptId, essayText, audioUrl, audioPublicId, parentSubmissionId } = req.body || {};
     if ((kind === "writing" && !String(essayText || "").trim())) {
       return res.status(400).json({ ok: false, error: "Please enter your essay" });
     }
@@ -238,6 +238,28 @@ async function handler(req, res) {
     const category = unit.categories.find((c) => c.key === categoryKey);
     const prompt = category && category.prompts.id(promptId);
     if (!prompt) return res.status(404).json({ ok: false, error: "Prompt not found" });
+
+    // Nộp lại sau Reflection Log (attempt 2) — attempt 1 phải đã chấm, đã
+    // điền Reflection Log, và chưa có attempt 2 nào rồi (chỉ cho nộp lại 1 lần).
+    let attemptNumber = 1;
+    let parentId;
+    if (parentSubmissionId) {
+      const parent = await Submission.findOne({ _id: parentSubmissionId, studentId: student._id, promptId: prompt._id });
+      if (!parent) return res.status(404).json({ ok: false, error: "Original submission not found" });
+      if (parent.gradingStatus !== "graded") {
+        return res.status(400).json({ ok: false, error: "The original submission has not been graded yet" });
+      }
+      if (!parent.reflectionLog) {
+        return res.status(400).json({ ok: false, error: "Please complete the Reflection Log first" });
+      }
+      const existingResubmit = await Submission.findOne({ parentSubmissionId: parent._id });
+      if (existingResubmit) {
+        return res.status(400).json({ ok: false, error: "You have already resubmitted this prompt" });
+      }
+      attemptNumber = (parent.attemptNumber || 1) + 1;
+      parentId = parent._id;
+    }
+
     const { isLate, dueAt } = unitLateness(unit, student, kind);
     const submission = await Submission.create({
       studentId: student._id,
@@ -246,6 +268,8 @@ async function handler(req, res) {
       unitId: unit._id,
       categoryKey,
       promptId: prompt._id,
+      parentSubmissionId: parentId,
+      attemptNumber,
       essayText: kind === "writing" ? essayText : undefined,
       audioUrl: kind === "speaking" ? audioUrl : undefined,
       audioPublicId: kind === "speaking" ? audioPublicId : undefined,

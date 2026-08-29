@@ -105,7 +105,7 @@ function ExerciseRow({ ex }) {
   );
 }
 
-function GradeForm({ prompt, onGraded }) {
+function GradeForm({ prompt, submissionId, kind, writingTask, onGraded }) {
   const dialog = useDialog();
   const graded = prompt.gradingStatus === "graded";
   const [editing, setEditing] = useState(!graded);
@@ -136,7 +136,7 @@ function GradeForm({ prompt, onGraded }) {
   async function save(payload) {
     setBusy(true);
     try {
-      await api.teacher.gradeSubmission(prompt.submissionId, payload);
+      await api.teacher.gradeSubmission(submissionId, payload);
       setEditing(false);
       dialog.toast("Grade saved");
       onGraded && (await onGraded());
@@ -150,10 +150,10 @@ function GradeForm({ prompt, onGraded }) {
     <div style={{ marginTop: 12 }}>
       <RubricGrader
         submission={{
-          kind: prompt.kind,
-          submissionId: prompt.submissionId,
+          kind,
+          submissionId,
           rubricVariant: prompt.rubricVariant,
-          writingTask: prompt.writingTask,
+          writingTask,
           criteria: prompt.criteria,
           manualScore: prompt.manualScore,
           manualFeedback: prompt.manualFeedback,
@@ -167,11 +167,38 @@ function GradeForm({ prompt, onGraded }) {
         busy={busy}
         onSave={save}
         onAiGrade={
-          (prompt.kind === "writing" && prompt.essayText) || (prompt.kind === "speaking" && prompt.audioUrl)
-            ? (onTick) => pollAiGrade(prompt.submissionId, { onTick })
+          (kind === "writing" && prompt.essayText) || (kind === "speaking" && prompt.audioUrl)
+            ? (onTick) => pollAiGrade(submissionId, { onTick })
             : undefined
         }
       />
+    </div>
+  );
+}
+
+const REFLECTION_LABELS = {
+  writing: ["Lỗi mà em sai nhiều nhất trong bài", "Từ vựng cần thiết", "Ở bài viết sau, em sẽ..."],
+  speaking: ["Lỗi/điểm yếu mà em mắc nhiều nhất khi nói", "Từ vựng / cách phát âm cần luyện thêm", "Ở lần ghi âm sau, em sẽ..."],
+};
+
+function ReflectionLogView({ kind, log }) {
+  if (!log) return null;
+  const [l1, l2, l3] = REFLECTION_LABELS[kind] || REFLECTION_LABELS.writing;
+  return (
+    <div className="card" style={{ marginTop: 10, marginBottom: 10 }}>
+      <div className="page-head" style={{ marginBottom: 8 }}>
+        <h4 style={{ margin: 0 }}>Reflection Log — học sinh tự nhận xét</h4>
+      </div>
+      <p style={{ margin: "0 0 6px" }}><b>{l1}:</b> {log.mistake}</p>
+      {log.focusTags && log.focusTags.length > 0 && (
+        <p style={{ margin: "0 0 6px" }}>
+          <b>{l2}:</b>{" "}
+          {log.focusTags.map((t, i) => (
+            <span className="pill pill-info" key={i} style={{ marginRight: 4 }}>{t}</span>
+          ))}
+        </p>
+      )}
+      <p style={{ margin: 0 }}><b>{l3}:</b> {log.nextAction}</p>
     </div>
   );
 }
@@ -193,10 +220,35 @@ function PromptRow({ prompt, onGraded }) {
       ) : (
         <>
           <p style={{ margin: "0 0 6px", color: "var(--muted)", fontSize: ".8rem" }}>
-            Submitted {new Date(prompt.submittedAt).toLocaleString("en-US")}
+            {prompt.attempt2 ? "Attempt 1 · " : ""}Submitted {new Date(prompt.submittedAt).toLocaleString("en-US")}
           </p>
           <LateLine item={prompt} />
-          <GradeForm prompt={prompt} onGraded={onGraded} />
+          <GradeForm
+            prompt={prompt}
+            submissionId={prompt.submissionId}
+            kind={prompt.kind}
+            writingTask={prompt.writingTask}
+            onGraded={onGraded}
+          />
+
+          <ReflectionLogView kind={prompt.kind} log={prompt.reflectionLog} />
+
+          {prompt.attempt2 && (
+            <div style={{ marginTop: 12, borderTop: "1px dashed var(--border)", paddingTop: 12 }}>
+              <span className="pill pill-warn" style={{ marginBottom: 6, display: "inline-block" }}>Lần 2</span>
+              <p style={{ margin: "0 0 6px", color: "var(--muted)", fontSize: ".8rem" }}>
+                Submitted {new Date(prompt.attempt2.submittedAt).toLocaleString("en-US")}
+              </p>
+              <LateLine item={prompt.attempt2} />
+              <GradeForm
+                prompt={prompt.attempt2}
+                submissionId={prompt.attempt2.submissionId}
+                kind={prompt.kind}
+                writingTask={prompt.writingTask}
+                onGraded={onGraded}
+              />
+            </div>
+          )}
         </>
       )}
     </div>
