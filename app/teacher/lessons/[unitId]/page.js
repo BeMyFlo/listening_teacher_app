@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { getTeacherToken } from "@/lib/client/session";
 import { useMediaLibraries } from "@/lib/teacher/useMediaLibraries";
 import { sectionsToEditor, sectionsToPayload, refId } from "@/lib/teacher/sectionTransforms";
 import { toDatetimeLocal } from "@/lib/teacher/testBuilder";
@@ -10,6 +11,7 @@ import { LESSON_CATS, PROMPT_CATS } from "@/lib/student/constants";
 import SectionsEditor from "@/components/teacher/SectionsEditor";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
 import TheoryEditor from "@/components/teacher/TheoryEditor";
+import TheoryResource from "@/components/teacher/TheoryResource";
 import GrammarTopicsEditor from "@/components/teacher/GrammarTopicsEditor";
 import VocabGroupsEditor from "@/components/teacher/VocabGroupsEditor";
 import { useDialog } from "@/components/ui/Dialog";
@@ -50,6 +52,8 @@ function toEditorUnit(u) {
         html: (c.theory && c.theory.html) || "",
         audioId: refId(c.theory && c.theory.audioId),
         imageId: refId(c.theory && c.theory.imageId),
+        resourceUrl: (c.theory && c.theory.resourceUrl) || "",
+        resourceLabel: (c.theory && c.theory.resourceLabel) || "",
       },
       exercises: (c.exercises || []).map((ex) => ({
         _id: ex._id,
@@ -98,6 +102,7 @@ function toEditorUnit(u) {
 function catHasContent(c) {
   return !!(
     (c && (c.theory.html || "").trim()) ||
+    (c && (c.theory.resourceUrl || "").trim()) ||
     (c && c.exercises.length) ||
     (c && c.prompts.length) ||
     (c && (c.topics || []).length) ||
@@ -121,7 +126,13 @@ function toPayload(unit, status) {
     categories: unit.categories.map((cat) => ({
       _id: cat._id,
       key: cat.key,
-      theory: { html: cat.theory.html, audioId: cat.theory.audioId || null, imageId: cat.theory.imageId || null },
+      theory: {
+        html: cat.theory.html,
+        audioId: cat.theory.audioId || null,
+        imageId: cat.theory.imageId || null,
+        resourceUrl: cat.theory.resourceUrl || "",
+        resourceLabel: cat.theory.resourceLabel || "",
+      },
       exercises: cat.exercises.map((ex) => ({
         _id: ex._id,
         title: ex.title,
@@ -224,7 +235,25 @@ export default function UnitEditorPage() {
     }
     setSaveErr("");
     try {
-      await api.teacher.updateUnit(unit._id, toPayload(unit, status));
+      const res = await api.teacher.updateUnit(unit._id, toPayload(unit, status));
+      // Hạn nộp mới/đổi -> kích worker gửi thông báo cho học sinh. keepalive để
+      // request sống sót qua điều hướng trang ngay dưới đây. Không chờ kết quả;
+      // cron là lưới an toàn nếu request này rớt.
+      if (res && Array.isArray(res.deadlineJobIds) && res.deadlineJobIds.length) {
+        try {
+          fetch("/api/admin/deadline-jobs/run", {
+            method: "POST",
+            keepalive: true,
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + (getTeacherToken() || ""),
+            },
+            body: JSON.stringify({ ids: res.deadlineJobIds }),
+          }).catch(() => {});
+        } catch {
+          /* bỏ qua — cron sẽ gửi nốt */
+        }
+      }
       router.push("/teacher/lessons");
     } catch (e) {
       setSaveErr(e.message);
@@ -448,6 +477,12 @@ export default function UnitEditorPage() {
             )}
 
             <div id="unitCatContent">
+              {(LESSON_LIST_CATS.includes(catKey) || subTab === "theory") && (
+                <TheoryResource
+                  theory={cat.theory}
+                  onChange={(next) => updateCat((c) => (c.theory = next))}
+                />
+              )}
               {catKey === "grammar" ? (
             <GrammarTopicsEditor
               topics={cat.topics || []}

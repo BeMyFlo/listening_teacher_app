@@ -70,7 +70,9 @@ function toPublicUnit(unit, cls) {
       theory: {
         html: (c.theory && c.theory.html) || "",
         audioUrl: c.theory && c.theory.audioId && c.theory.audioId.cloudinaryUrl,
-        imageUrl: c.theory && c.theory.imageId && c.theory.imageId.cloudinaryUrl
+        imageUrl: c.theory && c.theory.imageId && c.theory.imageId.cloudinaryUrl,
+        resourceUrl: (c.theory && c.theory.resourceUrl) || "",
+        resourceLabel: (c.theory && c.theory.resourceLabel) || ""
       },
       exercises: (c.exercises || []).map(publicExercise),
       prompts: (c.prompts || []).map((p) => ({
@@ -182,6 +184,7 @@ async function handler(req, res) {
           key: c.key,
           hasContent: !!(
             (c.theory && c.theory.html && c.theory.html.trim()) ||
+            (c.theory && c.theory.resourceUrl && c.theory.resourceUrl.trim()) ||
             (c.exercises || []).length ||
             (c.prompts || []).length ||
             (c.topics || []).length ||
