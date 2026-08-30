@@ -4,8 +4,10 @@ import { useCallback, useState } from "react";
 import ReadingPassage from "@/components/student/ReadingPassage";
 
 // ---------- State câu trả lời ----------
-export function useAnswers() {
-  const [answers, setAnswers] = useState({});
+// initial: câu trả lời đã nộp trước đó (last.answers) — để mở lại bài đã làm
+// (review) vẫn thấy đúng lựa chọn cũ, không phải ô trống.
+export function useAnswers(initial) {
+  const [answers, setAnswers] = useState(() => initial || {});
   const getValue = useCallback(
     (f) => {
       const v = answers[f.id];
@@ -57,6 +59,21 @@ export function QuestionField({ field, section, value, onChange, review }) {
   const rowCls =
     "field-row" + (review ? (review.correct ? " correct" : " wrong") : "");
 
+  // "Correct answer" lưu ở DB là VALUE nội bộ của lựa chọn (VD "o3_2"), không
+  // phải chữ học sinh đọc được — map qua option để hiện đúng nhãn.
+  const labelForValue = (v) => {
+    const opt = options.find((o) => o.value === v);
+    return opt ? opt.label : v;
+  };
+  const correctAnswerLabel = review
+    ? selectCount > 1
+      ? String(review.answer || "")
+          .split(",")
+          .map((v) => labelForValue(v.trim()))
+          .join(", ")
+      : labelForValue(review.answer || "")
+    : "";
+
   if (isChoice) {
     return (
       <div className={rowCls} id={"row-" + field.id}>
@@ -107,7 +124,7 @@ export function QuestionField({ field, section, value, onChange, review }) {
           </span>
         )}
         {review && !review.correct && (
-          <div className="correct-answer-note">Correct answer: {review.answer || ""}</div>
+          <div className="correct-answer-note">Correct answer: {correctAnswerLabel}</div>
         )}
       </div>
     );

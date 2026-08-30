@@ -360,11 +360,24 @@ function ExerciseList({ unitId, cat, subs, onSubmitted }) {
   );
 }
 
+// Bài đã nộp trước đó (last.detail, lưu ở DB lúc nộp) -> cùng shape với
+// result.detailById dựng lúc vừa submit — dùng để "Review" mở lại vẫn thấy
+// đúng/sai, không chỉ ngay sau khi vừa nộp trong cùng phiên.
+function detailByIdFrom(last) {
+  if (!last || !Array.isArray(last.detail)) return null;
+  const detailById = {};
+  last.detail.forEach((d) => (detailById[d.id] = d));
+  return detailById;
+}
+
 function ExerciseBlock({ index, ex, unitId, categoryKey, skill, last, onSubmitted }) {
   const dialog = useDialog();
   const [open, setOpen] = useState(false);
-  const answersApi = useAnswers();
-  const [result, setResult] = useState(null);
+  const answersApi = useAnswers(last ? last.answers : null);
+  const [result, setResult] = useState(() => {
+    const detailById = detailByIdFrom(last);
+    return detailById ? { score: last.score, total: last.total, detailById, late: !!last.isLate } : null;
+  });
   const [popup, setPopup] = useState(null);
   const [busy, setBusy] = useState(false);
 
