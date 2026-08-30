@@ -7,6 +7,7 @@
 
 const { connectDB } = require("../../../lib/db");
 const { generateDeadlineNotificationsForAll } = require("../../../lib/notifications/generate");
+const { sweepDeadlineEmailJobs } = require("../../../lib/notifications/deadlineAssign");
 
 module.exports = async function handler(req, res) {
   const secret = process.env.CRON_SECRET;
@@ -22,7 +23,15 @@ module.exports = async function handler(req, res) {
   await connectDB();
   try {
     const result = await generateDeadlineNotificationsForAll();
-    return res.status(200).json({ ok: true, ...result });
+    // Lưới an toàn: gửi nốt job "vừa có hạn nộp" mà keepalive fetch lúc Save
+    // không kịp chạy / để dở.
+    let deadlineEmailJobs = null;
+    try {
+      deadlineEmailJobs = await sweepDeadlineEmailJobs();
+    } catch (err) {
+      console.error("[cron] deadline email sweep failed:", err.message);
+    }
+    return res.status(200).json({ ok: true, ...result, deadlineEmailJobs });
   } catch (err) {
     console.error("[cron] deadline-scan failed:", err);
     return res.status(500).json({ ok: false, error: err.message });

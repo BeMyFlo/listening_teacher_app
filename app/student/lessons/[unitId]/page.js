@@ -13,6 +13,7 @@ import {
 import { useAnswers, SectionBlock } from "@/components/student/questions";
 import { WritingPrompt, SpeakingPrompt } from "@/components/student/PromptBlock";
 import { useDialog } from "@/components/ui/Dialog";
+import { renderTheory } from "@/lib/theoryFormat";
 import SubmissionResultModal from "@/components/student/SubmissionResultModal";
 import GrammarTopicView from "@/components/student/GrammarTopicView";
 import { VocabFlashcards, VocabWordList } from "@/components/student/VocabFlashcards";
@@ -60,15 +61,27 @@ function DeadlineBanner({ dueAt, label }) {
   );
 }
 
-function renderTheoryText(raw) {
-  const esc = String(raw || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-  return esc
-    .replace(/\*\*([^\n]+?)\*\*/g, "<b>$1</b>")
-    .replace(/\*([^\n*]+?)\*/g, "<i>$1</i>");
+// Nút mở file/bài lý thuyết ngoài do giáo viên gắn vào (theory.resourceUrl).
+function TheoryResourceLink({ theory }) {
+  const url = (theory && theory.resourceUrl || "").trim();
+  if (!url) return null;
+  const label = (theory && theory.resourceLabel || "").trim() || "Open theory file";
+  return (
+    <a
+      className="btn"
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ display: "inline-flex", alignItems: "center", gap: 8, margin: "6px 0 14px" }}
+    >
+      <svg className="icon"><use href="#icon-book-open" /></svg>
+      {label}
+      <svg className="icon"><use href="#icon-external" /></svg>
+    </a>
+  );
 }
+
+const renderTheoryText = renderTheory;
 
 export default function UnitDetailPage() {
   const { unitId } = useParams();
@@ -210,14 +223,18 @@ function LessonTopicPane({ cat, unitId, subs, onSubmitted }) {
 
   if (!items.length)
     return (
-      <div className="empty-state">
-        {isGrammar ? "No grammar topics yet." : "No vocabulary groups yet."}
+      <div style={{ marginTop: 12 }}>
+        <TheoryResourceLink theory={cat.theory} />
+        <div className="empty-state">
+          {isGrammar ? "No grammar topics yet." : "No vocabulary groups yet."}
+        </div>
       </div>
     );
 
   if (!item) {
     return (
       <div style={{ marginTop: 12 }}>
+        <TheoryResourceLink theory={cat.theory} />
         {items.map((it) => {
           const exs = it.exercises || [];
           const done = exs.filter((ex) => latestExerciseSub(subs, ex.id)).length;
@@ -315,10 +332,12 @@ function LessonTopicPane({ cat, unitId, subs, onSubmitted }) {
 }
 
 function TheoryView({ theory }) {
-  const hasTheory = (theory.html || "").trim() || theory.audioUrl || theory.imageUrl;
+  const hasTheory =
+    (theory.html || "").trim() || theory.audioUrl || theory.imageUrl || (theory.resourceUrl || "").trim();
   return (
     <div>
       <h3 style={{ marginTop: 6 }}>Theory</h3>
+      <TheoryResourceLink theory={theory} />
       {!hasTheory ? (
         <div className="empty-state">No theory content available for this section.</div>
       ) : (

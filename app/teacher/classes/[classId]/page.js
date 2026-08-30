@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
+import AttendanceTab from "@/components/teacher/AttendanceTab";
 
 export default function ClassDetailPage() {
   const dialog = useDialog();
   const { classId } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get("tab") === "attendance" ? "attendance" : "students");
   const [cls, setCls] = useState(null);
   const [roster, setRoster] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
@@ -30,6 +33,12 @@ export default function ClassDetailPage() {
       .catch((e) => setErr(e.message));
   }
   useEffect(load, [classId]);
+
+  function switchTab(next) {
+    setTab(next);
+    const qs = next === "attendance" ? "?tab=attendance" : "";
+    router.replace("/teacher/classes/" + classId + qs);
+  }
 
   async function saveMeta() {
     setSaveMsg(null);
@@ -98,76 +107,102 @@ export default function ClassDetailPage() {
       <div className="card">
         {back}
         <h2>{cls.name}</h2>
+        <p className="page-sub" style={{ marginTop: -4 }}>
+          Level {cls.level} · {roster.length} student{roster.length === 1 ? "" : "s"}
+        </p>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-          <div className="form-row" style={{ marginBottom: 0 }}>
-            <label>Class Name</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="form-row" style={{ marginBottom: 0 }}>
-            <label>Level (applies to all students in this class)</label>
-            <input type="number" min="1" step="1" value={level} onChange={(e) => setLevel(e.target.value)} />
-          </div>
+        <div className="unit-subtabs" style={{ marginTop: 14 }}>
+          <button
+            type="button"
+            className={"unit-subtab" + (tab === "students" ? " active" : "")}
+            onClick={() => switchTab("students")}
+          >
+            Students
+          </button>
+          <button
+            type="button"
+            className={"unit-subtab" + (tab === "attendance" ? " active" : "")}
+            onClick={() => switchTab("attendance")}
+          >
+            Attendance
+          </button>
         </div>
-        <button type="button" className="btn" style={{ marginTop: 14 }} onClick={saveMeta}>
-          Save
-        </button>
-        {saveMsg && (
-          <p className={"notice " + saveMsg.cls} style={{ marginTop: 14 }}>
-            {saveMsg.msg}
-          </p>
-        )}
 
-        <h3 style={{ marginTop: 24 }}>Roster ({roster.length})</h3>
-        <div className="form-row" style={{ maxWidth: 420 }}>
-          <label>Add a student to this class</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            <select className="select-inline" style={{ flex: 1 }} value={addId} onChange={(e) => setAddId(e.target.value)}>
-              <option value="">— Select a student —</option>
-              {candidates.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name} ({s.username}){s.className ? ` — currently in ${s.className}` : ""}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="btn" onClick={addStudent} disabled={!addId}>
-              Add
+        {tab === "students" ? (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <label>Class Name</label>
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <label>Level (applies to all students in this class)</label>
+                <input type="number" min="1" step="1" value={level} onChange={(e) => setLevel(e.target.value)} />
+              </div>
+            </div>
+            <button type="button" className="btn" style={{ marginTop: 14 }} onClick={saveMeta}>
+              Save
             </button>
-          </div>
-        </div>
+            {saveMsg && (
+              <p className={"notice " + saveMsg.cls} style={{ marginTop: 14 }}>
+                {saveMsg.msg}
+              </p>
+            )}
 
-        {roster.length === 0 ? (
-          <div className="empty-state">No students in this class yet.</div>
+            <h3 style={{ marginTop: 24 }}>Roster ({roster.length})</h3>
+            <div className="form-row" style={{ maxWidth: 420 }}>
+              <label>Add a student to this class</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <select className="select-inline" style={{ flex: 1 }} value={addId} onChange={(e) => setAddId(e.target.value)}>
+                  <option value="">— Select a student —</option>
+                  {candidates.map((s) => (
+                    <option key={s._id} value={s._id}>
+                      {s.name} ({s.username}){s.className ? ` — currently in ${s.className}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className="btn" onClick={addStudent} disabled={!addId}>
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {roster.length === 0 ? (
+              <div className="empty-state">No students in this class yet.</div>
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Full Name</th>
+                      <th>Username</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roster.map((s) => (
+                      <tr key={s._id}>
+                        <td>{s.name}</td>
+                        <td>{s.username}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn secondary danger"
+                            style={{ padding: "4px 8px", fontSize: ".8rem", borderColor: "var(--red)", color: "var(--red)" }}
+                            onClick={() => removeStudent(s)}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         ) : (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Full Name</th>
-                  <th>Username</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roster.map((s) => (
-                  <tr key={s._id}>
-                    <td>{s.name}</td>
-                    <td>{s.username}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn secondary danger"
-                        style={{ padding: "4px 8px", fontSize: ".8rem", borderColor: "var(--red)", color: "var(--red)" }}
-                        onClick={() => removeStudent(s)}
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <AttendanceTab classId={classId} rosterCount={roster.length} />
         )}
       </div>
     </div>

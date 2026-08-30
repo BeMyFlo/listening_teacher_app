@@ -4,8 +4,24 @@ const Unit = require("../../../lib/models/Unit");
 const Class = require("../../../lib/models/Class");
 const { normalizeSections, validateSections } = require("../../../lib/testSections");
 const { sanitizeYouTube } = require("../../../lib/lessonImport");
+const { announceDeadlines } = require("../../../lib/notifications/deadlineAssign");
 
 const S = (v) => String(v == null ? "" : v);
+
+// Link lý thuyết ngoài: chỉ nhận http/https. Thiếu scheme thì thêm https://.
+// Không hợp lệ -> trả "" (bỏ qua, không chặn lưu bài).
+function normalizeUrl(raw) {
+  let s = S(raw).trim();
+  if (!s) return "";
+  if (!/^https?:\/\//i.test(s)) s = "https://" + s;
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+    return u.href;
+  } catch {
+    return "";
+  }
+}
 
 function normalizeTopicExercises(exs) {
   return (exs || []).map((ex) => ({
@@ -123,6 +139,15 @@ async function handler(req, res) {
     const { name, order, status, categories, level, classIds, deadlines } = req.body || {};
     const levelChanged = level != null && Number(level) !== unit.level;
 
+    // Chụp trạng thái hạn nộp + publish TRƯỚC khi ghi đè, để sau khi lưu diff ra
+    // các mốc hạn mới/đổi mà gửi thông báo (xem announceDeadlines).
+    const wasPublished = unit.status === "published";
+    const prevDeadlines = (unit.deadlines || []).map((d) => ({
+      classId: String(d.classId),
+      categoryKey: d.categoryKey || null,
+      dueAtMs: d.dueAt ? +new Date(d.dueAt) : null,
+    }));
+
     if (name != null) {
       if (!String(name).trim()) {
         return res.status(400).json({ ok: false, error: "Unit name cannot be empty" });
@@ -170,7 +195,9 @@ async function handler(req, res) {
           theory: {
             html: String((cat.theory && cat.theory.html) || ""),
             audioId: (cat.theory && cat.theory.audioId) || undefined,
-            imageId: (cat.theory && cat.theory.imageId) || undefined
+            imageId: (cat.theory && cat.theory.imageId) || undefined,
+            resourceUrl: normalizeUrl((cat.theory && cat.theory.resourceUrl) || ""),
+            resourceLabel: String((cat.theory && cat.theory.resourceLabel) || "").trim()
           },
           exercises: normalizeTopicExercises(cat.exercises),
           prompts: (cat.prompts || []).map((p) => ({
@@ -214,7 +241,23 @@ async function handler(req, res) {
     }
 
     await unit.save();
-    return res.status(200).json({ ok: true, unit });
+
+    // Hạn nộp mới/đổi -> tạo job gửi thông báo cho học sinh (chạy ngầm).
+    // Lỗi ở bước này KHÔNG được làm hỏng việc lưu Unit.
+    let deadlineJobIds = [];
+    if (deadlines != null || levelChanged || status != null) {
+      try {
+        const ids = await announceDeadlines(unit, prevDeadlines, {
+          requestedBy: req.auth && req.auth.teacherId,
+          announceAll: unit.status === "published" && !wasPublished,
+        });
+        deadlineJobIds = ids.map(String);
+      } catch (err) {
+        console.error("[deadline-announce] failed:", err.message);
+      }
+    }
+
+    return res.status(200).json({ ok: true, unit, deadlineJobIds });
   }
 
   if (req.method === "DELETE") {
