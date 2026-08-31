@@ -2,11 +2,12 @@
 
 // Box "Suggested Actions" — chỉ xem, hiện cùng bảng điểm (Writing/Speaking).
 // 3 mục cố định: Priorities, Topic vocabulary, Improved sample answer.
-export default function SuggestedActionsBox({ priorities = [], topicVocabulary = [], improvedSample = "" }) {
+export default function SuggestedActionsBox({ priorities = [], topicVocabulary = [], improvedSample = "", mainIssue = "" }) {
   const hasPriorities = priorities.some((p) => p && p.trim());
   const hasVocab = topicVocabulary.length > 0;
   const hasSample = !!(improvedSample && improvedSample.trim());
-  if (!hasPriorities && !hasVocab && !hasSample) return null;
+  const hasMainIssue = !!(mainIssue && mainIssue.trim());
+  if (!hasPriorities && !hasVocab && !hasSample && !hasMainIssue) return null;
 
   return (
     <div className="suggested-actions-box">
@@ -40,10 +41,13 @@ export default function SuggestedActionsBox({ priorities = [], topicVocabulary =
         </>
       )}
 
-      {hasSample && (
+      {(hasMainIssue || hasSample) && (
         <>
           <div className="sa-section-title">Improved Sample Answer</div>
-          <p className="sa-sample">{improvedSample}</p>
+          {hasMainIssue && (
+            <p className="sa-main-issue"><b>Main issue:</b> {mainIssue}</p>
+          )}
+          {hasSample && <p className="sa-sample">{improvedSample}</p>}
         </>
       )}
     </div>

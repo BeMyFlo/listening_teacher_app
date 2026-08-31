@@ -19,7 +19,7 @@ const CAT_LABEL = {
   other: "Other",
 };
 
-export default function AnnotatedEssay({ essayText = "", annotations = [], showList = true }) {
+export default function AnnotatedEssay({ essayText = "", annotations = [], showList = true, showText = true }) {
   const anns = useMemo(
     () => (annotations || []).map((a) => normalizeAnnotation(a, essayText)),
     [annotations, essayText]
@@ -29,6 +29,7 @@ export default function AnnotatedEssay({ essayText = "", annotations = [], showL
 
   return (
     <div className="annotated-essay">
+      {showText && (
       <div className="essay-annot readonly">
         {segments.map((seg, i) => {
           if (seg.kind === "ins") return <ins key={i} className="ea-add">{seg.text}</ins>;
@@ -46,6 +47,7 @@ export default function AnnotatedEssay({ essayText = "", annotations = [], showL
           );
         })}
       </div>
+      )}
 
       {showList && anns.length > 0 && (
         <ul className="ea-readlist">

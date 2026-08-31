@@ -4,7 +4,7 @@
 // Topic vocabulary (5–8 từ), Improved sample. AI điền sẵn, giáo viên sửa lại
 // trước khi Save. Xem components/SuggestedActionsBox.js cho bản chỉ xem.
 
-export default function SuggestedActionsEditor({ priorities, onPrioritiesChange, topicVocabulary, onTopicVocabularyChange, improvedSample, onImprovedSampleChange }) {
+export default function SuggestedActionsEditor({ priorities, onPrioritiesChange, topicVocabulary, onTopicVocabularyChange, improvedSample, onImprovedSampleChange, mainIssue, onMainIssueChange }) {
   const p = [priorities[0] || "", priorities[1] || "", priorities[2] || ""];
 
   function setPriority(i, val) {
@@ -29,7 +29,20 @@ export default function SuggestedActionsEditor({ priorities, onPrioritiesChange,
         <svg className="icon"><use href="#icon-sparkles" /></svg> Suggested Actions
       </h4>
 
-      <label className="sa-label">Priorities for next time (3)</label>
+      {onMainIssueChange && (
+        <>
+          <label className="sa-label">Main issue (1 câu — vấn đề chính của bài)</label>
+          <input
+            type="text"
+            className="sa-input"
+            placeholder="Vấn đề quan trọng nhất em cần sửa ở bài này..."
+            value={mainIssue || ""}
+            onChange={(e) => onMainIssueChange(e.target.value)}
+          />
+        </>
+      )}
+
+      <label className="sa-label" style={onMainIssueChange ? { marginTop: 10 } : undefined}>Priorities for next time (tối đa 3)</label>
       {[0, 1, 2].map((i) => (
         <input
           key={i}
@@ -41,7 +54,7 @@ export default function SuggestedActionsEditor({ priorities, onPrioritiesChange,
         />
       ))}
 
-      <label className="sa-label" style={{ marginTop: 10 }}>Topic-specific vocabulary (5–8)</label>
+      <label className="sa-label" style={{ marginTop: 10 }}>Topic-specific vocabulary (0–5)</label>
       {topicVocabulary.map((v, i) => (
         <div key={i} className="sa-vocab-row">
           <input type="text" placeholder="term" style={{ width: 130 }} value={v.term} onChange={(e) => patchVocab(i, { term: e.target.value })} />

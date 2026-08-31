@@ -26,8 +26,11 @@ export default function RubricResult({
   priorities,
   topicVocabulary,
   improvedSample,
+  mainIssue,
   showDescriptors = true,
   showFeedback = true,
+  showTranscript = true,
+  showBandHeader = true,
 }) {
   const rubric = rubricVariant ? getRubric(rubricVariant) : null;
   const byKey = {};
@@ -41,40 +44,67 @@ export default function RubricResult({
       {audioUrl && (
         <div className="annotated-essay">
           <audio controls src={audioUrl} style={{ width: "100%" }} />
-          {transcript && annotations && annotations.length > 0 ? (
+          {transcript && annotations && annotations.length > 0 && showTranscript && (
             <details className="sr-transcript" open>
               <summary>Transcript (corrected)</summary>
               <AnnotatedEssay essayText={transcript} annotations={annotations} />
             </details>
-          ) : (
-            transcript && (
-              <details className="sr-transcript">
-                <summary>Transcript</summary>
-                <p>{transcript}</p>
-              </details>
-            )
+          )}
+          {transcript && (!annotations || annotations.length === 0) && showTranscript && (
+            <details className="sr-transcript">
+              <summary>Transcript</summary>
+              <p>{transcript}</p>
+            </details>
+          )}
+          {transcript && annotations && annotations.length > 0 && !showTranscript && (
+            <div className="sr-corrections">
+              <div className="sa-section-title">Chữa lỗi ngôn ngữ</div>
+              <AnnotatedEssay essayText={transcript} annotations={annotations} showText={false} />
+            </div>
           )}
           {speakingNotes && speakingNotes.length > 0 && (
-            <ul className="ea-readlist">
-              {speakingNotes.map((n, i) => (
-                <li key={i}>
-                  <span className="pill pill-info">{n.criterion || CAT_LABEL[n.category] || n.category}</span>{" "}
-                  {n.atSeconds != null ? <b>{fmtT(n.atSeconds)} · </b> : null}
-                  {n.comment}
-                </li>
-              ))}
-            </ul>
+            [
+              ["FC", "Fluency & Coherence"],
+              ["PR", "Pronunciation"],
+              [null, "Khác"],
+            ].map(([key, label]) => {
+              const group = speakingNotes.filter((n) =>
+                key ? n.criterion === key : !["FC", "PR"].includes(n.criterion)
+              );
+              if (!group.length) return null;
+              return (
+                <div key={label} className="sr-corrections">
+                  <div className="sa-section-title">{label}</div>
+                  <ul className="ea-readlist">
+                    {group.map((n, i) => (
+                      <li key={i}>
+                        {n.atSeconds != null ? <b>{fmtT(n.atSeconds)} · </b> : null}
+                        {n.comment}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })
           )}
         </div>
       )}
-      <div className="rubric-result-band">
-        Band <span>{manualScore != null ? manualScore : "—"}</span>
-        {rubric && <small>{rubric.label}</small>}
-      </div>
+      {showBandHeader && (
+        <div className="rubric-result-band">
+          Band <span>{manualScore != null ? manualScore : "—"}</span>
+          {rubric && <small>{rubric.label}</small>}
+        </div>
+      )}
 
       {criteria.length > 0 && (
         <table>
           <tbody>
+            {!showBandHeader && (
+              <tr className="rubric-overall-row">
+                <td className="b">{manualScore != null ? manualScore : "—"}</td>
+                <td><div className="crit">Overall band</div></td>
+              </tr>
+            )}
             {criteria.map((c) => {
               const meta = byKey[c.key];
               const bd = meta && meta.bands ? meta.bands[String(c.band)] : null;
@@ -110,7 +140,7 @@ export default function RubricResult({
         </p>
       )}
 
-      <SuggestedActionsBox priorities={priorities} topicVocabulary={topicVocabulary} improvedSample={improvedSample} />
+      <SuggestedActionsBox priorities={priorities} topicVocabulary={topicVocabulary} improvedSample={improvedSample} mainIssue={mainIssue} />
     </div>
   );
 }

@@ -127,6 +127,7 @@ function GradeForm({ prompt, submissionId, kind, writingTask, onGraded }) {
           priorities={prompt.priorities}
           topicVocabulary={prompt.topicVocabulary}
           improvedSample={prompt.improvedSample}
+          mainIssue={prompt.mainIssue}
           showDescriptors={false}
         />
         <button type="button" className="btn secondary" style={{ marginTop: 8, padding: "6px 12px" }} onClick={() => setEditing(true)}>
@@ -169,6 +170,7 @@ function GradeForm({ prompt, submissionId, kind, writingTask, onGraded }) {
           priorities: prompt.priorities,
           topicVocabulary: prompt.topicVocabulary,
           improvedSample: prompt.improvedSample,
+          mainIssue: prompt.mainIssue,
         }}
         busy={busy}
         onSave={save}

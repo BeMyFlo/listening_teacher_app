@@ -264,6 +264,7 @@ function GradingForm({ r, onGraded }) {
           priorities={r.priorities}
           topicVocabulary={r.topicVocabulary}
           improvedSample={r.improvedSample}
+          mainIssue={r.mainIssue}
           showDescriptors={false}
         />
         <button
@@ -307,6 +308,10 @@ function GradingForm({ r, onGraded }) {
           transcript: r.transcript,
           speakingNotes: r.speakingNotes,
           gradeSource: r.gradeSource,
+          priorities: r.priorities,
+          topicVocabulary: r.topicVocabulary,
+          improvedSample: r.improvedSample,
+          mainIssue: r.mainIssue,
         }}
         busy={busy}
         onSave={save}

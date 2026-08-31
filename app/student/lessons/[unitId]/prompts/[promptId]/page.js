@@ -274,7 +274,10 @@ export default function PromptSubmissionPage() {
             priorities={attempt1.priorities}
             topicVocabulary={attempt1.topicVocabulary}
             improvedSample={attempt1.improvedSample}
+            mainIssue={attempt1.mainIssue}
             showDescriptors={false}
+            showTranscript={cat.key !== "speaking"}
+            showBandHeader={cat.key !== "speaking"}
           />
         )}
       </div>
@@ -317,7 +320,10 @@ export default function PromptSubmissionPage() {
               priorities={attempt2.priorities}
               topicVocabulary={attempt2.topicVocabulary}
               improvedSample={attempt2.improvedSample}
+              mainIssue={attempt2.mainIssue}
               showDescriptors={false}
+              showTranscript={cat.key !== "speaking"}
+              showBandHeader={cat.key !== "speaking"}
             />
           )}
         </div>
