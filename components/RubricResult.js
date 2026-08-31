@@ -13,15 +13,6 @@ const CAT_LABEL = {
 };
 const fmtT = (s) => (s == null ? "" : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`);
 
-// Thứ tự + nhãn 4 tiêu chí Speaking cho phần chữa lỗi gom nhóm.
-const SPEAKING_CRIT_ORDER = [
-  ["FC", "Fluency & Coherence"],
-  ["LR", "Lexical Resource"],
-  ["GRA", "Grammatical Range & Accuracy"],
-  ["PR", "Pronunciation"],
-  [null, "Khác"],
-];
-
 export default function RubricResult({
   rubricVariant,
   criteria = [],
@@ -45,6 +36,19 @@ export default function RubricResult({
   const byKey = {};
   (rubric?.criteria || []).forEach((c) => (byKey[c.key] = c));
 
+  // Màn học sinh (Speaking): chữa lỗi + ghi chú phát âm/fluency được gộp thẳng
+  // vào ô của tiêu chí tương ứng trong bảng, không tách thành khung riêng.
+  const mergeIntoTable = !!audioUrl && !showTranscript;
+  const KNOWN_CRIT = ["FC", "LR", "GRA", "PR"];
+  const critAnns = (key) =>
+    mergeIntoTable && Array.isArray(annotations)
+      ? annotations.filter((a) => (key === "GRA" ? a.criterion === "GRA" || !KNOWN_CRIT.includes(a.criterion) : a.criterion === key))
+      : [];
+  const critNotes = (key) =>
+    mergeIntoTable && Array.isArray(speakingNotes)
+      ? speakingNotes.filter((n) => (key === "GRA" ? n.criterion === "GRA" || !KNOWN_CRIT.includes(n.criterion) : n.criterion === key))
+      : [];
+
   return (
     <div className="rubric-result">
       {essayText && annotations && annotations.length > 0 && (
@@ -65,37 +69,17 @@ export default function RubricResult({
               <p>{transcript}</p>
             </details>
           )}
-          {((annotations && annotations.length > 0 && !showTranscript) ||
-            (speakingNotes && speakingNotes.length > 0)) &&
-            SPEAKING_CRIT_ORDER.map(([key, label]) => {
-              const known = ["FC", "LR", "GRA", "PR"];
-              const anns =
-                !showTranscript && annotations
-                  ? annotations.filter((a) => (key ? a.criterion === key : !known.includes(a.criterion)))
-                  : [];
-              const notes = (speakingNotes || []).filter((n) =>
-                key ? n.criterion === key : !known.includes(n.criterion)
-              );
-              if (!anns.length && !notes.length) return null;
-              return (
-                <div key={label} className="sr-corrections">
-                  <div className="sa-section-title">{label}</div>
-                  {anns.length > 0 && (
-                    <AnnotatedEssay essayText={transcript} annotations={anns} showText={false} showListPill={false} />
-                  )}
-                  {notes.length > 0 && (
-                    <ul className="ea-readlist">
-                      {notes.map((n, i) => (
-                        <li key={i}>
-                          {n.atSeconds != null ? <b>{fmtT(n.atSeconds)} · </b> : null}
-                          {n.comment}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              );
-            })}
+          {speakingNotes && speakingNotes.length > 0 && showTranscript && (
+            <ul className="ea-readlist">
+              {speakingNotes.map((n, i) => (
+                <li key={i}>
+                  <span className="pill pill-info">{n.criterion || CAT_LABEL[n.category] || n.category}</span>{" "}
+                  {n.atSeconds != null ? <b>{fmtT(n.atSeconds)} · </b> : null}
+                  {n.comment}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
       {showBandHeader && (
@@ -134,6 +118,19 @@ export default function RubricResult({
                       <div className="note">
                         <b>Note:</b> {c.comment}
                       </div>
+                    )}
+                    {mergeIntoTable && critAnns(c.key).length > 0 && (
+                      <AnnotatedEssay essayText={transcript} annotations={critAnns(c.key)} showText={false} showListPill={false} />
+                    )}
+                    {mergeIntoTable && critNotes(c.key).length > 0 && (
+                      <ul className="ea-readlist">
+                        {critNotes(c.key).map((n, i) => (
+                          <li key={i}>
+                            {n.atSeconds != null ? <b>{fmtT(n.atSeconds)} · </b> : null}
+                            {n.comment}
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </td>
                 </tr>
