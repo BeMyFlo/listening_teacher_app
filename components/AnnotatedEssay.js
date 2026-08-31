@@ -19,7 +19,7 @@ const CAT_LABEL = {
   other: "Other",
 };
 
-export default function AnnotatedEssay({ essayText = "", annotations = [], showList = true, showText = true }) {
+export default function AnnotatedEssay({ essayText = "", annotations = [], showList = true, showText = true, showListPill = true }) {
   const anns = useMemo(
     () => (annotations || []).map((a) => normalizeAnnotation(a, essayText)),
     [annotations, essayText]
@@ -53,9 +53,13 @@ export default function AnnotatedEssay({ essayText = "", annotations = [], showL
         <ul className="ea-readlist">
           {anns.map((a) => (
             <li key={a.id}>
-              <span className={"pill " + (a.action === "delete" ? "pill-danger" : a.action === "comment" ? "pill-info" : "pill-ok")}>
-                {a.criterion || CAT_LABEL[a.category]}
-              </span>{" "}
+              {showListPill && (
+                <>
+                  <span className={"pill " + (a.action === "delete" ? "pill-danger" : a.action === "comment" ? "pill-info" : "pill-ok")}>
+                    {a.criterion || CAT_LABEL[a.category]}
+                  </span>{" "}
+                </>
+              )}
               <span className="ea-quote">
                 “{a.quote || "∅"}”{a.insertText ? <> → <b>{a.insertText.trim()}</b></> : null}
               </span>
