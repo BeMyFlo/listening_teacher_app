@@ -121,6 +121,7 @@ export default function TakeTestPage() {
                       priorities={last.priorities}
                       topicVocabulary={last.topicVocabulary}
                       improvedSample={last.improvedSample}
+                      mainIssue={last.mainIssue}
                         />
                       </div>
                     ) : (

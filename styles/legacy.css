@@ -3022,6 +3022,10 @@ tr:hover td { background: #FFF7FB; }
 .sa-vocab-list li:last-child { border-bottom: none; }
 .sa-vocab-example { color: var(--muted); font-size: .84rem; font-style: italic; margin-top: 2px; }
 .sa-sample { white-space: pre-wrap; font-size: .9rem; line-height: 1.7; background: #fff; border-radius: 8px; padding: 10px 12px; margin: 0; }
+.sa-main-issue { font-size: .9rem; line-height: 1.6; margin: 0 0 8px; color: var(--ink); }
+.sr-corrections { margin-top: 10px; }
+.rubric-overall-row .b { font-weight: 800; }
+.rubric-overall-row td { border-bottom: 2px solid var(--border); }
 
 /* Editor (giáo viên chỉnh trước khi Save) */
 .suggested-actions-editor h4 { display: flex; align-items: center; gap: 6px; }

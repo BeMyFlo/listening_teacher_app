@@ -29,6 +29,7 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
   const [priorities, setPriorities] = useState(submission.priorities || []);
   const [topicVocabulary, setTopicVocabulary] = useState(submission.topicVocabulary || []);
   const [improvedSample, setImprovedSample] = useState(submission.improvedSample || "");
+  const [mainIssue, setMainIssue] = useState(submission.mainIssue || "");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiNote, setAiNote] = useState("");
   const stopRef = useRef(false);
@@ -111,6 +112,7 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
       priorities,
       topicVocabulary,
       improvedSample: improvedSample.trim(),
+      ...(isSpeaking ? { mainIssue: mainIssue.trim() } : {}),
       ...(hasEssay || isSpeaking ? { annotations } : {}),
       ...(isSpeaking ? { transcript, speakingNotes } : {}),
     });
@@ -137,6 +139,7 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
     if (Array.isArray(draft.priorities)) setPriorities(draft.priorities);
     if (Array.isArray(draft.topicVocabulary)) setTopicVocabulary(draft.topicVocabulary);
     if (typeof draft.improvedSample === "string" && draft.improvedSample) setImprovedSample(draft.improvedSample);
+    if (typeof draft.mainIssue === "string" && draft.mainIssue) setMainIssue(draft.mainIssue);
     setGradeSource("ai-reviewed");
     setAiNote(
       `AI draft loaded${draft.model ? ` (${draft.model})` : ""} — review every band and note, edit as needed, then Save Grade.` +
@@ -348,6 +351,8 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
         onTopicVocabularyChange={setTopicVocabulary}
         improvedSample={improvedSample}
         onImprovedSampleChange={setImprovedSample}
+        mainIssue={isSpeaking ? mainIssue : undefined}
+        onMainIssueChange={isSpeaking ? setMainIssue : undefined}
       />
 
       {err && <p className="notice error" style={{ marginTop: 8 }}>{err}</p>}

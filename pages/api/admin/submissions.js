@@ -53,7 +53,7 @@ async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Only Writing and Speaking submissions can be manually graded" });
     }
 
-    const { manualScore, manualFeedback, criteria, annotations, gradeSource, transcript, speakingNotes, priorities, topicVocabulary, improvedSample } = req.body || {};
+    const { manualScore, manualFeedback, criteria, annotations, gradeSource, transcript, speakingNotes, priorities, topicVocabulary, improvedSample, mainIssue } = req.body || {};
 
     // Speaking: transcript + ghi chú theo mốc giây. Cập nhật TRƯỚC annotations
     // vì annotations của speaking neo vào transcript (có thể đổi cùng lúc).
@@ -96,6 +96,7 @@ async function handler(req, res) {
         .slice(0, 8);
     }
     if (typeof improvedSample === "string") submission.improvedSample = improvedSample.trim();
+    if (typeof mainIssue === "string") submission.mainIssue = mainIssue.trim();
 
     if (Array.isArray(criteria)) {
       // ----- Chấm theo rubric IELTS (4 tiêu chí) -----
