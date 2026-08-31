@@ -13,6 +13,15 @@ const CAT_LABEL = {
 };
 const fmtT = (s) => (s == null ? "" : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`);
 
+// Thứ tự + nhãn 4 tiêu chí Speaking cho phần chữa lỗi gom nhóm.
+const SPEAKING_CRIT_ORDER = [
+  ["FC", "Fluency & Coherence"],
+  ["LR", "Lexical Resource"],
+  ["GRA", "Grammatical Range & Accuracy"],
+  ["PR", "Pronunciation"],
+  [null, "Khác"],
+];
+
 export default function RubricResult({
   rubricVariant,
   criteria = [],
@@ -56,37 +65,37 @@ export default function RubricResult({
               <p>{transcript}</p>
             </details>
           )}
-          {transcript && annotations && annotations.length > 0 && !showTranscript && (
-            <div className="sr-corrections">
-              <div className="sa-section-title">Chữa lỗi ngôn ngữ</div>
-              <AnnotatedEssay essayText={transcript} annotations={annotations} showText={false} />
-            </div>
-          )}
-          {speakingNotes && speakingNotes.length > 0 && (
-            [
-              ["FC", "Fluency & Coherence"],
-              ["PR", "Pronunciation"],
-              [null, "Khác"],
-            ].map(([key, label]) => {
-              const group = speakingNotes.filter((n) =>
-                key ? n.criterion === key : !["FC", "PR"].includes(n.criterion)
+          {((annotations && annotations.length > 0 && !showTranscript) ||
+            (speakingNotes && speakingNotes.length > 0)) &&
+            SPEAKING_CRIT_ORDER.map(([key, label]) => {
+              const known = ["FC", "LR", "GRA", "PR"];
+              const anns =
+                !showTranscript && annotations
+                  ? annotations.filter((a) => (key ? a.criterion === key : !known.includes(a.criterion)))
+                  : [];
+              const notes = (speakingNotes || []).filter((n) =>
+                key ? n.criterion === key : !known.includes(n.criterion)
               );
-              if (!group.length) return null;
+              if (!anns.length && !notes.length) return null;
               return (
                 <div key={label} className="sr-corrections">
                   <div className="sa-section-title">{label}</div>
-                  <ul className="ea-readlist">
-                    {group.map((n, i) => (
-                      <li key={i}>
-                        {n.atSeconds != null ? <b>{fmtT(n.atSeconds)} · </b> : null}
-                        {n.comment}
-                      </li>
-                    ))}
-                  </ul>
+                  {anns.length > 0 && (
+                    <AnnotatedEssay essayText={transcript} annotations={anns} showText={false} showListPill={false} />
+                  )}
+                  {notes.length > 0 && (
+                    <ul className="ea-readlist">
+                      {notes.map((n, i) => (
+                        <li key={i}>
+                          {n.atSeconds != null ? <b>{fmtT(n.atSeconds)} · </b> : null}
+                          {n.comment}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               );
-            })
-          )}
+            })}
         </div>
       )}
       {showBandHeader && (
