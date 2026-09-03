@@ -138,11 +138,19 @@ function GradeForm({ prompt, submissionId, kind, writingTask, onGraded }) {
   }
 
   async function save(payload) {
+    if (payload.publish === false && prompt.gradingStatus === "graded") {
+      const ok = await dialog.confirm({
+        title: "Chuyển về nháp?",
+        message: "Bài đang hiển thị cho học sinh. Lưu nháp sẽ ẩn kết quả khỏi học sinh cho tới khi em xuất bản lại.",
+        confirmText: "Lưu nháp",
+      });
+      if (!ok) return;
+    }
     setBusy(true);
     try {
       await api.teacher.gradeSubmission(submissionId, payload);
       setEditing(false);
-      dialog.toast("Grade saved");
+      dialog.toast(payload.publish === false ? "Đã lưu nháp — học sinh chưa thấy" : "Đã xuất bản cho học sinh");
       onGraded && (await onGraded());
     } catch (e) {
       dialog.alert({ tone: "error", title: "Failed to save grade", message: e.message });
@@ -158,6 +166,7 @@ function GradeForm({ prompt, submissionId, kind, writingTask, onGraded }) {
           submissionId,
           rubricVariant: prompt.rubricVariant,
           writingTask,
+          gradingStatus: prompt.gradingStatus,
           criteria: prompt.criteria,
           manualScore: prompt.manualScore,
           manualFeedback: prompt.manualFeedback,

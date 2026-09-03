@@ -55,6 +55,10 @@ async function handler(req, res) {
 
     const { manualScore, manualFeedback, criteria, annotations, gradeSource, transcript, speakingNotes, priorities, topicVocabulary, improvedSample, mainIssue } = req.body || {};
 
+    // publish=false -> lưu bản nháp (gradingStatus "draft"), học sinh CHƯA thấy.
+    // Thiếu field này (client cũ) -> mặc định xuất bản luôn như trước.
+    const publish = req.body.publish !== false;
+
     // Speaking: transcript + ghi chú theo mốc giây. Cập nhật TRƯỚC annotations
     // vì annotations của speaking neo vào transcript (có thể đổi cùng lúc).
     if (submission.kind === "speaking") {
@@ -112,12 +116,15 @@ async function handler(req, res) {
       if (!getRubric(variant)) {
         return res.status(400).json({ ok: false, error: "Unknown grading rubric" });
       }
-      const cerr = validateCriteria(variant, criteria);
-      if (cerr) return res.status(400).json({ ok: false, error: cerr });
+      // Bản nháp: cho phép thiếu band (chưa chấm xong). Xuất bản: bắt đủ 4 band.
+      if (publish) {
+        const cerr = validateCriteria(variant, criteria);
+        if (cerr) return res.status(400).json({ ok: false, error: cerr });
+      }
 
       const clean = criteria.map((c) => ({
         key: c.key,
-        band: Number(c.band),
+        band: c.band == null || c.band === "" ? null : Number(c.band),
         comment: String(c.comment || ""),
       }));
       const auto = overallBand(clean);
@@ -130,16 +137,22 @@ async function handler(req, res) {
     } else {
       // ----- Chấm nhanh: chỉ 1 điểm tổng (luồng cũ) -----
       const scoreNum = Number(manualScore);
-      if (manualScore == null || manualScore === "" || Number.isNaN(scoreNum)) {
+      const hasScore = !(manualScore == null || manualScore === "" || Number.isNaN(scoreNum));
+      if (publish && !hasScore) {
         return res.status(400).json({ ok: false, error: "Please enter a valid score" });
       }
-      submission.manualScore = scoreNum;
-      submission.manualFeedback = String(manualFeedback || "");
+      if (hasScore) submission.manualScore = scoreNum;
+      if (manualFeedback != null) submission.manualFeedback = String(manualFeedback || "");
     }
 
-    submission.gradingStatus = "graded";
-    submission.gradedAt = new Date();
-    submission.gradedBy = req.auth.teacherId;
+    if (publish) {
+      submission.gradingStatus = "graded";
+      submission.gradedAt = new Date();
+      submission.gradedBy = req.auth.teacherId;
+    } else {
+      // Bản nháp — học sinh chưa thấy. Không đụng gradedAt/gradedBy.
+      submission.gradingStatus = "draft";
+    }
     await submission.save();
 
     return res.status(200).json({ ok: true, submission });

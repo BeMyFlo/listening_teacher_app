@@ -93,17 +93,21 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
   const allFilled = criteriaArr.every((c) => c.band != null);
   const finalBand = override && overrideVal !== "" ? Number(overrideVal) : auto;
 
-  function save() {
-    if (!allFilled) {
-      setErr("Please choose a band for every criterion.");
-      return;
-    }
-    if (!feedback.trim()) {
-      setErr("Please write overall feedback for the student.");
-      return;
+  // publish=true -> xuất bản (học sinh thấy); publish=false -> lưu nháp.
+  function save(publish) {
+    if (publish) {
+      if (!allFilled) {
+        setErr("Please choose a band for every criterion.");
+        return;
+      }
+      if (!feedback.trim()) {
+        setErr("Please write overall feedback for the student.");
+        return;
+      }
     }
     setErr("");
     onSave({
+      publish,
       criteria: criteriaArr,
       rubricVariant: variant,
       manualScore: finalBand,
@@ -358,15 +362,19 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
 
       {err && <p className="notice error" style={{ marginTop: 8 }}>{err}</p>}
 
-      <button
-        type="button"
-        className="btn"
-        style={{ marginTop: 10 }}
-        disabled={busy}
-        onClick={save}
-      >
-        {busy ? "Saving..." : "Save Grade"}
-      </button>
+      <p className="notice info" style={{ marginTop: 10, marginBottom: 6 }}>
+        {submission.gradingStatus === "graded"
+          ? "Bài đang hiển thị cho học sinh. Lưu nháp sẽ ẩn kết quả cho tới khi xuất bản lại."
+          : "Bản nháp — học sinh chưa thấy gì. Bấm “Xuất bản” khi muốn học sinh xem kết quả."}
+      </p>
+      <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+        <button type="button" className="btn secondary" disabled={busy} onClick={() => save(false)}>
+          {busy ? "Đang lưu..." : "Lưu nháp"}
+        </button>
+        <button type="button" className="btn" disabled={busy} onClick={() => save(true)}>
+          {busy ? "Đang lưu..." : submission.gradingStatus === "graded" ? "Cập nhật & giữ hiển thị" : "Xuất bản cho học sinh"}
+        </button>
+      </div>
     </div>
   );
 }

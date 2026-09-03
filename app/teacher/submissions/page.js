@@ -173,6 +173,8 @@ function SubmissionRows({ r, onGraded }) {
           {isManual ? (
             r.gradingStatus === "graded" ? (
               <b>{r.manualScore}</b>
+            ) : r.gradingStatus === "draft" || r.gradingStatus === "ai_draft" ? (
+              <span className="pill pill-muted">Nháp — chưa xuất bản</span>
             ) : (
               <span className="pill pill-warn">Pending Review</span>
             )
@@ -280,11 +282,19 @@ function GradingForm({ r, onGraded }) {
   }
 
   async function save(payload) {
+    if (payload.publish === false && r.gradingStatus === "graded") {
+      const ok = await dialog.confirm({
+        title: "Chuyển về nháp?",
+        message: "Bài đang hiển thị cho học sinh. Lưu nháp sẽ ẩn kết quả khỏi học sinh cho tới khi em xuất bản lại.",
+        confirmText: "Lưu nháp",
+      });
+      if (!ok) return;
+    }
     setBusy(true);
     try {
       await api.teacher.gradeSubmission(r._id, payload);
       setEditing(false);
-      dialog.toast("Grade saved");
+      dialog.toast(payload.publish === false ? "Đã lưu nháp — học sinh chưa thấy" : "Đã xuất bản cho học sinh");
       onGraded && onGraded();
     } catch (e) {
       dialog.alert({ tone: "error", title: "Failed to save grade", message: e.message });
@@ -298,6 +308,7 @@ function GradingForm({ r, onGraded }) {
         submission={{
           kind: r.kind,
           submissionId: r._id,
+          gradingStatus: r.gradingStatus,
           rubricVariant: r.rubricVariant,
           criteria: r.criteria,
           manualScore: r.manualScore,
