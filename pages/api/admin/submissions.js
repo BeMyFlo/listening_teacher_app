@@ -2,7 +2,7 @@ const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
 const Submission = require("../../../lib/models/Submission");
 const { resolveVariant, getRubric, overallBand, validateCriteria } = require("../../../lib/grading/rubric");
-const { validateAnnotations, normalizeAnnotation } = require("../../../lib/grading/annotate");
+const { validateAnnotations, reconcileAnnotations } = require("../../../lib/grading/annotate");
 
 const KINDS = ["test", "exercise", "writing", "speaking"];
 
@@ -78,9 +78,16 @@ async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "Annotations are only for Writing and Speaking submissions" });
       }
       const anchorText = submission.kind === "writing" ? submission.essayText || "" : submission.transcript || "";
-      const aerr = validateAnnotations(anchorText, annotations || []);
-      if (aerr) return res.status(400).json({ ok: false, error: aerr });
-      submission.annotations = (annotations || []).map((a) => normalizeAnnotation(a, anchorText));
+      // Hoà giải overlap thay vì từ chối cả lần lưu — chỗ sửa bị chồng được hạ
+      // xuống "comment" (không mất lỗi). Nếu vì lý do nào đó vẫn không hợp lệ thì
+      // bỏ qua annotation lần này chứ KHÔNG chặn lưu điểm/nhận xét.
+      const reconciled = reconcileAnnotations(anchorText, annotations || []).annotations;
+      const aerr = validateAnnotations(anchorText, reconciled);
+      if (aerr) {
+        console.warn("[grade] annotations still invalid after reconcile, skipping:", aerr);
+      } else {
+        submission.annotations = reconciled;
+      }
     }
 
     if (["teacher", "ai", "ai-reviewed"].includes(gradeSource)) submission.gradeSource = gradeSource;

@@ -6,6 +6,29 @@ const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
 const GradingJob = require("../../../lib/models/GradingJob");
 const { runAiGrade } = require("../../../lib/grading/runAiGrade");
+const Submission = require("../../../lib/models/Submission");
+
+// Lưu draft AI vào submission dưới dạng nháp — học sinh CHƯA thấy (gradingStatus
+// "ai_draft"). Chỉ ghi khi bài chưa được chấm để không đè bản của giáo viên.
+async function persistDraft(submissionId, draft) {
+  const s = await Submission.findById(submissionId);
+  if (!s || s.gradingStatus === "graded") return;
+  if (Array.isArray(draft.criteria)) {
+    s.criteria = draft.criteria.map((c) => ({ key: c.key, band: c.band != null ? Number(c.band) : null, comment: String(c.comment || "") }));
+  }
+  if (Array.isArray(draft.annotations)) s.annotations = draft.annotations;
+  if (typeof draft.overallFeedback === "string") s.manualFeedback = draft.overallFeedback;
+  if (Number.isFinite(Number(draft.suggestedOverall))) s.manualScore = Number(draft.suggestedOverall);
+  if (Array.isArray(draft.priorities)) s.priorities = draft.priorities;
+  if (Array.isArray(draft.topicVocabulary)) s.topicVocabulary = draft.topicVocabulary;
+  if (typeof draft.improvedSample === "string") s.improvedSample = draft.improvedSample;
+  if (typeof draft.mainIssue === "string") s.mainIssue = draft.mainIssue;
+  if (typeof draft.transcript === "string") s.transcript = draft.transcript;
+  if (Array.isArray(draft.speakingNotes)) s.speakingNotes = draft.speakingNotes;
+  s.gradeSource = "ai";
+  s.gradingStatus = "ai_draft";
+  await s.save();
+}
 
 // Job "running" quá lâu (client bỏ đi / function bị kill khi vượt maxDuration)
 // -> cho chạy lại. Đặt ngay trên mức maxDuration (60s) để retry nhanh.
@@ -77,6 +100,11 @@ async function handler(req, res) {
     claimed.model = model;
     claimed.finishedAt = new Date();
     await claimed.save();
+    try {
+      await persistDraft(claimed.submissionId, draft);
+    } catch (e) {
+      console.error("[ai-grade] could not persist draft:", e.message);
+    }
   } catch (err) {
     claimed.status = "error";
     claimed.error = String(err.message || err).slice(0, 500);

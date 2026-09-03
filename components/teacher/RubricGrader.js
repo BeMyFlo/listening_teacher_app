@@ -108,7 +108,8 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
       rubricVariant: variant,
       manualScore: finalBand,
       manualFeedback: feedback.trim(),
-      gradeSource,
+      // Giáo viên bấm Save = đã duyệt: nâng "ai" (bản nháp AI) thành "ai-reviewed".
+      gradeSource: gradeSource === "ai" ? "ai-reviewed" : gradeSource,
       priorities,
       topicVocabulary,
       improvedSample: improvedSample.trim(),
