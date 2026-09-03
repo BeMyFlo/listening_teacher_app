@@ -32,6 +32,8 @@ export const ICON_SYMBOLS = {
   logout:
     '<path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
   "chart-bar": '<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
+  flame:
+    '<path d="M12 3c2 3 5 5 5 9a5 5 0 0 1-10 0c0-1.5.5-2.5 1.2-3.4C8.7 10 9 11 10 11.5 9.5 9 10.5 5.5 12 3Z"/>',
   list:
     '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',

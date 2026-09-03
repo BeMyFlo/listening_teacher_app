@@ -60,7 +60,9 @@ export default function Shell({ role, userName, userSub, children }) {
           <div className="sidebar-group" key={group.label}>
             {group.label && <div className="sidebar-group-label">{group.label}</div>}
             {group.items.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(item.href + "/");
+              const active = item.exact
+                ? pathname === item.href
+                : pathname === item.href || pathname.startsWith(item.href + "/");
               const badge = badges[item.href];
               const show = badge && badge.value != null && String(badge.value) !== "" && Number(badge.value) !== 0;
               return (
