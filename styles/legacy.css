@@ -2589,6 +2589,7 @@ tr:hover td { background: #FFF7FB; }
   transition: box-shadow .15s ease, transform .15s ease;
 }
 .dash-stat:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.dash-stat-clickable { cursor: pointer; }
 .dash-stat-top { display: flex; align-items: center; gap: 12px; }
 .dash-stat-ico {
   width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;

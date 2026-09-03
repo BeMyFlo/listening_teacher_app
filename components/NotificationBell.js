@@ -74,13 +74,8 @@ export default function NotificationBell({ role }) {
     if (dest) router.push(dest);
   }
 
-  if (!feed) {
-    return (
-      <button type="button" className="icon-btn topbar-bell" title="Notifications">
-        <svg className="icon"><use href="#icon-bell" /></svg>
-      </button>
-    );
-  }
+  // Admin không có chuông thông báo.
+  if (!feed) return null;
 
   return (
     <div className="topbar-bell-wrap" ref={boxRef}>
