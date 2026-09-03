@@ -147,7 +147,7 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
     if (typeof draft.mainIssue === "string" && draft.mainIssue) setMainIssue(draft.mainIssue);
     setGradeSource("ai-reviewed");
     setAiNote(
-      `AI draft loaded${draft.model ? ` (${draft.model})` : ""} — review every band and note, edit as needed, then Save Grade.` +
+      `AI draft loaded${draft.model ? ` (${draft.model})` : ""} — review every band and note, edit as needed, then Save draft or Publish.` +
         (draft.unresolved ? ` (${draft.unresolved} suggestion(s) could not be placed)` : "")
     );
   }
@@ -364,15 +364,15 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
 
       <p className="notice info" style={{ marginTop: 10, marginBottom: 6 }}>
         {submission.gradingStatus === "graded"
-          ? "Bài đang hiển thị cho học sinh. Lưu nháp sẽ ẩn kết quả cho tới khi xuất bản lại."
-          : "Bản nháp — học sinh chưa thấy gì. Bấm “Xuất bản” khi muốn học sinh xem kết quả."}
+          ? "This grade is live for the student. Saving a draft will hide it until you publish again."
+          : "Draft — the student sees nothing yet. Click “Publish” when you want them to see the result."}
       </p>
       <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
         <button type="button" className="btn secondary" disabled={busy} onClick={() => save(false)}>
-          {busy ? "Đang lưu..." : "Lưu nháp"}
+          {busy ? "Saving..." : "Save draft"}
         </button>
         <button type="button" className="btn" disabled={busy} onClick={() => save(true)}>
-          {busy ? "Đang lưu..." : submission.gradingStatus === "graded" ? "Cập nhật & giữ hiển thị" : "Xuất bản cho học sinh"}
+          {busy ? "Saving..." : submission.gradingStatus === "graded" ? "Update & keep visible" : "Publish to student"}
         </button>
       </div>
     </div>
