@@ -3,6 +3,7 @@ const { requireAuth } = require("../../../lib/auth");
 const Submission = require("../../../lib/models/Submission");
 const { resolveVariant, getRubric, overallBand, validateCriteria } = require("../../../lib/grading/rubric");
 const { validateAnnotations, reconcileAnnotations } = require("../../../lib/grading/annotate");
+const { notifyStudentGraded } = require("../../../lib/notifications/student");
 
 const KINDS = ["test", "exercise", "writing", "speaking"];
 
@@ -52,6 +53,7 @@ async function handler(req, res) {
     if (submission.kind !== "writing" && submission.kind !== "speaking") {
       return res.status(400).json({ ok: false, error: "Only Writing and Speaking submissions can be manually graded" });
     }
+    const wasGraded = submission.gradingStatus === "graded";
 
     const { manualScore, manualFeedback, criteria, annotations, gradeSource, transcript, speakingNotes, priorities, topicVocabulary, improvedSample, mainIssue } = req.body || {};
 
@@ -154,6 +156,16 @@ async function handler(req, res) {
       submission.gradingStatus = "draft";
     }
     await submission.save();
+
+    // Xuất bản điểm lần đầu -> báo chuông cho học sinh (kèm đường dẫn tới bài đã
+    // chấm + nhận xét). Không để lỗi thông báo làm hỏng response chấm bài.
+    if (publish && !wasGraded) {
+      try {
+        await notifyStudentGraded({ submission, teacherName: req.auth && req.auth.name });
+      } catch (err) {
+        console.error("[notifications] notifyStudentGraded failed:", err.message);
+      }
+    }
 
     return res.status(200).json({ ok: true, submission });
   }
