@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { NAV } from "@/lib/nav";
-import { clearSession } from "@/lib/client/session";
+import { clearSession, clearTeacherToken } from "@/lib/client/session";
 import { useShellBadges } from "@/lib/client/shellBadges";
 import NotificationBell from "./NotificationBell";
 
@@ -19,6 +19,22 @@ export default function Shell({ role, userName, userSub, children }) {
   const badges = useShellBadges();
   const [collapsed, setCollapsed] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
+  const [imp, setImp] = useState(null); // { name } khi admin đang đăng nhập hộ
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("impersonating");
+      setImp(raw ? JSON.parse(raw) : null);
+    } catch {
+      setImp(null);
+    }
+  }, [pathname]);
+
+  function returnToAdmin() {
+    try { localStorage.removeItem("impersonating"); } catch {}
+    clearTeacherToken();
+    router.replace("/admin");
+  }
 
   useEffect(() => {
     if (!userMenu) return;
@@ -149,6 +165,15 @@ export default function Shell({ role, userName, userSub, children }) {
           </div>
         </header>
 
+        {imp && role === "teacher" && (
+          <div className="imp-banner">
+            <span>
+              <svg className="icon"><use href="#icon-shield" /></svg>{" "}
+              Viewing as <b>{imp.name || "teacher"}</b> — you are signed in as an admin.
+            </span>
+            <button type="button" onClick={returnToAdmin}>Return to admin</button>
+          </div>
+        )}
         <main className="content">{children}</main>
       </div>
     </div>
