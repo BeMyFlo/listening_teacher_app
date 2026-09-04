@@ -10,6 +10,7 @@ const notifications = require("../../lib/notifications");
 const { notifyTeachersOfSubmission } = require("../../lib/notifications/teacher");
 const { resolveVariant } = require("../../lib/grading/rubric");
 const { resolveDeadline } = require("../../lib/deadlines");
+const { deleteAudioFile } = require("../../lib/cloudinary");
 
 // Hạn nộp áp cho lớp của học sinh + kỹ năng đang nộp (hạn riêng kỹ năng ->
 // fallback hạn chung Unit). Trả cờ trễ + snapshot dueAt để lưu vào Submission.
@@ -258,6 +259,29 @@ async function handler(req, res) {
       }
       attemptNumber = (parent.attemptNumber || 1) + 1;
       parentId = parent._id;
+    } else {
+      // Nộp thường (không qua Reflection Log). Nếu đã có 1 bài cho prompt này:
+      //  - bài mới nhất ĐÃ CHẤM  -> chặn, phải đi qua luồng Reflection Log
+      //  - bài mới nhất CHƯA CHẤM -> THAY THẾ (xoá bài cũ + audio) để giáo viên
+      //    chỉ thấy đúng 1 bài chờ chấm, không sinh "attempt" giả.
+      const prior = await Submission.find({ studentId: student._id, promptId: prompt._id })
+        .sort({ attemptNumber: -1, submittedAt: -1 })
+        .limit(1);
+      const latest = prior[0];
+      if (latest) {
+        if (latest.gradingStatus === "graded") {
+          return res.status(400).json({
+            ok: false,
+            error: "This prompt has already been graded — open it and use the Reflection Log flow to resubmit.",
+          });
+        }
+        attemptNumber = latest.attemptNumber || 1;
+        parentId = latest.parentSubmissionId || undefined;
+        if (latest.kind === "speaking" && latest.audioPublicId) {
+          try { await deleteAudioFile(latest.audioPublicId); } catch (e) { /* best effort */ }
+        }
+        await latest.deleteOne();
+      }
     }
 
     const { isLate, dueAt } = unitLateness(unit, student, kind);

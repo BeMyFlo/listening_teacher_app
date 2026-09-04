@@ -538,21 +538,25 @@ function PromptList({ unitId, cat, subs, onSubmitted }) {
             {p.imageUrl && (
               <img src={p.imageUrl} className="diagram-image" style={{ margin: "10px 0" }} alt="" />
             )}
-            <div className="prompt-work" style={{ marginTop: 12 }}>
-              {cat.key === "writing" ? (
-                <WritingPrompt
-                  prompt={p}
-                  submitContext={{ unitId, categoryKey: cat.key }}
-                  onSubmitted={onSubmitted}
-                />
-              ) : (
-                <SpeakingPrompt
-                  prompt={p}
-                  submitContext={{ unitId, categoryKey: cat.key }}
-                  onSubmitted={onSubmitted}
-                />
-              )}
-            </div>
+            {(!last || last.gradingStatus !== "graded") && (
+              <div className="prompt-work" style={{ marginTop: 12 }}>
+                {cat.key === "writing" ? (
+                  <WritingPrompt
+                    prompt={p}
+                    submitContext={{ unitId, categoryKey: cat.key }}
+                    resubmit={!!last}
+                    onSubmitted={onSubmitted}
+                  />
+                ) : (
+                  <SpeakingPrompt
+                    prompt={p}
+                    submitContext={{ unitId, categoryKey: cat.key }}
+                    resubmit={!!last}
+                    onSubmitted={onSubmitted}
+                  />
+                )}
+              </div>
+            )}
             <div className="prompt-status" style={{ marginTop: 12 }}>
               {last &&
                 (last.gradingStatus === "graded" ? (

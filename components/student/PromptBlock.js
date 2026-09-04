@@ -6,7 +6,7 @@ import { useDialog } from "@/components/ui/Dialog";
 import SubmissionResultModal from "@/components/student/SubmissionResultModal";
 
 // submitContext: { unitId, categoryKey } (Lesson) hoặc { testId, skill } (Mock Test)
-export function WritingPrompt({ prompt, submitContext, onSubmitted }) {
+export function WritingPrompt({ prompt, submitContext, onSubmitted, resubmit = false }) {
   const dialog = useDialog();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -26,6 +26,14 @@ export function WritingPrompt({ prompt, submitContext, onSubmitted }) {
     if (!text.trim()) {
       dialog.toast("Please type your essay before submitting.", "error");
       return;
+    }
+    if (resubmit) {
+      const ok = await dialog.confirm({
+        title: "Nộp lại bài?",
+        message: "Bạn đã nộp bài này và đang chờ giáo viên chấm. Nộp lại sẽ THAY bài cũ.",
+        confirmText: "Nộp lại",
+      });
+      if (!ok) return;
     }
     setBusy(true);
     try {
@@ -72,7 +80,7 @@ export function WritingPrompt({ prompt, submitContext, onSubmitted }) {
         disabled={busy}
         onClick={submit}
       >
-        Submit Essay
+        {resubmit ? "Nộp lại bài" : "Submit Essay"}
       </button>
 
       <SubmissionResultModal
@@ -88,7 +96,7 @@ export function WritingPrompt({ prompt, submitContext, onSubmitted }) {
   );
 }
 
-export function SpeakingPrompt({ prompt, submitContext, onSubmitted }) {
+export function SpeakingPrompt({ prompt, submitContext, onSubmitted, resubmit = false }) {
   const dialog = useDialog();
   const [recording, setRecording] = useState(false);
   const [blobUrl, setBlobUrl] = useState("");
@@ -134,6 +142,14 @@ export function SpeakingPrompt({ prompt, submitContext, onSubmitted }) {
       dialog.toast("Please record audio before submitting.", "error");
       return;
     }
+    if (resubmit) {
+      const ok = await dialog.confirm({
+        title: "Nộp lại bài?",
+        message: "Bạn đã nộp bài ghi âm này và đang chờ giáo viên chấm. Nộp lại sẽ THAY bài cũ.",
+        confirmText: "Nộp lại",
+      });
+      if (!ok) return;
+    }
     setBusy(true);
     try {
       const { audioUrl, audioPublicId } = await api.student.uploadSpeakingAudio(blob);
@@ -172,7 +188,7 @@ export function SpeakingPrompt({ prompt, submitContext, onSubmitted }) {
           disabled={busy}
           onClick={submit}
         >
-          {busy ? "Uploading..." : "Submit Recording"}
+          {busy ? "Uploading..." : resubmit ? "Nộp lại bài" : "Submit Recording"}
         </button>
       </div>
 
