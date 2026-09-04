@@ -26,7 +26,7 @@ export default function RoleGate({ role, children }) {
     return null;
   }
 
-  const userSub = role === "student" ? "" : "Administrator";
+  const userSub = role === "student" ? "" : role === "admin" ? "System Admin" : "Administrator";
 
   return (
     <DialogProvider>

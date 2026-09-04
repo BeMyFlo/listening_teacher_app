@@ -4,6 +4,8 @@ const { requireAuth } = require("../../../lib/auth");
 const Student = require("../../../lib/models/Student");
 const Submission = require("../../../lib/models/Submission");
 const Class = require("../../../lib/models/Class");
+const User = require("../../../lib/models/User");
+const users = require("../../../lib/users");
 
 async function handler(req, res) {
   await connectDB();
@@ -39,28 +41,8 @@ async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    const name = String((req.body && req.body.name) || "").trim();
-    const username = String((req.body && req.body.username) || "").trim().toLowerCase();
-    const password = String((req.body && req.body.password) || "");
     const classId = req.body && req.body.classId;
-    const email = String((req.body && req.body.email) || "").trim().toLowerCase();
-
-    if (!name) return res.status(400).json({ ok: false, error: "Please enter full name" });
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ ok: false, error: "Invalid email address" });
-    }
-    if (!/^[a-z0-9_.]{3,30}$/.test(username)) {
-      return res.status(400).json({
-        ok: false,
-        error: "Username can only contain lowercase letters, numbers, dots/underscores, 3-30 characters",
-      });
-    }
-    if (password.length < 4) {
-      return res.status(400).json({ ok: false, error: "Password must be at least 4 characters" });
-    }
-    if (!classId) {
-      return res.status(400).json({ ok: false, error: "Please select a class" });
-    }
+    if (!classId) return res.status(400).json({ ok: false, error: "Please select a class" });
     let cls;
     try {
       cls = await Class.findById(classId);
@@ -69,17 +51,21 @@ async function handler(req, res) {
     }
     if (!cls) return res.status(400).json({ ok: false, error: "Class not found" });
 
-    const existing = await Student.exists({ username });
-    if (existing) {
-      return res.status(409).json({ ok: false, error: "Username is already taken, please choose another" });
+    try {
+      const { student } = await users.createStudent({
+        name: (req.body && req.body.name) || "",
+        username: (req.body && req.body.username) || "",
+        password: (req.body && req.body.password) || "",
+        email: (req.body && req.body.email) || "",
+        classId: cls._id,
+      });
+      return res.status(201).json({
+        ok: true,
+        student: { _id: student._id, name: student.name, username: student.username },
+      });
+    } catch (e) {
+      return res.status(e.status || 400).json({ ok: false, error: e.message });
     }
-
-    const passwordHash = await bcrypt.hash(password, 10);
-    const student = await Student.create({ name, username, passwordHash, classId: cls._id, email });
-    return res.status(201).json({
-      ok: true,
-      student: { _id: student._id, name: student.name, username: student.username },
-    });
   }
 
   if (req.method === "PUT" || req.method === "DELETE") {
@@ -109,11 +95,13 @@ async function handler(req, res) {
         }
         student.email = e;
       }
+      let newHash = null;
       if (password != null) {
         if (String(password).length < 4) {
           return res.status(400).json({ ok: false, error: "Password must be at least 4 characters" });
         }
-        student.passwordHash = await bcrypt.hash(String(password), 10);
+        newHash = await bcrypt.hash(String(password), 10);
+        student.passwordHash = newHash;
       }
       if ("classId" in (req.body || {})) {
         if (classId == null || String(classId).trim() === "") {
@@ -130,10 +118,19 @@ async function handler(req, res) {
         }
       }
       await student.save();
+      // Đồng bộ danh tính đăng nhập (bảng User).
+      const patch = {};
+      if (name != null) patch.name = student.name;
+      if (email != null) patch.email = student.email;
+      if (newHash) patch.passwordHash = newHash;
+      if (Object.keys(patch).length) {
+        await User.updateOne({ studentId: student._id }, { $set: patch });
+      }
       return res.status(200).json({ ok: true });
     }
 
     await student.deleteOne();
+    await users.deleteUserByProfile({ studentId: student._id });
     return res.status(200).json({ ok: true });
   }
 
