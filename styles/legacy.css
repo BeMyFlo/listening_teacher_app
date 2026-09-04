@@ -2615,6 +2615,10 @@ tr:hover td { background: #FFF7FB; }
 .admin-table tr:last-child td { border-bottom: none; }
 .admin-table select, .admin-table input { font-size: .84rem; padding: 4px 8px; }
 .admin-table .btn.sm { padding: 4px 10px; font-size: .76rem; }
+.admin-table tr[style*="cursor"]:hover td { background: var(--bg); }
+
+@keyframes row-flash { from { background: #FFE9B3; } to { background: transparent; } }
+.row-highlight td { animation: row-flash 2s ease-out; }
 .dash-stat-top { display: flex; align-items: center; gap: 12px; }
 .dash-stat-ico {
   width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;

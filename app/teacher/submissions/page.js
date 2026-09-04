@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/client/api";
 import RubricGrader from "@/components/teacher/RubricGrader";
 import RubricResult from "@/components/RubricResult";
@@ -17,6 +17,12 @@ export default function SubmissionsPage() {
   const [filterSubject, setFilterSubject] = useState("");
   const [filterTest, setFilterTest] = useState("");
   const [search, setSearch] = useState("");
+  const [openId, setOpenId] = useState("");
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("open");
+    if (p) setOpenId(p);
+  }, []);
 
   function load() {
     setRows(null);
@@ -135,7 +141,7 @@ export default function SubmissionsPage() {
                   </tr>
                 )}
                 {filtered.map((r) => (
-                  <SubmissionRows key={r._id} r={r} onGraded={load} />
+                  <SubmissionRows key={r._id} r={r} onGraded={load} defaultOpen={String(r._id) === openId} />
                 ))}
               </tbody>
             </table>
@@ -146,9 +152,16 @@ export default function SubmissionsPage() {
   );
 }
 
-function SubmissionRows({ r, onGraded }) {
-  const [open, setOpen] = useState(false);
+function SubmissionRows({ r, onGraded, defaultOpen }) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  const rowRef = useRef(null);
   const kind = r.kind || "test";
+
+  useEffect(() => {
+    if (defaultOpen && rowRef.current) {
+      rowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [defaultOpen]);
   const time = r.submittedAt ? new Date(r.submittedAt).toLocaleString("en-US") : "";
   const title =
     kind === "test"
@@ -164,7 +177,7 @@ function SubmissionRows({ r, onGraded }) {
 
   return (
     <>
-      <tr>
+      <tr ref={rowRef} className={defaultOpen ? "row-highlight" : undefined}>
         <td>{time}</td>
         <td>{r.studentName}</td>
         <td>{title}</td>

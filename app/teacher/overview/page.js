@@ -111,7 +111,7 @@ export default function OverviewPage() {
         const s = d.summary || {};
         setBadge("/teacher/lessons", s.totalUnits ?? 0);
         setBadge("/teacher/tests", s.totalTests ?? 0);
-        setBadge("/teacher/submissions", s.pendingGrading ?? 0, true);
+        setBadge("/teacher/grading", s.pendingGrading ?? 0, true);
       })
       .catch((e) => setErr(e.message));
   }, []);
@@ -162,7 +162,7 @@ export default function OverviewPage() {
         <div id="overviewContent">
           <div className="dash-stats">
             <DashStat icon="student" value={s.totalClasses ?? 0} label="Total Classes" linkLabel="View classes" onClick={() => go("/teacher/classes")} />
-            <DashStat icon="inbox" value={s.unreadSubmissions ?? 0} label="My Unread Submissions" linkLabel="View submissions" tone="amber" onClick={() => go("/teacher/submissions")} />
+            <DashStat icon="inbox" value={s.pendingGrading ?? 0} label="Waiting to Grade" linkLabel="Open grading queue" tone="amber" onClick={() => go("/teacher/grading")} />
             <DashStat icon="clipboard" value={s.activeAssignments ?? 0} label="Active Assignments" linkLabel="View assignments" tone="pink" onClick={() => go("/teacher/lessons")} />
             <DashStat icon="clock" value={s.needAttentionStudents ?? 0} label="Students Needing Attention" linkLabel="View students" tone="danger" onClick={() => go("/teacher/students")} />
           </div>
@@ -274,13 +274,13 @@ export default function OverviewPage() {
             </div>
 
             <div className="card">
-              <CardHead icon="chart-bar" title="Grading Queue" actionLabel="View all" onAction={() => go("/teacher/submissions")} />
+              <CardHead icon="chart-bar" title="Grading Queue" actionLabel="Open queue" onAction={() => go("/teacher/grading")} />
               {(!data.gradingQueue || data.gradingQueue.length === 0) ? (
                 <Empty icon="check-circle" title="Grading is up to date" text="No submissions are waiting to be graded." />
               ) : (
                 <>
                   {data.gradingQueue.map((q, i) => (
-                    <div className="list-item" key={i}>
+                    <div className="list-item" key={i} style={{ cursor: "pointer" }} onClick={() => go("/teacher/grading")}>
                       <div className="meta">
                         <div className="meta-text">
                           <h4>{q.label}</h4>
@@ -290,8 +290,8 @@ export default function OverviewPage() {
                       <div className="list-value"><span className="dash-count">{q.toGrade}</span></div>
                     </div>
                   ))}
-                  <button type="button" className="dash-queue-foot" onClick={() => go("/teacher/submissions")}>
-                    Go to Gradebook
+                  <button type="button" className="dash-queue-foot" onClick={() => go("/teacher/grading")}>
+                    Open grading queue
                   </button>
                 </>
               )}
