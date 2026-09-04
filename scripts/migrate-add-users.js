@@ -2,7 +2,10 @@
 //   node scripts/migrate-add-users.js
 // Idempotent — chạy lại nhiều lần không tạo trùng. (Login cũng tự backfill khi
 // tài khoản cũ đăng nhập, script này chỉ để "hâm nóng" hàng loạt.)
-require("dotenv").config({ path: require("path").join(__dirname, "..", ".env.local") });
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env.local") });
+// Cho phép ghi đè bằng .env.development.local khi test local (next dev cũng đọc file này).
+require("dotenv").config({ path: path.join(__dirname, "..", ".env.development.local"), override: true });
 const { connectDB } = require("../lib/db");
 const User = require("../lib/models/User");
 const Teacher = require("../lib/models/Teacher");
