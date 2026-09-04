@@ -4,6 +4,7 @@
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env.local") });
 require("dotenv").config({ path: path.join(__dirname, "..", ".env.development.local"), override: true });
+if (process.argv[2] && process.argv[2].startsWith("mongodb")) process.env.MONGODB_URI = process.argv[2];
 const { connectDB } = require("../lib/db");
 const User = require("../lib/models/User");
 

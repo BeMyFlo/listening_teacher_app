@@ -6,6 +6,8 @@ const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env.local") });
 // Cho phép ghi đè bằng .env.development.local khi test local (next dev cũng đọc file này).
 require("dotenv").config({ path: path.join(__dirname, "..", ".env.development.local"), override: true });
+// Hoặc truyền thẳng connection string qua tham số:  node scripts/migrate-add-users.js "<MONGODB_URI>"
+if (process.argv[2] && process.argv[2].startsWith("mongodb")) process.env.MONGODB_URI = process.argv[2];
 const { connectDB } = require("../lib/db");
 const User = require("../lib/models/User");
 const Teacher = require("../lib/models/Teacher");
