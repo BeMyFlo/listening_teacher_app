@@ -62,19 +62,31 @@ module.exports = async (req, res) => {
   if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) {
     const adminCount = await User.countDocuments({ role: "admin" });
     if (adminCount === 0) {
-      const { user } = await users.createAdmin({ name: "Admin", username: username || "admin", password });
-      return respond(user, null);
+      if (await User.exists({ username })) {
+        return res.status(400).json({
+          ok: false,
+          error: `"${username}" is already a user — pick a different username for the admin account`,
+        });
+      }
+      try {
+        const { user } = await users.createAdmin({ name: "Admin", username, password });
+        return respond(user, null);
+      } catch (e) {
+        return res.status(e.status || 400).json({ ok: false, error: e.message });
+      }
     }
   }
 
   // 2) Bootstrap giáo viên đầu tiên qua TEACHER_PASSWORD (giữ luồng cũ).
   if (process.env.TEACHER_PASSWORD && password === process.env.TEACHER_PASSWORD) {
     const teacherCount = await Teacher.countDocuments();
-    if (teacherCount === 0) {
-      const { user, teacher } = await users.createTeacher({
-        name: "Teacher", username: username || "admin", password,
-      });
-      return respond(user, teacher);
+    if (teacherCount === 0 && !(await User.exists({ username }))) {
+      try {
+        const { user, teacher } = await users.createTeacher({ name: "Teacher", username, password });
+        return respond(user, teacher);
+      } catch (e) {
+        return res.status(e.status || 400).json({ ok: false, error: e.message });
+      }
     }
   }
 
