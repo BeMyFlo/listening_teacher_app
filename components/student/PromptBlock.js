@@ -1,12 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
 import SubmissionResultModal from "@/components/student/SubmissionResultModal";
 
 // submitContext: { unitId, categoryKey } (Lesson) hoặc { testId, skill } (Mock Test)
-export function WritingPrompt({ prompt, submitContext, onSubmitted, resubmit = false }) {
+export const WritingPrompt = forwardRef(function WritingPrompt(
+  { prompt, submitContext, onSubmitted, resubmit = false },
+  ref
+) {
   const dialog = useDialog();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -22,6 +25,25 @@ export function WritingPrompt({ prompt, submitContext, onSubmitted, resubmit = f
     hintTimer.current = setTimeout(() => setPasteHint(false), 2500);
   }
 
+  async function doSubmit(essayText) {
+    setBusy(true);
+    try {
+      const res = await api.student.submit({
+        kind: "writing",
+        ...submitContext,
+        promptId: prompt.id,
+        essayText,
+      });
+      setText("");
+      setResult({ isLate: !!(res && res.isLate), dueAt: res && res.dueAt });
+      onSubmitted && (await onSubmitted());
+    } catch (e) {
+      dialog.alert({ tone: "error", title: "Submission failed", message: e.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit() {
     if (!text.trim()) {
       dialog.toast("Please type your essay before submitting.", "error");
@@ -35,23 +57,19 @@ export function WritingPrompt({ prompt, submitContext, onSubmitted, resubmit = f
       });
       if (!ok) return;
     }
-    setBusy(true);
-    try {
-      const res = await api.student.submit({
-        kind: "writing",
-        ...submitContext,
-        promptId: prompt.id,
-        essayText: text.trim(),
-      });
-      setText("");
-      setResult({ isLate: !!(res && res.isLate), dueAt: res && res.dueAt });
-      onSubmitted && (await onSubmitted());
-    } catch (e) {
-      dialog.alert({ tone: "error", title: "Submission failed", message: e.message });
-    } finally {
-      setBusy(false);
-    }
+    await doSubmit(text.trim());
   }
+
+  // Gọi từ ngoài (vd: vi phạm rời tab quá số lần cho phép) — nộp ngay bài
+  // đang gõ dở nếu có, bỏ qua xác nhận "nộp lại". Không có gì để nộp thì thôi.
+  useImperativeHandle(ref, () => ({
+    forceSubmit: async () => {
+      if (busy || result) return;
+      const t = text.trim();
+      if (!t) return;
+      await doSubmit(t);
+    },
+  }));
 
   return (
     <>
@@ -94,9 +112,12 @@ export function WritingPrompt({ prompt, submitContext, onSubmitted, resubmit = f
       />
     </>
   );
-}
+});
 
-export function SpeakingPrompt({ prompt, submitContext, onSubmitted, resubmit = false }) {
+export const SpeakingPrompt = forwardRef(function SpeakingPrompt(
+  { prompt, submitContext, onSubmitted, resubmit = false },
+  ref
+) {
   const dialog = useDialog();
   const [recording, setRecording] = useState(false);
   const [blobUrl, setBlobUrl] = useState("");
@@ -136,20 +157,7 @@ export function SpeakingPrompt({ prompt, submitContext, onSubmitted, resubmit = 
     }
   }
 
-  async function submit() {
-    const blob = recRef.current?.blob;
-    if (!blob) {
-      dialog.toast("Please record audio before submitting.", "error");
-      return;
-    }
-    if (resubmit) {
-      const ok = await dialog.confirm({
-        title: "Nộp lại bài?",
-        message: "Bạn đã nộp bài ghi âm này và đang chờ giáo viên chấm. Nộp lại sẽ THAY bài cũ.",
-        confirmText: "Nộp lại",
-      });
-      if (!ok) return;
-    }
+  async function doSubmit(blob) {
     setBusy(true);
     try {
       const { audioUrl, audioPublicId } = await api.student.uploadSpeakingAudio(blob);
@@ -169,6 +177,46 @@ export function SpeakingPrompt({ prompt, submitContext, onSubmitted, resubmit = 
       setBusy(false);
     }
   }
+
+  async function submit() {
+    const blob = recRef.current?.blob;
+    if (!blob) {
+      dialog.toast("Please record audio before submitting.", "error");
+      return;
+    }
+    if (resubmit) {
+      const ok = await dialog.confirm({
+        title: "Nộp lại bài?",
+        message: "Bạn đã nộp bài ghi âm này và đang chờ giáo viên chấm. Nộp lại sẽ THAY bài cũ.",
+        confirmText: "Nộp lại",
+      });
+      if (!ok) return;
+    }
+    await doSubmit(blob);
+  }
+
+  // Gọi từ ngoài khi vi phạm rời tab quá số lần cho phép — nếu đang ghi âm
+  // thì dừng lại rồi nộp ngay bản ghi đó; chưa ghi gì thì bỏ qua (không có
+  // gì để nộp).
+  useImperativeHandle(ref, () => ({
+    forceSubmit: async () => {
+      if (busy || result) return;
+      if (recording && recRef.current?.mr?.state === "recording") {
+        const mr = recRef.current.mr;
+        await new Promise((resolve) => {
+          const prevOnStop = mr.onstop;
+          mr.onstop = (e) => {
+            prevOnStop(e);
+            resolve();
+          };
+          mr.stop();
+        });
+      }
+      const blob = recRef.current?.blob;
+      if (!blob) return;
+      await doSubmit(blob);
+    },
+  }));
 
   return (
     <>
@@ -203,4 +251,4 @@ export function SpeakingPrompt({ prompt, submitContext, onSubmitted, resubmit = 
       />
     </>
   );
-}
+});

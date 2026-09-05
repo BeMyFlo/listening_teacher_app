@@ -28,6 +28,7 @@ function toPublicUnit(unit, cls) {
       imageUrl: s.imageId && s.imageId.cloudinaryUrl,
       matchOptions: s.matchOptions || [],
       labelPoints: s.labelPoints || [],
+      noteText: s.noteText || "",
       fields: (s.fields || []).map((f) => ({
         id: f.id,
         label: f.label,

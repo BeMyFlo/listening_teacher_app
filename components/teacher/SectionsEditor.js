@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   QUESTION_KINDS,
   QUESTION_KIND_LABELS,
@@ -127,6 +127,8 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
         </div>
       )}
 
+      <NoteCompletionEditor sec={sec} si={si} allSections={allSections} patch={patch} />
+
       <div className="builder-2col">
         <div className="form-row" style={{ marginBottom: 0 }}>
           <label>Illustration (Diagram / Map — optional)</label>
@@ -225,6 +227,83 @@ function MatchBank({ sec, si, patch }) {
       >
         <svg className="icon"><use href="#icon-plus" /></svg> Add answer
       </button>
+    </div>
+  );
+}
+
+// Soạn "Note/Summary Completion" — thay vì mỗi câu hỏi 1 hàng, giáo viên gõ
+// nguyên đoạn ghi chú rồi bấm "Insert blank" để chèn chỗ trống đánh số vào
+// đúng vị trí con trỏ. Mỗi lần chèn tự tạo thêm 1 câu hỏi trong danh sách
+// Questions bên dưới để nhập đáp án đúng/gợi ý/điểm cho số đó.
+function NoteCompletionEditor({ sec, si, allSections, patch }) {
+  const taRef = useRef(null);
+
+  function insertBlank() {
+    const id = nextFieldId(allSections);
+    const marker = `[[${id}]]`;
+    const el = taRef.current;
+    // Chèn qua setRangeText của chính textarea (native) thay vì tính lại vị
+    // trí rồi setSelectionRange trong requestAnimationFrame — cách cũ có độ
+    // trễ 1 khung hình nên gõ tiếp ngay sau khi bấm nút có thể lọt vào sai
+    // vị trí con trỏ. setRangeText cập nhật value + con trỏ đồng bộ ngay lập
+    // tức, không phụ thuộc thời điểm React render lại.
+    let newValue;
+    if (el) {
+      el.focus();
+      el.setRangeText(marker, el.selectionStart, el.selectionEnd, "end");
+      newValue = el.value;
+    } else {
+      newValue = (sec.noteText || "") + marker;
+    }
+    patch((d) => {
+      d[si].noteText = newValue;
+      d[si].fields.push(emptyField(id));
+    });
+  }
+
+  return (
+    <div className="form-row note-completion-editor">
+      <label className="note-mode-toggle">
+        <input
+          type="checkbox"
+          checked={!!sec.noteMode}
+          onChange={(e) => {
+            const on = e.target.checked;
+            patch((d) => {
+              d[si].noteMode = on;
+              if (!on) d[si].noteText = "";
+            });
+          }}
+        />
+        Note / Summary completion layout (chỗ trống nằm trong đoạn ghi chú, giống bài thi IELTS thật)
+      </label>
+      {sec.noteMode && (
+        <>
+          <div className="note-toolbar">
+            <button type="button" className="btn secondary" style={{ padding: "6px 12px", fontSize: ".82rem" }} onClick={insertBlank}>
+              <svg className="icon"><use href="#icon-plus" /></svg> Insert blank
+            </button>
+            <span className="note-toolbar-hint">
+              Dòng bắt đầu <code># </code> = tiêu đề in đậm căn giữa, <code>## </code> = tiêu đề phụ, <code>- </code> = gạch
+              đầu dòng, dòng chỉ có <code>---</code> = ranh giới giữa phần hướng dẫn (nằm ngoài khung) và phần ghi chú
+              (nằm trong khung). Bấm &quot;Insert blank&quot; để chèn chỗ trống tại vị trí con trỏ, rồi nhập đáp án đúng
+              cho số đó trong danh sách Questions bên dưới.
+            </span>
+          </div>
+          <textarea
+            ref={taRef}
+            className="note-text-editor"
+            rows={10}
+            placeholder={
+              "Complete the notes below.\nChoose ONE WORD ONLY from the passage for each answer.\n---\n" +
+              "# Gwendoline and Margaret Davies\n## Family and early life\n" +
+              "- their grandfather's wealth came from [[1]] and transportation businesses"
+            }
+            value={sec.noteText || ""}
+            onChange={(e) => patch((d) => (d[si].noteText = e.target.value))}
+          />
+        </>
+      )}
     </div>
   );
 }

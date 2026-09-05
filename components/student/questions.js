@@ -180,6 +180,7 @@ function DiagramImage({ section, center }) {
 export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, onReplay }) {
   const [replays, setReplays] = useState(0);
   const isReading = skill === "reading";
+  const hasNote = !!(section.noteText && section.noteText.trim());
 
   const fields = (section.fields || []).map((f) => (
     <QuestionField
@@ -191,6 +192,12 @@ export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, o
       review={reviewById ? reviewById[f.id] : null}
     />
   ));
+
+  const body = hasNote ? (
+    <NoteCompletionBlock section={section} answersApi={answersApi} reviewById={reviewById} />
+  ) : (
+    fields
+  );
 
   if (isReading) {
     return (
@@ -205,7 +212,7 @@ export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, o
             />
           )}
         </div>
-        <div className="questions-pane">{fields}</div>
+        <div className="questions-pane">{body}</div>
       </div>
     );
   }
@@ -228,7 +235,124 @@ export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, o
         </div>
       )}
       {section.imageUrl && <DiagramImage section={section} center />}
-      {fields}
+      {body}
+    </div>
+  );
+}
+
+// ---------- Note/Summary Completion — chỗ trống đánh số nằm trong 1 đoạn
+// ghi chú liền mạch, giống bài thi IELTS thật, thay vì mỗi câu 1 hàng riêng.
+function parseNoteBlanks(text) {
+  const re = /\[\[(\d+)\]\]/g;
+  const parts = [];
+  let last = 0;
+  let m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) parts.push({ type: "text", text: text.slice(last, m.index) });
+    parts.push({ type: "blank", id: Number(m[1]) });
+    last = re.lastIndex;
+  }
+  if (last < text.length) parts.push({ type: "text", text: text.slice(last) });
+  return parts;
+}
+
+function NoteBlankInput({ field, answersApi, review }) {
+  if (!field) return null;
+  const value = answersApi.getValue(field);
+  return (
+    <span className={"note-blank" + (review ? (review.correct ? " correct" : " wrong") : "")}>
+      <span className="note-blank-num">{field.id}</span>
+      <input
+        type="text"
+        className="note-blank-input"
+        value={typeof value === "string" ? value : ""}
+        disabled={!!review}
+        onChange={(e) => answersApi.setValue(field.id, e.target.value)}
+      />
+      {review && !review.correct && <span className="note-blank-correct">({review.answer || ""})</span>}
+    </span>
+  );
+}
+
+function NoteInlineText({ text, fieldsById, answersApi, reviewById }) {
+  return parseNoteBlanks(text).map((p, i) =>
+    p.type === "text" ? (
+      <span key={i}>{p.text}</span>
+    ) : (
+      <NoteBlankInput key={i} field={fieldsById[p.id]} answersApi={answersApi} review={reviewById ? reviewById[p.id] : null} />
+    )
+  );
+}
+
+export function NoteCompletionBlock({ section, answersApi, reviewById }) {
+  const fieldsById = {};
+  (section.fields || []).forEach((f) => (fieldsById[f.id] = f));
+  const lines = (section.noteText || "").split("\n");
+  const dividerIdx = lines.findIndex((l) => l.trim() === "---");
+  const introLines = dividerIdx >= 0 ? lines.slice(0, dividerIdx) : [];
+  const boxLines = dividerIdx >= 0 ? lines.slice(dividerIdx + 1) : lines;
+
+  // Gộp các dòng "- " liên tiếp thành 1 <ul>.
+  const blocks = [];
+  let curList = null;
+  boxLines.forEach((line) => {
+    const trimmed = line.trim();
+    if (/^-\s+/.test(trimmed)) {
+      if (!curList) {
+        curList = { type: "ul", items: [] };
+        blocks.push(curList);
+      }
+      curList.items.push(trimmed.replace(/^-\s+/, ""));
+      return;
+    }
+    curList = null;
+    if (/^##\s+/.test(trimmed)) blocks.push({ type: "h4", text: trimmed.replace(/^##\s+/, "") });
+    else if (/^#\s+/.test(trimmed)) blocks.push({ type: "h3", text: trimmed.replace(/^#\s+/, "") });
+    else if (!trimmed) blocks.push({ type: "spacer" });
+    else blocks.push({ type: "p", text: line });
+  });
+
+  const inline = (text, key) => (
+    <NoteInlineText key={key} text={text} fieldsById={fieldsById} answersApi={answersApi} reviewById={reviewById} />
+  );
+
+  return (
+    <div className="note-completion">
+      {introLines.filter((l) => l.trim()).map((l, i) => (
+        <p key={i} className="note-completion-intro">
+          {l}
+        </p>
+      ))}
+      <div className="note-completion-box">
+        {blocks.map((b, i) => {
+          if (b.type === "h3")
+            return (
+              <h3 key={i} className="note-h1">
+                {inline(b.text, "t")}
+              </h3>
+            );
+          if (b.type === "h4")
+            return (
+              <h4 key={i} className="note-h2">
+                {inline(b.text, "t")}
+              </h4>
+            );
+          if (b.type === "ul")
+            return (
+              <ul key={i} className="note-ul">
+                {b.items.map((it, k) => (
+                  <li key={k}>{inline(it, "t")}</li>
+                ))}
+              </ul>
+            );
+          if (b.type === "spacer") return <div key={i} style={{ height: 8 }} />;
+          return (
+            <p key={i} className="note-p">
+              {inline(b.text, "t")}
+            </p>
+          );
+        })}
+      </div>
     </div>
   );
 }

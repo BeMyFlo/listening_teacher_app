@@ -3,9 +3,7 @@
   "configurations": [
     {
       "name": "next-dev",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["next", "dev", "-p", "3020"],
-      "port": 3020
+      "url": "http://localhost:3000"
     }
   ]
 }

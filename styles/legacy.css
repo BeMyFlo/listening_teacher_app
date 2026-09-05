@@ -98,6 +98,9 @@ a { color: var(--blue); }
   padding: 24px;
   margin-bottom: 20px;
   box-shadow: 0 2px 10px rgba(150, 120, 145, .05);
+  /* Nội dung giáo viên nhập đôi khi là 1 chuỗi dài không có khoảng trắng
+     (VD gõ nhầm/dán lỗi) — không cho nó đẩy tràn ngang cả trang. */
+  overflow-wrap: anywhere;
 }
 
 .card h2, .card h3 { color: var(--navy); margin-top: 0; }
@@ -444,28 +447,149 @@ tr:hover td { background: #FFF7FB; }
 .back-link-inline:hover { color: var(--blue); }
 
 /* ---------- Đọc (Reading) ---------- */
+/* 2 cột cao bằng nhau, mỗi cột cuộn riêng (không cuộn theo trang) — bài đọc
+   và câu hỏi luôn song song, giống cách Jumpinto tổ chức màn hình Reading. */
 .reading-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 22px;
-  align-items: start;
+  align-items: stretch;
   margin-bottom: 24px;
 }
-@media (max-width: 860px) { .reading-layout { grid-template-columns: 1fr; } }
+@media (max-width: 860px) {
+  .reading-layout { grid-template-columns: 1fr; }
+  .passage-pane, .questions-pane { max-height: none; overflow: visible; }
+}
 
+.passage-pane,
+.questions-pane {
+  max-height: 75vh;
+  overflow-y: auto;
+}
 .passage-pane {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 18px 20px;
   white-space: pre-line;
+  overflow-wrap: anywhere;
   line-height: 1.75;
   font-size: .96rem;
-  max-height: 75vh;
-  overflow-y: auto;
 }
 .passage-pane img { max-width: 100%; border-radius: 8px; margin-bottom: 12px; display: block; }
+.questions-pane { padding-right: 4px; }
 .questions-pane .section-title { margin-top: 0; }
+
+/* ---------- Chuyển section (Listening/Reading nhiều section) ---------- */
+.section-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.section-nav-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.section-nav-btn:hover { border-color: var(--blue); color: var(--blue); }
+.section-nav-btn.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+.section-nav-btn.done:not(.active) {
+  border-color: var(--green);
+  color: var(--green);
+}
+.section-nav-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+/* ---------- Note/Summary Completion (học sinh) ---------- */
+.note-completion-intro { color: var(--muted); margin: 0 0 6px; line-height: 1.6; }
+.note-completion-box {
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-top: 4px;
+}
+.note-h1 { text-align: center; font-size: 1.1rem; margin: 0 0 14px; color: var(--ink); }
+.note-h2 { font-size: .98rem; margin: 16px 0 8px; color: var(--ink); }
+.note-h2:first-child { margin-top: 0; }
+.note-ul { margin: 0 0 4px; padding-left: 20px; }
+.note-ul li { margin-bottom: 10px; line-height: 1.7; }
+.note-p { margin: 0 0 10px; line-height: 1.7; }
+.note-blank {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 2px;
+  vertical-align: middle;
+}
+.note-blank-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  font-size: .72rem;
+  color: var(--muted);
+  flex: none;
+}
+.note-blank-input {
+  min-width: 120px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: .9rem;
+}
+.note-blank.correct .note-blank-input { border-color: var(--green); }
+.note-blank.wrong .note-blank-input { border-color: var(--red); }
+.note-blank-correct { font-size: .78rem; color: var(--red); white-space: nowrap; }
+
+/* ---------- Note/Summary Completion — soạn đề (giáo viên) ---------- */
+.note-completion-editor { margin-bottom: 10px; }
+.note-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: .9rem;
+}
+.note-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 10px 0 6px;
+}
+.note-toolbar-hint { font-size: .78rem; color: var(--muted); line-height: 1.5; }
+.note-toolbar-hint code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+.note-text-editor {
+  width: 100%;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: .85rem;
+  line-height: 1.6;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
 
 /* ---------- Công cụ hỗ trợ Reading (tô vàng / ghi chú) ---------- */
 .reading-tools { margin-top: 10px; }
@@ -2964,7 +3088,13 @@ tr:hover td { background: #FFF7FB; }
 
 /* Đề bài Writing/Speaking — xuống dòng theo đoạn, không giãn quá xa */
 .prompt-instructions { margin: 6px 0 4px; }
-.prompt-instructions p { margin: 0 0 8px; line-height: 1.55; color: var(--muted); white-space: pre-line; }
+.prompt-instructions p {
+  margin: 0 0 8px;
+  line-height: 1.55;
+  color: var(--muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
 .prompt-instructions p:last-child { margin-bottom: 0; }
 
 /* Chấm Speaking */

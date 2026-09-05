@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
@@ -10,17 +10,41 @@ import { latestPromptSub } from "@/lib/student/submissions";
 import { useAnswers, SectionBlock, answerLabel } from "@/components/student/questions";
 import Countdown from "@/components/student/Countdown";
 import { WritingPrompt, SpeakingPrompt } from "@/components/student/PromptBlock";
+import { useTabSwitchGuard } from "@/components/student/useTabSwitchGuard";
 import { useDialog } from "@/components/ui/Dialog";
 import RubricResult from "@/components/RubricResult";
 
 export default function TakeTestPage() {
   const { testId, skill } = useParams();
   const router = useRouter();
+  const dialog = useDialog();
   const tab = SKILL_TABS.find((t) => t.key === skill);
   const [test, setTest] = useState(null);
   const [locked, setLocked] = useState(false);
   const [err, setErr] = useState("");
+  const [promptsDone, setPromptsDone] = useState(false);
   const { subs, refresh } = useMySubmissions();
+  const promptRefs = useRef({});
+
+  const skillData = test && test.skills[skill];
+  const isQuestion = QUESTION_SKILLS.includes(skill);
+  const canGuardPrompts = !!(test && !locked && !isQuestion && tab && !promptsDone);
+
+  // Listening/Reading dùng guard riêng trong QuestionRunner (nộp cả bài 1
+  // lần). Writing/Speaking nộp theo từng prompt độc lập nên xử lý ở đây:
+  // vi phạm quá số lần cho phép -> nộp ngay bài đang làm dở của MỌI prompt
+  // (nếu có nội dung), rồi quay lại danh sách test.
+  useTabSwitchGuard({
+    enabled: canGuardPrompts,
+    dialog,
+    label: tab ? `bài ${tab.label}` : "bài thi",
+    onExceeded: async () => {
+      const refs = Object.values(promptRefs.current).filter(Boolean);
+      await Promise.all(refs.map((r) => r.forceSubmit && r.forceSubmit().catch(() => {})));
+      setPromptsDone(true);
+      router.push("/student/tests");
+    },
+  });
 
   useEffect(() => {
     api.student
@@ -68,9 +92,6 @@ export default function TakeTestPage() {
       </section>
     );
 
-  const skillData = test.skills[skill];
-  const isQuestion = QUESTION_SKILLS.includes(skill);
-
   if (!isQuestion) {
     return (
       <section>
@@ -98,9 +119,19 @@ export default function TakeTestPage() {
                 )}
                 <div className="prompt-work" style={{ marginTop: 12 }}>
                   {skill === "writing" ? (
-                    <WritingPrompt prompt={p} submitContext={{ testId: test.id, skill }} onSubmitted={refresh} />
+                    <WritingPrompt
+                      ref={(el) => (promptRefs.current[p.id] = el)}
+                      prompt={p}
+                      submitContext={{ testId: test.id, skill }}
+                      onSubmitted={refresh}
+                    />
                   ) : (
-                    <SpeakingPrompt prompt={p} submitContext={{ testId: test.id, skill }} onSubmitted={refresh} />
+                    <SpeakingPrompt
+                      ref={(el) => (promptRefs.current[p.id] = el)}
+                      prompt={p}
+                      submitContext={{ testId: test.id, skill }}
+                      onSubmitted={refresh}
+                    />
                   )}
                 </div>
                 <div className="prompt-status" style={{ marginTop: 12 }}>
@@ -155,8 +186,16 @@ function QuestionRunner({ test, skill, tab, skillData, backLink, onSubmitted }) 
   const [replayCount, setReplayCount] = useState(0);
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [activeSection, setActiveSection] = useState(0);
   const sections = skillData.sections || [];
   const studentName = (readSession("student") || {}).name || "";
+
+  useTabSwitchGuard({
+    enabled: !result,
+    dialog,
+    label: `bài ${tab.label}`,
+    onExceeded: submit,
+  });
 
   async function submit() {
     if (busy || result) return;
@@ -238,6 +277,7 @@ function QuestionRunner({ test, skill, tab, skillData, backLink, onSubmitted }) 
               onClick={() => {
                 setResult(null);
                 setReplayCount(0);
+                setActiveSection(0);
                 answersApi.reset();
                 window.scrollTo({ top: 0 });
               }}
@@ -269,18 +309,38 @@ function QuestionRunner({ test, skill, tab, skillData, backLink, onSubmitted }) 
         <span className={"badge test " + skill}>{tab.label} Test</span>
         <h2>{test.unit} · {test.title}</h2>
         <p style={{ color: "var(--muted)", marginBottom: 20 }}>{skillData.instructions}</p>
+        {sections.length > 1 && (
+          <SectionNav sections={sections} active={activeSection} onSelect={setActiveSection} answersApi={answersApi} />
+        )}
         <div id="testForm">
-          {sections.map((sec, i) => (
-            <SectionBlock
-              key={i}
-              section={sec}
-              secIdx={i}
-              skill={skill}
-              answersApi={answersApi}
-              onReplay={() => setReplayCount((n) => n + 1)}
-            />
-          ))}
+          <SectionBlock
+            section={sections[activeSection]}
+            secIdx={activeSection}
+            skill={skill}
+            answersApi={answersApi}
+            onReplay={() => setReplayCount((n) => n + 1)}
+          />
         </div>
+        {sections.length > 1 && (
+          <div className="section-nav-footer">
+            <button
+              type="button"
+              className="btn secondary"
+              disabled={activeSection === 0}
+              onClick={() => setActiveSection((i) => Math.max(0, i - 1))}
+            >
+              <svg className="icon"><use href="#icon-arrow-left" /></svg> Previous section
+            </button>
+            <button
+              type="button"
+              className="btn secondary"
+              disabled={activeSection === sections.length - 1}
+              onClick={() => setActiveSection((i) => Math.min(sections.length - 1, i + 1))}
+            >
+              Next section <svg className="icon"><use href="#icon-arrow-right" /></svg>
+            </button>
+          </div>
+        )}
         <button
           type="button"
           className="btn"
@@ -292,5 +352,37 @@ function QuestionRunner({ test, skill, tab, skillData, backLink, onSubmitted }) 
         </button>
       </div>
     </section>
+  );
+}
+
+// Thanh chuyển section (giống cách IELTS thi thật chia Passage/Part 1,2,3) —
+// thay vì xếp hết các section chồng xuống, học sinh bấm số để nhảy tới
+// section đang muốn làm. Chấm xanh = section đó đã trả lời hết câu hỏi.
+function SectionNav({ sections, active, onSelect, answersApi }) {
+  return (
+    <div className="section-nav" role="tablist">
+      {sections.map((sec, i) => {
+        const fields = sec.fields || [];
+        const done =
+          fields.length > 0 &&
+          fields.every((f) => {
+            const v = answersApi.getValue(f);
+            return Array.isArray(v) ? v.length > 0 : v !== "" && v != null;
+          });
+        return (
+          <button
+            key={i}
+            type="button"
+            role="tab"
+            aria-selected={i === active}
+            className={"section-nav-btn" + (i === active ? " active" : "") + (done ? " done" : "")}
+            onClick={() => onSelect(i)}
+            title={sec.name || `Section ${i + 1}`}
+          >
+            {i + 1}
+          </button>
+        );
+      })}
+    </div>
   );
 }
