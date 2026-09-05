@@ -18,6 +18,10 @@ export function useAnswers(initial) {
   );
   const setValue = useCallback((id, v) => setAnswers((p) => ({ ...p, [id]: v })), []);
   const reset = useCallback(() => setAnswers({}), []);
+  // Nạp lại nguyên cục câu trả lời đã nộp trước đó — dùng khi `initial` chưa
+  // có sẵn lúc mount (VD: đang chờ tải submissions cũ về) nên phải cập nhật
+  // sau, không thể chỉ dựa vào giá trị khởi tạo của useState.
+  const setAll = useCallback((obj) => setAnswers(obj || {}), []);
   const collect = useCallback(
     (sections) => {
       const out = {};
@@ -31,7 +35,7 @@ export function useAnswers(initial) {
     },
     [answers]
   );
-  return { answers, getValue, setValue, collect, reset };
+  return { answers, getValue, setValue, collect, reset, setAll };
 }
 
 function fieldOptions(field, section) {

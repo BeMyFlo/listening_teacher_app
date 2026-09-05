@@ -333,7 +333,7 @@ button.unit-list-goto {
 }
 .field-row:last-child { border-bottom: none; }
 .field-row .num { font-weight: 700; color: var(--blue); min-width: 22px; }
-.field-row .label { color: var(--muted); min-width: 130px; }
+.field-row .label { color: var(--ink); font-weight: 600; min-width: 130px; }
 .field-row input {
   flex: 1;
   min-width: 140px;

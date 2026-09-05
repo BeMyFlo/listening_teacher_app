@@ -6,9 +6,9 @@ import { api } from "@/lib/client/api";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { readSession } from "@/lib/client/session";
 import { SKILL_TABS, QUESTION_SKILLS } from "@/lib/student/constants";
-import { latestPromptSub } from "@/lib/student/submissions";
+import { latestPromptSub, latestExamSub } from "@/lib/student/submissions";
 import { useAnswers, SectionBlock, answerLabel } from "@/components/student/questions";
-import Countdown from "@/components/student/Countdown";
+import Countdown, { clearCountdown } from "@/components/student/Countdown";
 import { WritingPrompt, SpeakingPrompt } from "@/components/student/PromptBlock";
 import { useTabSwitchGuard } from "@/components/student/useTabSwitchGuard";
 import { useDialog } from "@/components/ui/Dialog";
@@ -23,7 +23,7 @@ export default function TakeTestPage() {
   const [locked, setLocked] = useState(false);
   const [err, setErr] = useState("");
   const [promptsDone, setPromptsDone] = useState(false);
-  const { subs, refresh } = useMySubmissions();
+  const { subs, loaded: subsLoaded, refresh } = useMySubmissions();
   const promptRefs = useRef({});
 
   const skillData = test && test.skills[skill];
@@ -173,14 +173,15 @@ export default function TakeTestPage() {
       skill={skill}
       tab={tab}
       skillData={skillData}
-      backLink={backLink}
+      subs={subs}
+      subsLoaded={subsLoaded}
+      router={router}
       onSubmitted={refresh}
-      onRetakeDone={() => router.push("/student/tests")}
     />
   );
 }
 
-function QuestionRunner({ test, skill, tab, skillData, backLink, onSubmitted }) {
+function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router, onSubmitted }) {
   const dialog = useDialog();
   const answersApi = useAnswers();
   const [replayCount, setReplayCount] = useState(0);
@@ -188,17 +189,43 @@ function QuestionRunner({ test, skill, tab, skillData, backLink, onSubmitted }) 
   const [busy, setBusy] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
   const sections = skillData.sections || [];
-  const studentName = (readSession("student") || {}).name || "";
+  const session = readSession("student") || {};
+  const studentName = session.name || "";
+  const studentId = (session.payload && session.payload.studentId) || "anon";
+  // Neo đồng hồ đếm ngược vào localStorage theo học sinh + bài + kỹ năng —
+  // rời trang (Back to test list, đóng tab, mất mạng) rồi quay lại không
+  // được đếm lại từ đầu, vì như vậy vô hiệu hoá hoàn toàn giới hạn thời gian.
+  const timerKey = `test-timer:${studentId}:${test.id}:${skill}`;
+  // Đã có bài nộp trước đó (kể cả khi vừa nộp xong rồi rời trang/tải lại
+  // trang) -> luôn hiện lại kết quả, KHÔNG cho vào làm lại bài thi.
+  const existing = latestExamSub(subs, test.id, skill);
+  const effectiveResult =
+    result ||
+    (existing
+      ? {
+          score: existing.score,
+          total: existing.total,
+          detailById: Object.fromEntries((existing.detail || []).map((d) => [d.id, d])),
+        }
+      : null);
+
+  // `subs` (nên `existing`) chỉ có sau khi fetch xong, trễ hơn lúc useAnswers()
+  // khởi tạo state rỗng — phải nạp lại đáp án đã nộp riêng ở đây thì cột
+  // "Your answer" của bài đã nộp mới hiện đúng thay vì trống.
+  useEffect(() => {
+    if (existing) answersApi.setAll(existing.answers || {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existing]);
 
   useTabSwitchGuard({
-    enabled: !result,
+    enabled: !effectiveResult,
     dialog,
     label: `bài ${tab.label}`,
     onExceeded: submit,
   });
 
   async function submit() {
-    if (busy || result) return;
+    if (busy || effectiveResult) return;
     setBusy(true);
     try {
       const res = await api.student.submit({
@@ -211,6 +238,7 @@ function QuestionRunner({ test, skill, tab, skillData, backLink, onSubmitted }) 
       const detailById = {};
       (res.detail || []).forEach((d) => (detailById[d.id] = d));
       setResult({ score: res.score, total: res.total, detailById });
+      clearCountdown(timerKey);
       onSubmitted && onSubmitted();
       window.scrollTo({ top: 0 });
     } catch (e) {
@@ -220,7 +248,32 @@ function QuestionRunner({ test, skill, tab, skillData, backLink, onSubmitted }) 
     }
   }
 
-  if (result) {
+  async function leaveTest() {
+    const ok = await dialog.confirm({
+      title: "Rời khỏi bài thi?",
+      message: "Bài thi sẽ được nộp ngay với các câu trả lời hiện có — không thể quay lại làm tiếp. Bạn chắc chắn muốn rời đi?",
+      confirmText: "Nộp & rời đi",
+      danger: true,
+    });
+    if (!ok) return;
+    await submit();
+    router.push("/student/tests");
+  }
+
+  // Chưa biết có bài nộp trước đó hay chưa (đang tải submissions) — đợi thay
+  // vì hiện đề thi mới rồi phải tráo qua màn kết quả ngay sau đó, giật giao diện.
+  if (!subsLoaded) {
+    return (
+      <section>
+        <div className="card">
+          <div className="notice info">Loading test...</div>
+        </div>
+      </section>
+    );
+  }
+
+  if (effectiveResult) {
+    const result = effectiveResult;
     return (
       <section>
         <div className="card">
@@ -273,19 +326,6 @@ function QuestionRunner({ test, skill, tab, skillData, backLink, onSubmitted }) 
           <div style={{ textAlign: "center", marginTop: 20 }}>
             <button
               type="button"
-              className="btn secondary"
-              onClick={() => {
-                setResult(null);
-                setReplayCount(0);
-                setActiveSection(0);
-                answersApi.reset();
-                window.scrollTo({ top: 0 });
-              }}
-            >
-              Retake Test
-            </button>
-            <button
-              type="button"
               className="btn"
               onClick={() => {
                 window.location.href = "/student/tests";
@@ -299,12 +339,18 @@ function QuestionRunner({ test, skill, tab, skillData, backLink, onSubmitted }) 
     );
   }
 
+  const guardedBackLink = (
+    <p className="back-link" onClick={leaveTest}>
+      <svg className="icon"><use href="#icon-arrow-left" /></svg> Back to test list
+    </p>
+  );
+
   return (
     <section>
       <div className="card">
-        {backLink}
+        {guardedBackLink}
         {skillData.durationMinutes ? (
-          <Countdown minutes={Number(skillData.durationMinutes)} onExpire={submit} />
+          <Countdown minutes={Number(skillData.durationMinutes)} onExpire={submit} storageKey={timerKey} />
         ) : null}
         <span className={"badge test " + skill}>{tab.label} Test</span>
         <h2>{test.unit} · {test.title}</h2>
