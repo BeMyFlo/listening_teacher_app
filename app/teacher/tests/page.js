@@ -66,7 +66,7 @@ export default function TeacherTestsPage() {
           <div className="page-head-icon"><svg className="icon"><use href="#icon-clipboard" /></svg></div>
           <div>
             <h1>Mock Tests</h1>
-            <p className="page-sub">Create and publish full 4-skill mock tests by level</p>
+            <p className="page-sub">Create and publish mock tests by level — 1 to 4 skills each</p>
           </div>
         </div>
         <button type="button" className="btn" onClick={() => router.push("/teacher/tests/new")}>

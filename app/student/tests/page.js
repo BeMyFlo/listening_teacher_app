@@ -58,7 +58,7 @@ export default function TestsPage() {
           <div className="page-head-icon"><svg className="icon"><use href="#icon-clipboard" /></svg></div>
           <div>
             <h1>Mock Tests</h1>
-            <p className="page-sub">Full 4-skill mock exams — Listening, Reading, Writing, Speaking</p>
+            <p className="page-sub">Mock exams — Listening, Reading, Writing, Speaking</p>
           </div>
         </div>
       </div>

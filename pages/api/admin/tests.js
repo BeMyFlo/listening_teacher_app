@@ -192,11 +192,11 @@ async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "Invalid status" });
       }
       if (status === "published") {
-        const missing = ALL_SKILLS.filter((key) => !skillHasContent(test.skills[key], key));
-        if (missing.length) {
+        const filled = ALL_SKILLS.filter((key) => skillHasContent(test.skills[key], key));
+        if (!filled.length) {
           return res.status(400).json({
             ok: false,
-            error: `Requires content in all 4 skills before publishing — missing: ${missing.map((k) => SKILL_LABELS[k]).join(", ")}.`
+            error: "Requires content in at least 1 skill before publishing."
           });
         }
       }
