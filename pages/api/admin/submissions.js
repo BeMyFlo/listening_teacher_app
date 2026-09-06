@@ -1,6 +1,8 @@
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
 const Submission = require("../../../lib/models/Submission");
+const Test = require("../../../lib/models/Test");
+const { rebuildDetail } = require("../../../lib/grade");
 const { resolveVariant, getRubric, overallBand, validateCriteria } = require("../../../lib/grading/rubric");
 const { validateAnnotations, reconcileAnnotations } = require("../../../lib/grading/annotate");
 const { notifyStudentGraded } = require("../../../lib/notifications/student");
@@ -36,6 +38,26 @@ async function handler(req, res) {
     }
 
     const rows = await Submission.find(filter).sort({ submittedAt: -1 }).lean();
+
+    // Auto-graded mock tests (listening/reading) store answers as internal
+    // option ids. Rebuild a readable per-question detail from the live test so
+    // the teacher review shows real words + right/wrong marks, not raw ids —
+    // and so rows saved before this resolution still display correctly.
+    const testRows = rows.filter((r) => r.kind === "test" && r.testId && r.testSkill);
+    if (testRows.length) {
+      const testIds = [...new Set(testRows.map((r) => String(r.testId)))];
+      const tests = await Test.find({ _id: { $in: testIds } })
+        .select("skills")
+        .lean();
+      const byId = new Map(tests.map((t) => [String(t._id), t]));
+      for (const r of testRows) {
+        const t = byId.get(String(r.testId));
+        const skillBlock = t && t.skills && t.skills[r.testSkill];
+        const rebuilt = rebuildDetail(skillBlock, r.answers);
+        if (rebuilt) r.detail = rebuilt;
+      }
+    }
+
     return res.status(200).json({ ok: true, rows });
   }
 

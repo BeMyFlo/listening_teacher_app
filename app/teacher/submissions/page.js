@@ -238,6 +238,50 @@ function DetailBody({ r, onGraded }) {
     );
   }
 
+  // Preferred: the per-question grading snapshot (question label, the student's
+  // answer in real words, right/wrong, and the correct answer). The API
+  // rebuilds this from the live test for auto-graded mock tests so option ids
+  // like "o11_1" never leak through.
+  let detail = r.detail;
+  if (typeof detail === "string") {
+    try {
+      detail = JSON.parse(detail);
+    } catch {
+      detail = null;
+    }
+  }
+  if (Array.isArray(detail) && detail.length) {
+    return (
+      <div style={{ padding: "10px 14px" }}>
+        <table className="data-table" style={{ fontSize: ".88rem" }}>
+          <thead>
+            <tr>
+              <th style={{ width: 40 }}>#</th>
+              <th>Question</th>
+              <th>Student answer</th>
+              <th style={{ width: 60, textAlign: "center" }}>Result</th>
+              <th>Correct answer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {detail.map((d, i) => (
+              <tr key={d.id ?? i}>
+                <td>{d.id ?? i + 1}</td>
+                <td>{d.label || "—"}</td>
+                <td>{(Array.isArray(d.submitted) ? d.submitted.join(", ") : d.submitted) || <em style={{ color: "var(--muted)" }}>(blank)</em>}</td>
+                <td style={{ textAlign: "center" }}>
+                  <span className={"pill " + (d.correct ? "pill-ok" : "pill-warn")}>{d.correct ? "✓" : "✗"}</span>
+                </td>
+                <td>{d.correct ? "" : (Array.isArray(d.answer) ? d.answer.join(", ") : d.answer) || ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // Fallback: raw answers map (very old rows with no snapshot and no test).
   let obj = r.answers;
   if (typeof obj === "string") {
     try {
