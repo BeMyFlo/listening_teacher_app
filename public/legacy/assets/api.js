@@ -102,8 +102,14 @@ const Api = (function () {
 
     // Upload speaking recording blob to Cloudinary
     uploadSpeakingAudio: async (blob) => {
+      // Safari iPad/iPhone ghi ra audio/mp4, Chrome ra audio/webm. Blob không
+      // có tên file nên gắn đuôi đúng để Cloudinary nhận diện định dạng.
+      var mime = (blob.type || "").split(";")[0].trim();
+      var ext =
+        ({ "audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "mp4", "audio/aac": "aac", "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav" })[mime] ||
+        (mime.split("/")[1] || "webm");
       const fd = new FormData();
-      fd.append("file", blob);
+      fd.append("file", blob, "recording." + ext);
       fd.append("upload_preset", CLOUDINARY_UNSIGNED_PRESET);
       const res = await fetch(
         "https://api.cloudinary.com/v1_1/" + CLOUDINARY_CLOUD_NAME + "/video/upload",
