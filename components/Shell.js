@@ -6,6 +6,7 @@ import { NAV } from "@/lib/nav";
 import { clearSession, clearTeacherToken } from "@/lib/client/session";
 import { useShellBadges } from "@/lib/client/shellBadges";
 import NotificationBell from "./NotificationBell";
+import SupportWidget from "./tickets/SupportWidget";
 
 function initials(name) {
   const parts = String(name || "?").trim().split(/\s+/);
@@ -175,6 +176,7 @@ export default function Shell({ role, userName, userSub, children }) {
           </div>
         )}
         <main className="content">{children}</main>
+        <SupportWidget role={role} />
       </div>
     </div>
   );
