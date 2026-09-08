@@ -1,7 +1,35 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { createContext, useCallback, useContext, useState } from "react";
 import ReadingPassage from "@/components/student/ReadingPassage";
+import { parseNoteInline, parseNoteLayout } from "@/lib/noteLayout";
+import { NoteDoc } from "@/components/student/RichDoc";
+import HighlightText, { hashStr, clearHighlights } from "@/components/student/HighlightText";
+
+// Highlightable static text in the question column. `base` scopes it to the
+// current section; `slot` + a hash of the text keep the localStorage key stable
+// until the teacher edits the wording.
+// Ngữ cảnh ghi chú (unit/test đang xem) — SectionBlock cấp, <HL> đọc để gắn
+// vào cuốn sổ khi học sinh note.
+const HlSourceContext = createContext(null);
+
+function HL({ base, slot, text }) {
+  const source = useContext(HlSourceContext);
+  const t = text == null ? "" : String(text);
+  if (!base || !t) return <>{t}</>;
+  return <HighlightText inline text={t} lsKey={`${base}${slot}:${hashStr(t)}`} noteSource={source} />;
+}
+
+// A TipTap doc counts as "has content" only if it holds more than empty paragraphs.
+function docHasContent(doc) {
+  if (!doc || !Array.isArray(doc.content)) return false;
+  const scan = (n) =>
+    (n.type === "text" && String(n.text || "").trim()) ||
+    n.type === "blank" ||
+    n.type === "horizontalRule" ||
+    (Array.isArray(n.content) && n.content.some(scan));
+  return doc.content.some(scan);
+}
 
 // ---------- State câu trả lời ----------
 // initial: câu trả lời đã nộp trước đó (last.answers) — để mở lại bài đã làm
@@ -56,7 +84,7 @@ export function answerLabel(field, value, section) {
 }
 
 // ---------- 1 câu hỏi (khớp .field-row của legacy) ----------
-export function QuestionField({ field, section, value, onChange, review }) {
+export function QuestionField({ field, section, value, onChange, review, hlBase }) {
   const isChoice = field.type === "choice";
   const selectCount = Number(field.selectCount) || 1;
   const options = fieldOptions(field, section);
@@ -84,11 +112,13 @@ export function QuestionField({ field, section, value, onChange, review }) {
         <span className="num">{field.id}.</span>
         <div style={{ flex: 1 }}>
           <div className="label" style={{ marginBottom: 6 }}>
-            {field.label}
+            <HL base={hlBase} slot={field.id + ":label"} text={field.label} />
             {selectCount > 1 && (
               <span className="select-hint"> (Select up to {selectCount} answers)</span>
             )}
-            {field.hint && <span className="field-hint"> {field.hint}</span>}
+            {field.hint && (
+              <span className="field-hint"> <HL base={hlBase} slot={field.id + ":hint"} text={field.hint} /></span>
+            )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {options.map((o) => {
@@ -116,7 +146,7 @@ export function QuestionField({ field, section, value, onChange, review }) {
                       } else onChange(o.value);
                     }}
                   />
-                  {o.label}
+                  <HL base={hlBase} slot={field.id + ":opt:" + o.value} text={o.label} />
                 </label>
               );
             })}
@@ -130,6 +160,9 @@ export function QuestionField({ field, section, value, onChange, review }) {
         {review && !review.correct && (
           <div className="correct-answer-note">Correct answer: {correctAnswerLabel}</div>
         )}
+        {review && review.explanation && (
+          <div className="answer-explanation">{review.explanation}</div>
+        )}
       </div>
     );
   }
@@ -138,9 +171,9 @@ export function QuestionField({ field, section, value, onChange, review }) {
     <div className={rowCls} id={"row-" + field.id}>
       <span className="num">{field.id}.</span>
       <span className="label">
-        {field.label}
-        {field.pre ? ": " + field.pre : ""}
-        {field.hint && <span className="field-hint"> {field.hint}</span>}
+        <HL base={hlBase} slot={field.id + ":label"} text={field.label} />
+        {field.pre ? <>: <HL base={hlBase} slot={field.id + ":pre"} text={field.pre} /></> : ""}
+        {field.hint && <span className="field-hint"> <HL base={hlBase} slot={field.id + ":hint"} text={field.hint} /></span>}
       </span>
       <input
         type="text"
@@ -150,7 +183,9 @@ export function QuestionField({ field, section, value, onChange, review }) {
         disabled={!!review}
         onChange={(e) => onChange(e.target.value)}
       />
-      <span className="tail">{field.post || ""}</span>
+      <span className="tail">
+        <HL base={hlBase} slot={field.id + ":post"} text={field.post || ""} />
+      </span>
       {review && (
         <span className={"result-mark " + (review.correct ? "correct" : "wrong")}>
           <svg className="icon"><use href={review.correct ? "#icon-check" : "#icon-cross"} /></svg>
@@ -158,6 +193,9 @@ export function QuestionField({ field, section, value, onChange, review }) {
       )}
       {review && !review.correct && (
         <div className="correct-answer-note">Correct answer: {review.answer || ""}</div>
+      )}
+      {review && review.explanation && (
+        <div className="answer-explanation">{review.explanation}</div>
       )}
     </div>
   );
@@ -181,10 +219,19 @@ function DiagramImage({ section, center }) {
 }
 
 // ---------- 1 section (khớp renderSectionBlock của legacy) ----------
-export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, onReplay }) {
+export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, onReplay, hlScope = "", noteSource = null }) {
   const [replays, setReplays] = useState(0);
+  const [hlNonce, setHlNonce] = useState(0);
   const isReading = skill === "reading";
-  const hasNote = !!(section.noteText && section.noteText.trim());
+
+  // Ngữ cảnh cho ghi chú tạo từ section này.
+  const sectionSource = noteSource
+    ? { ...noteSource, skill: noteSource.skill || skill, itemLabel: section.name || noteSource.itemLabel || "" }
+    : null;
+  const hasNote = docHasContent(section.noteDoc) || !!(section.noteText && section.noteText.trim());
+
+  // localStorage namespace for question-column highlights in this section.
+  const hlBase = `qhl:${hlScope}:${skill}:${section.name || ""}:${secIdx}:`;
 
   const fields = (section.fields || []).map((f) => (
     <QuestionField
@@ -194,17 +241,38 @@ export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, o
       value={answersApi.getValue(f)}
       onChange={(v) => answersApi.setValue(f.id, v)}
       review={reviewById ? reviewById[f.id] : null}
+      hlBase={hlBase}
     />
   ));
 
   const body = hasNote ? (
-    <NoteCompletionBlock section={section} answersApi={answersApi} reviewById={reviewById} />
+    <NoteCompletionBlock section={section} answersApi={answersApi} reviewById={reviewById} hlBase={hlBase} />
   ) : (
     fields
   );
 
+  const questionsTools = (
+    <div className="questions-tools" key={hlNonce}>
+      <span className="rt-hint">
+        <svg className="icon"><use href="#icon-edit" /></svg>
+        Select any text in the questions to <b>highlight</b> or add a <b>note</b>
+      </span>
+      <button
+        type="button"
+        className="rt-clear"
+        onClick={() => {
+          clearHighlights(hlBase);
+          setHlNonce((n) => n + 1);
+        }}
+      >
+        Clear highlights
+      </button>
+    </div>
+  );
+
   if (isReading) {
     return (
+      <HlSourceContext.Provider value={sectionSource}>
       <div className="reading-layout" style={{ marginBottom: 30 }}>
         <div className="passage-pane">
           <h3 style={{ color: "var(--navy)", marginTop: 0 }}>{section.name}</h3>
@@ -213,15 +281,21 @@ export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, o
             <ReadingPassage
               text={section.passageText}
               storageKey={(section.name || "") + ":" + secIdx}
+              noteSource={sectionSource}
             />
           )}
         </div>
-        <div className="questions-pane">{body}</div>
+        <div className="questions-pane">
+          {questionsTools}
+          <div key={hlNonce}>{body}</div>
+        </div>
       </div>
+      </HlSourceContext.Provider>
     );
   }
 
   return (
+    <HlSourceContext.Provider value={sectionSource}>
     <div style={{ marginBottom: 30 }}>
       <div className="section-title">{section.name}</div>
       {section.audioUrl && (
@@ -239,26 +313,16 @@ export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, o
         </div>
       )}
       {section.imageUrl && <DiagramImage section={section} center />}
-      {body}
+      {questionsTools}
+      <div key={hlNonce}>{body}</div>
     </div>
+    </HlSourceContext.Provider>
   );
 }
 
 // ---------- Note/Summary Completion — chỗ trống đánh số nằm trong 1 đoạn
 // ghi chú liền mạch, giống bài thi IELTS thật, thay vì mỗi câu 1 hàng riêng.
-function parseNoteBlanks(text) {
-  const re = /\[\[(\d+)\]\]/g;
-  const parts = [];
-  let last = 0;
-  let m;
-  while ((m = re.exec(text))) {
-    if (m.index > last) parts.push({ type: "text", text: text.slice(last, m.index) });
-    parts.push({ type: "blank", id: Number(m[1]) });
-    last = re.lastIndex;
-  }
-  if (last < text.length) parts.push({ type: "text", text: text.slice(last) });
-  return parts;
-}
+const parseNoteBlanks = parseNoteInline;
 
 function NoteBlankInput({ field, answersApi, review }) {
   if (!field) return null;
@@ -278,53 +342,79 @@ function NoteBlankInput({ field, answersApi, review }) {
   );
 }
 
-function NoteInlineText({ text, fieldsById, answersApi, reviewById }) {
+// In review, list explanations for the numbered blanks that have one.
+function NoteExplanations({ fields, reviewById }) {
+  if (!reviewById) return null;
+  const rows = (fields || [])
+    .map((f) => ({ id: f.id, r: reviewById[f.id] }))
+    .filter((x) => x.r && x.r.explanation);
+  if (!rows.length) return null;
+  return (
+    <div className="note-explanations">
+      {rows.map((x) => (
+        <div key={x.id} className="answer-explanation">
+          <b>{x.id}.</b> {x.r.explanation}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NoteInlineText({ text, fieldsById, answersApi, reviewById, hlBase, hlSlot }) {
   return parseNoteBlanks(text).map((p, i) =>
     p.type === "text" ? (
-      <span key={i}>{p.text}</span>
+      <HL key={i} base={hlBase} slot={`${hlSlot}:${i}`} text={p.text} />
     ) : (
       <NoteBlankInput key={i} field={fieldsById[p.id]} answersApi={answersApi} review={reviewById ? reviewById[p.id] : null} />
     )
   );
 }
 
-export function NoteCompletionBlock({ section, answersApi, reviewById }) {
+export function NoteCompletionBlock({ section, answersApi, reviewById, hlBase }) {
   const fieldsById = {};
   (section.fields || []).forEach((f) => (fieldsById[f.id] = f));
-  const lines = (section.noteText || "").split("\n");
-  const dividerIdx = lines.findIndex((l) => l.trim() === "---");
-  const introLines = dividerIdx >= 0 ? lines.slice(0, dividerIdx) : [];
-  const boxLines = dividerIdx >= 0 ? lines.slice(dividerIdx + 1) : lines;
 
-  // Gộp các dòng "- " liên tiếp thành 1 <ul>.
-  const blocks = [];
-  let curList = null;
-  boxLines.forEach((line) => {
-    const trimmed = line.trim();
-    if (/^-\s+/.test(trimmed)) {
-      if (!curList) {
-        curList = { type: "ul", items: [] };
-        blocks.push(curList);
-      }
-      curList.items.push(trimmed.replace(/^-\s+/, ""));
-      return;
-    }
-    curList = null;
-    if (/^##\s+/.test(trimmed)) blocks.push({ type: "h4", text: trimmed.replace(/^##\s+/, "") });
-    else if (/^#\s+/.test(trimmed)) blocks.push({ type: "h3", text: trimmed.replace(/^#\s+/, "") });
-    else if (!trimmed) blocks.push({ type: "spacer" });
-    else blocks.push({ type: "p", text: line });
-  });
+  // New WYSIWYG content is stored as a doc; fall back to the legacy noteText
+  // markup for sections not yet migrated.
+  if (docHasContent(section.noteDoc)) {
+    return (
+      <>
+        <NoteDoc
+          doc={section.noteDoc}
+          renderBlank={(id, key) => (
+            <NoteBlankInput
+              key={key}
+              field={fieldsById[id]}
+              answersApi={answersApi}
+              review={reviewById ? reviewById[id] : null}
+            />
+          )}
+          renderText={(t, key) => <HL key={key} base={hlBase} slot={`notedoc:${key}`} text={t} />}
+        />
+        <NoteExplanations fields={section.fields} reviewById={reviewById} />
+      </>
+    );
+  }
+
+  const { introLines, blocks } = parseNoteLayout(section.noteText || "");
 
   const inline = (text, key) => (
-    <NoteInlineText key={key} text={text} fieldsById={fieldsById} answersApi={answersApi} reviewById={reviewById} />
+    <NoteInlineText
+      key={key}
+      text={text}
+      fieldsById={fieldsById}
+      answersApi={answersApi}
+      reviewById={reviewById}
+      hlBase={hlBase}
+      hlSlot={"note:" + key}
+    />
   );
 
   return (
     <div className="note-completion">
       {introLines.filter((l) => l.trim()).map((l, i) => (
         <p key={i} className="note-completion-intro">
-          {l}
+          <HL base={hlBase} slot={"note-intro:" + i} text={l} />
         </p>
       ))}
       <div className="note-completion-box">
@@ -332,31 +422,32 @@ export function NoteCompletionBlock({ section, answersApi, reviewById }) {
           if (b.type === "h3")
             return (
               <h3 key={i} className="note-h1">
-                {inline(b.text, "t")}
+                {inline(b.text, i)}
               </h3>
             );
           if (b.type === "h4")
             return (
               <h4 key={i} className="note-h2">
-                {inline(b.text, "t")}
+                {inline(b.text, i)}
               </h4>
             );
           if (b.type === "ul")
             return (
               <ul key={i} className="note-ul">
                 {b.items.map((it, k) => (
-                  <li key={k}>{inline(it, "t")}</li>
+                  <li key={k}>{inline(it, i + "-" + k)}</li>
                 ))}
               </ul>
             );
           if (b.type === "spacer") return <div key={i} style={{ height: 8 }} />;
           return (
             <p key={i} className="note-p">
-              {inline(b.text, "t")}
+              {inline(b.text, i)}
             </p>
           );
         })}
       </div>
+      <NoteExplanations fields={section.fields} reviewById={reviewById} />
     </div>
   );
 }

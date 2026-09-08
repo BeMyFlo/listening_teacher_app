@@ -1,6 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
+import RichTextEditor from "./RichTextEditor";
+import { noteTextToDoc, docToNoteText, blankIdsFromDoc } from "@/lib/tiptap/noteConvert";
+import { importNoteText } from "@/lib/tiptap/importText";
 import {
   QUESTION_KINDS,
   QUESTION_KIND_LABELS,
@@ -231,34 +234,64 @@ function MatchBank({ sec, si, patch }) {
   );
 }
 
-// Soạn "Note/Summary Completion" — thay vì mỗi câu hỏi 1 hàng, giáo viên gõ
-// nguyên đoạn ghi chú rồi bấm "Insert blank" để chèn chỗ trống đánh số vào
-// đúng vị trí con trỏ. Mỗi lần chèn tự tạo thêm 1 câu hỏi trong danh sách
-// Questions bên dưới để nhập đáp án đúng/gợi ý/điểm cho số đó.
+// Soạn "Note/Summary Completion" — giáo viên gõ thẳng đoạn ghi chú như trên
+// Google Docs (WYSIWYG), bấm "+ Blank" để chèn chỗ trống đánh số vào vị trí
+// con trỏ. Mỗi lần chèn tự tạo thêm 1 câu hỏi trong danh sách Questions bên
+// dưới để nhập đáp án đúng/gợi ý/điểm cho số đó. Nội dung lưu dưới dạng
+// TipTap JSON (sec.noteDoc); sec.noteText vẫn được ghi lại để tương thích.
 function NoteCompletionEditor({ sec, si, allSections, patch }) {
-  const taRef = useRef(null);
+  // Legacy sections only have noteText — chuyển sang doc khi mở editor.
+  const doc =
+    sec.noteDoc && Array.isArray(sec.noteDoc.content)
+      ? sec.noteDoc
+      : sec.noteText
+      ? noteTextToDoc(sec.noteText)
+      : null;
 
-  function insertBlank() {
-    const id = nextFieldId(allSections);
-    const marker = `[[${id}]]`;
-    const el = taRef.current;
-    // Chèn qua setRangeText của chính textarea (native) thay vì tính lại vị
-    // trí rồi setSelectionRange trong requestAnimationFrame — cách cũ có độ
-    // trễ 1 khung hình nên gõ tiếp ngay sau khi bấm nút có thể lọt vào sai
-    // vị trí con trỏ. setRangeText cập nhật value + con trỏ đồng bộ ngay lập
-    // tức, không phụ thuộc thời điểm React render lại.
-    let newValue;
-    if (el) {
-      el.focus();
-      el.setRangeText(marker, el.selectionStart, el.selectionEnd, "end");
-      newValue = el.value;
-    } else {
-      newValue = (sec.noteText || "") + marker;
-    }
+  function setDoc(nextDoc) {
     patch((d) => {
-      d[si].noteText = newValue;
-      d[si].fields.push(emptyField(id));
+      d[si].noteDoc = nextDoc;
+      d[si].noteText = docToNoteText(nextDoc);
+      d[si].noteMode = true;
+      // Mỗi blank trong đoạn ghi chú cần 1 field tương ứng để nhập đáp án.
+      const have = new Set(d[si].fields.map((f) => Number(f.id)));
+      for (const id of blankIdsFromDoc(nextDoc)) {
+        if (!have.has(id)) {
+          d[si].fields.push(emptyField(id));
+          have.add(id);
+        }
+      }
     });
+  }
+
+  // Dán nguyên đề do AI soạn: chuyển format + điền luôn đáp án cho từng blank.
+  function importFromAI(raw) {
+    const { doc: nextDoc, answers } = importNoteText(raw);
+    patch((d) => {
+      d[si].noteDoc = nextDoc;
+      d[si].noteText = docToNoteText(nextDoc);
+      d[si].noteMode = true;
+      const byId = new Map(d[si].fields.map((f) => [Number(f.id), f]));
+      for (const id of blankIdsFromDoc(nextDoc)) {
+        let field = byId.get(id);
+        if (!field) {
+          field = emptyField(id);
+          d[si].fields.push(field);
+          byId.set(id, field);
+        }
+        if (answers[id] && answers[id].length) {
+          field.kind = "fill";
+          field.answersText = answers[id].join("\n");
+        }
+      }
+    });
+  }
+
+  // Cấp id mới cho blank sắp chèn — tránh trùng cả field lẫn blank đang có.
+  function requestBlankId() {
+    const fromFields = nextFieldId(allSections);
+    const fromDoc = doc ? blankIdsFromDoc(doc) : [];
+    return Math.max(fromFields - 1, ...fromDoc, 0) + 1;
   }
 
   return (
@@ -271,37 +304,31 @@ function NoteCompletionEditor({ sec, si, allSections, patch }) {
             const on = e.target.checked;
             patch((d) => {
               d[si].noteMode = on;
-              if (!on) d[si].noteText = "";
+              if (on && !(d[si].noteDoc && d[si].noteDoc.content)) {
+                d[si].noteDoc = d[si].noteText ? noteTextToDoc(d[si].noteText) : { type: "doc", content: [{ type: "paragraph" }] };
+              }
             });
           }}
         />
-        Note / Summary completion layout (chỗ trống nằm trong đoạn ghi chú, giống bài thi IELTS thật)
+        Note / Summary completion layout (numbered blanks inside a continuous note, like the real IELTS test)
       </label>
       {sec.noteMode && (
         <>
-          <div className="note-toolbar">
-            <button type="button" className="btn secondary" style={{ padding: "6px 12px", fontSize: ".82rem" }} onClick={insertBlank}>
-              <svg className="icon"><use href="#icon-plus" /></svg> Insert blank
-            </button>
-            <span className="note-toolbar-hint">
-              Dòng bắt đầu <code># </code> = tiêu đề in đậm căn giữa, <code>## </code> = tiêu đề phụ, <code>- </code> = gạch
-              đầu dòng, dòng chỉ có <code>---</code> = ranh giới giữa phần hướng dẫn (nằm ngoài khung) và phần ghi chú
-              (nằm trong khung). Bấm &quot;Insert blank&quot; để chèn chỗ trống tại vị trí con trỏ, rồi nhập đáp án đúng
-              cho số đó trong danh sách Questions bên dưới.
-            </span>
-          </div>
-          <textarea
-            ref={taRef}
-            className="note-text-editor"
-            rows={10}
+          <RichTextEditor
+            variant="note"
+            value={doc}
+            onChange={setDoc}
+            onRequestBlankId={requestBlankId}
+            onImport={importFromAI}
             placeholder={
-              "Complete the notes below.\nChoose ONE WORD ONLY from the passage for each answer.\n---\n" +
-              "# Gwendoline and Margaret Davies\n## Family and early life\n" +
-              "- their grandfather's wealth came from [[1]] and transportation businesses"
+              "Complete the notes below. Choose ONE WORD ONLY from the passage for each answer.\n" +
+              "Add a divider, then: heading, sub-heading, bullets, and a “+ Blank” wherever an answer goes."
             }
-            value={sec.noteText || ""}
-            onChange={(e) => patch((d) => (d[si].noteText = e.target.value))}
           />
+          <span className="note-toolbar-hint">
+            Type the note exactly as students should see it. Use “+ Blank” for each numbered answer,
+            then fill in the correct answer for that number in the Questions list below.
+          </span>
         </>
       )}
     </div>
@@ -384,6 +411,15 @@ function FieldRow({ f, fi, si, sec, media, patch }) {
           placeholder="Hint / instruction (optional), e.g. NO MORE THAN TWO WORDS"
           value={f.hint || ""}
           onChange={(e) => setF("hint", e.target.value)}
+        />
+      </div>
+      <div className="question-hint-row">
+        <textarea
+          className="f-explanation"
+          rows={1}
+          placeholder="Explanation (optional) — shown to students in review, whether they answered right or wrong"
+          value={f.explanation || ""}
+          onChange={(e) => setF("explanation", e.target.value)}
         />
       </div>
       <div className="question-detail">

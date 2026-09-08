@@ -45,11 +45,22 @@ function toEditorUnit(u) {
       });
       return m;
     })(),
+    // { [classId]: { [categoryKey]: true } } — có = khóa. Mảng phẳng khi lưu.
+    skillLocks: (() => {
+      const m = {};
+      (u.skillLocks || []).forEach((l) => {
+        const cid = refId(l.classId);
+        if (!cid || !l.categoryKey) return;
+        (m[cid] = m[cid] || {})[l.categoryKey] = true;
+      });
+      return m;
+    })(),
     categories: (u.categories || []).map((c) => ({
       _id: c._id,
       key: c.key,
       theory: {
         html: (c.theory && c.theory.html) || "",
+        doc: (c.theory && c.theory.doc) || null,
         audioId: refId(c.theory && c.theory.audioId),
         imageId: refId(c.theory && c.theory.imageId),
         resourceUrl: (c.theory && c.theory.resourceUrl) || "",
@@ -123,11 +134,17 @@ function toPayload(unit, status) {
           dueAt: new Date(v).toISOString(),
         }))
     ),
+    skillLocks: Object.entries(unit.skillLocks || {}).flatMap(([classId, cats]) =>
+      Object.entries(cats || {})
+        .filter(([, on]) => on)
+        .map(([categoryKey]) => ({ classId, categoryKey }))
+    ),
     categories: unit.categories.map((cat) => ({
       _id: cat._id,
       key: cat.key,
       theory: {
         html: cat.theory.html,
+        doc: cat.theory.doc || null,
         audioId: cat.theory.audioId || null,
         imageId: cat.theory.imageId || null,
         resourceUrl: cat.theory.resourceUrl || "",
@@ -216,6 +233,19 @@ export default function UnitEditorPage() {
       if (Object.keys(slots).length) all[classId] = slots;
       else delete all[classId];
       return { ...u, deadlines: all };
+    });
+  }
+
+  // Khóa/mở 1 kỹ năng cho 1 lớp.
+  function setLock(classId, categoryKey, on) {
+    setUnit((u) => {
+      const all = { ...(u.skillLocks || {}) };
+      const cats = { ...(all[classId] || {}) };
+      if (on) cats[categoryKey] = true;
+      else delete cats[categoryKey];
+      if (Object.keys(cats).length) all[classId] = cats;
+      else delete all[classId];
+      return { ...u, skillLocks: all };
     });
   }
 
@@ -440,6 +470,8 @@ export default function UnitEditorPage() {
                       cls={c}
                       slots={(unit.deadlines || {})[String(c._id)] || {}}
                       onChange={(slot, v) => setDeadline(String(c._id), slot, v)}
+                      locks={(unit.skillLocks || {})[String(c._id)] || {}}
+                      onLock={(catKey, on) => setLock(String(c._id), catKey, on)}
                     />
                   ))}
                   <p className="settings-note">
@@ -533,9 +565,10 @@ export default function UnitEditorPage() {
   );
 }
 
-function ClassDeadlineEditor({ cls, slots, onChange }) {
+function ClassDeadlineEditor({ cls, slots, onChange, locks = {}, onLock }) {
   const skillsSet = LESSON_CATS.filter((c) => slots[c.key]).length;
-  const [open, setOpen] = useState(skillsSet > 0);
+  const locksSet = LESSON_CATS.filter((c) => locks[c.key]).length;
+  const [open, setOpen] = useState(skillsSet > 0 || locksSet > 0);
 
   const clearBtn = (slot) =>
     slots[slot] ? (
@@ -562,21 +595,36 @@ function ClassDeadlineEditor({ cls, slots, onChange }) {
       </div>
       <button type="button" className="deadline-skill-toggle" onClick={() => setOpen((o) => !o)}>
         <svg className="icon"><use href={"#icon-" + (open ? "chevron-down" : "chevron-right")} /></svg>
-        Per-skill deadlines{skillsSet > 0 ? ` · ${skillsSet} set` : ""}
+        Per-skill deadlines &amp; access
+        {skillsSet > 0 ? ` · ${skillsSet} deadline${skillsSet > 1 ? "s" : ""}` : ""}
+        {locksSet > 0 ? ` · ${locksSet} locked` : ""}
       </button>
       {open && (
         <div className="deadline-skill-grid">
-          {LESSON_CATS.map((c) => (
-            <div className="deadline-skill-row" key={c.key}>
-              <span>{c.label}</span>
-              <input
-                type="datetime-local"
-                value={slots[c.key] || ""}
-                onChange={(e) => onChange(c.key, e.target.value)}
-              />
-              {clearBtn(c.key)}
-            </div>
-          ))}
+          {LESSON_CATS.map((c) => {
+            const locked = !!locks[c.key];
+            return (
+              <div className={"deadline-skill-row" + (locked ? " is-locked" : "")} key={c.key}>
+                <span>{c.label}</span>
+                <button
+                  type="button"
+                  className={"skill-lock-btn" + (locked ? " on" : "")}
+                  title={locked ? "Locked for this class — click to open" : "Open for this class — click to lock"}
+                  onClick={() => onLock && onLock(c.key, !locked)}
+                >
+                  <svg className="icon"><use href={"#icon-" + (locked ? "lock" : "unlock")} /></svg>
+                  {locked ? "Locked" : "Open"}
+                </button>
+                <input
+                  type="datetime-local"
+                  value={slots[c.key] || ""}
+                  disabled={locked}
+                  onChange={(e) => onChange(c.key, e.target.value)}
+                />
+                {clearBtn(c.key)}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

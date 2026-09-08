@@ -14,6 +14,9 @@ import { useAnswers, SectionBlock } from "@/components/student/questions";
 import { WritingPrompt, SpeakingPrompt } from "@/components/student/PromptBlock";
 import { useDialog } from "@/components/ui/Dialog";
 import { renderTheory } from "@/lib/theoryFormat";
+import { TheoryDoc } from "@/components/student/RichDoc";
+import HighlightText, { hashStr } from "@/components/student/HighlightText";
+import NotebookFab from "@/components/student/NotebookFab";
 import SubmissionResultModal from "@/components/student/SubmissionResultModal";
 import GrammarTopicView from "@/components/student/GrammarTopicView";
 import { VocabFlashcards, VocabWordList } from "@/components/student/VocabFlashcards";
@@ -99,6 +102,16 @@ export default function UnitDetailPage() {
       .catch((e) => setErr(e.message));
   }, [unitId]);
 
+  // Nếu kỹ năng đang chọn bị giáo viên khóa cho lớp này -> nhảy sang kỹ năng
+  // đầu tiên còn mở.
+  useEffect(() => {
+    if (!unit) return;
+    const isLocked = (k) => !!(unit.categories || []).find((c) => c.key === k && c.locked);
+    if (!isLocked(catKey)) return;
+    const firstOpen = LESSON_CATS.map((c) => c.key).find((k) => !isLocked(k));
+    if (firstOpen) setCatKey(firstOpen);
+  }, [unit]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (err)
     return (
       <section>
@@ -129,27 +142,35 @@ export default function UnitDetailPage() {
         <DeadlineBanner dueAt={unit.dueAt} />
 
         <div className="unit-cat-tabs">
-          {LESSON_CATS.map((c) => (
-            <button
-              key={c.key}
-              type="button"
-              className={"unit-cat-tab" + (c.key === catKey ? " active" : "")}
-              onClick={() => {
-                setCatKey(c.key);
-                setSubTab("learn");
-              }}
-            >
-              <svg className="icon"><use href={"#icon-" + c.icon} /></svg> {c.label}
-            </button>
-          ))}
+          {LESSON_CATS.map((c) => {
+            const locked = !!(unit.categories || []).find((x) => x.key === c.key && x.locked);
+            return (
+              <button
+                key={c.key}
+                type="button"
+                className={"unit-cat-tab" + (c.key === catKey ? " active" : "") + (locked ? " is-locked" : "")}
+                onClick={() => {
+                  setCatKey(c.key);
+                  setSubTab("learn");
+                }}
+              >
+                <svg className="icon"><use href={"#icon-" + (locked ? "lock" : c.icon)} /></svg> {c.label}
+              </button>
+            );
+          })}
         </div>
 
         <div id="lessonCatContent">
-          {cat && cat.dueAt && cat.dueAt !== unit.dueAt && (
+          {cat && !cat.locked && cat.dueAt && cat.dueAt !== unit.dueAt && (
             <DeadlineBanner dueAt={cat.dueAt} label={`${catMeta.label} deadline`} />
           )}
-          {cat && LESSON_LIST_CATS.includes(catKey) ? (
-            <LessonTopicPane cat={cat} unitId={unit.id} subs={subs} onSubmitted={refresh} />
+          {cat && cat.locked ? (
+            <div className="empty-state locked-skill">
+              <svg className="icon"><use href="#icon-lock" /></svg>
+              <div>Your teacher hasn&apos;t opened this skill for your class yet.</div>
+            </div>
+          ) : cat && LESSON_LIST_CATS.includes(catKey) ? (
+            <LessonTopicPane cat={cat} unitId={unit.id} unitName={unit.name} subs={subs} onSubmitted={refresh} />
           ) : !cat ? null : (
             <>
               <div className="lesson-header-card">
@@ -199,21 +220,41 @@ export default function UnitDetailPage() {
               </div>
 
               {subTab === "learn" ? (
-                <TheoryView theory={cat.theory} />
+                <TheoryView
+                  theory={cat.theory}
+                  noteSource={{
+                    kind: "lesson",
+                    unitId: unit.id,
+                    contextName: unit.name,
+                    skill: catKey,
+                    itemLabel: "Theory",
+                    href: `/student/lessons/${unit.id}`,
+                  }}
+                />
               ) : isPrompt ? (
                 <PromptList unitId={unit.id} cat={cat} subs={subs} onSubmitted={refresh} />
               ) : (
-                <ExerciseList unitId={unit.id} cat={cat} subs={subs} onSubmitted={refresh} />
+                <ExerciseList unitId={unit.id} unitName={unit.name} cat={cat} subs={subs} onSubmitted={refresh} />
               )}
             </>
           )}
         </div>
       </div>
+      <NotebookFab
+        filter={{ unitId: unit.id }}
+        source={{
+          kind: "lesson",
+          unitId: unit.id,
+          contextName: unit.name,
+          skill: catKey,
+          href: `/student/lessons/${unit.id}`,
+        }}
+      />
     </section>
   );
 }
 
-function LessonTopicPane({ cat, unitId, subs, onSubmitted }) {
+function LessonTopicPane({ cat, unitId, unitName, subs, onSubmitted }) {
   const isGrammar = cat.key === "grammar";
   const items = isGrammar ? cat.topics || [] : cat.groups || [];
   const [openId, setOpenId] = useState(null);
@@ -320,6 +361,7 @@ function LessonTopicPane({ cat, unitId, subs, onSubmitted }) {
             index={i}
             ex={ex}
             unitId={unitId}
+            unitName={unitName}
             categoryKey={cat.key}
             skill="other"
             last={latestExerciseSub(subs, ex.id)}
@@ -331,9 +373,14 @@ function LessonTopicPane({ cat, unitId, subs, onSubmitted }) {
   );
 }
 
-function TheoryView({ theory }) {
+function TheoryView({ theory, noteSource }) {
+  const hasDoc = !!(theory.doc && Array.isArray(theory.doc.content) && theory.doc.content.length);
+  const hlKey = "qhl:" + (noteSource ? noteSource.unitId + ":" + noteSource.skill : "") + ":theory:";
+  const renderText = (t, key) => (
+    <HighlightText inline text={t} lsKey={hlKey + key + ":" + hashStr(String(t))} noteSource={noteSource} />
+  );
   const hasTheory =
-    (theory.html || "").trim() || theory.audioUrl || theory.imageUrl || (theory.resourceUrl || "").trim();
+    hasDoc || (theory.html || "").trim() || theory.audioUrl || theory.imageUrl || (theory.resourceUrl || "").trim();
   return (
     <div>
       <h3 style={{ marginTop: 6 }}>Theory</h3>
@@ -342,11 +389,15 @@ function TheoryView({ theory }) {
         <div className="empty-state">No theory content available for this section.</div>
       ) : (
         <>
-          {(theory.html || "").trim() && (
-            <div
-              className="lesson-text"
-              dangerouslySetInnerHTML={{ __html: renderTheoryText(theory.html) }}
-            />
+          {hasDoc ? (
+            <TheoryDoc doc={theory.doc} renderText={renderText} />
+          ) : (
+            (theory.html || "").trim() && (
+              <div
+                className="lesson-text"
+                dangerouslySetInnerHTML={{ __html: renderTheoryText(theory.html) }}
+              />
+            )
           )}
           {theory.audioUrl && (
             <audio controls src={theory.audioUrl} style={{ width: "100%", margin: "10px 0" }} />
@@ -358,7 +409,7 @@ function TheoryView({ theory }) {
   );
 }
 
-function ExerciseList({ unitId, cat, subs, onSubmitted }) {
+function ExerciseList({ unitId, unitName, cat, subs, onSubmitted }) {
   if (!cat.exercises.length)
     return <div className="empty-state">No exercises available for this section.</div>;
   return (
@@ -369,6 +420,7 @@ function ExerciseList({ unitId, cat, subs, onSubmitted }) {
           index={i}
           ex={ex}
           unitId={unitId}
+          unitName={unitName}
           categoryKey={cat.key}
           skill={cat.key === "reading" ? "reading" : "other"}
           last={latestExerciseSub(subs, ex.id)}
@@ -389,7 +441,7 @@ function detailByIdFrom(last) {
   return detailById;
 }
 
-function ExerciseBlock({ index, ex, unitId, categoryKey, skill, last, onSubmitted }) {
+function ExerciseBlock({ index, ex, unitId, unitName, categoryKey, skill, last, onSubmitted }) {
   const dialog = useDialog();
   const [open, setOpen] = useState(false);
   const answersApi = useAnswers(last ? last.answers : null);
@@ -483,6 +535,15 @@ function ExerciseBlock({ index, ex, unitId, categoryKey, skill, last, onSubmitte
               skill={skill}
               answersApi={answersApi}
               reviewById={result ? result.detailById : null}
+              hlScope={"lesson:" + unitId + ":" + ex.id}
+              noteSource={{
+                kind: "lesson",
+                unitId,
+                contextName: unitName,
+                skill: categoryKey,
+                itemLabel: ex.title,
+                href: `/student/lessons/${unitId}`,
+              }}
             />
           ))}
           {!result ? (

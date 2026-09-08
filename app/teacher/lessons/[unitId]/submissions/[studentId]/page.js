@@ -47,6 +47,7 @@ function QuestionTable({ detail }) {
             <th>Question</th>
             <th>Student answer</th>
             <th>Correct answer</th>
+            <th>Explanation</th>
             <th style={{ width: 60 }}></th>
           </tr>
         </thead>
@@ -57,6 +58,7 @@ function QuestionTable({ detail }) {
               <td>{d.label}</td>
               <td>{d.submittedText}</td>
               <td>{d.correct ? "" : <b>{d.answerText}</b>}</td>
+              <td style={{ color: "var(--muted)" }}>{d.explanation || ""}</td>
               <td>
                 <span className={"result-mark " + (d.correct ? "correct" : "wrong")}>
                   <svg className="icon"><use href={d.correct ? "#icon-check" : "#icon-cross"} /></svg>

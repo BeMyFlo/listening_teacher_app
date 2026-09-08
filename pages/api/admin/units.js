@@ -3,6 +3,7 @@ const { requireAuth } = require("../../../lib/auth");
 const Unit = require("../../../lib/models/Unit");
 const Class = require("../../../lib/models/Class");
 const { normalizeSections, validateSections } = require("../../../lib/testSections");
+const { sanitizeDoc } = require("../../../lib/tiptap/doc");
 const { sanitizeYouTube } = require("../../../lib/lessonImport");
 const { announceDeadlines } = require("../../../lib/notifications/deadlineAssign");
 
@@ -66,6 +67,26 @@ async function sanitizeDeadlines(raw, level) {
   return out;
 }
 
+// Khóa kỹ năng theo lớp: chỉ giữ entry có classId là Lớp thật đúng level và
+// categoryKey hợp lệ; dedup theo (classId, categoryKey).
+async function sanitizeSkillLocks(raw, level) {
+  if (!Array.isArray(raw) || !raw.length) return [];
+  const valid = new Set(
+    (await Class.find({ level }).select("_id").lean()).map((c) => String(c._id))
+  );
+  const seen = new Set();
+  const out = [];
+  for (const l of raw) {
+    if (!l || !valid.has(String(l.classId))) continue;
+    if (!Unit.CATEGORY_KEYS.includes(l.categoryKey)) continue;
+    const k = String(l.classId) + "|" + l.categoryKey;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ classId: l.classId, categoryKey: l.categoryKey });
+  }
+  return out;
+}
+
 const CATEGORY_KEYS = Unit.CATEGORY_KEYS;
 
 // Validates a full client-sent categories array. Exercise sections reuse the
@@ -116,6 +137,7 @@ async function handler(req, res) {
       status: "draft",
       classIds: await sanitizeClassIds(req.body.classIds, level),
       deadlines,
+      skillLocks: await sanitizeSkillLocks(req.body.skillLocks, level),
       categories: Unit.seedCategories()
     });
     return res.status(201).json({ ok: true, unit });
@@ -136,7 +158,7 @@ async function handler(req, res) {
   }
 
   if (req.method === "PUT") {
-    const { name, order, status, categories, level, classIds, deadlines } = req.body || {};
+    const { name, order, status, categories, level, classIds, deadlines, skillLocks } = req.body || {};
     const levelChanged = level != null && Number(level) !== unit.level;
 
     // Chụp trạng thái hạn nộp + publish TRƯỚC khi ghi đè, để sau khi lưu diff ra
@@ -173,6 +195,11 @@ async function handler(req, res) {
       const clean = await sanitizeDeadlines(unit.deadlines, unit.level);
       unit.deadlines = Array.isArray(clean) ? clean : [];
     }
+    if (skillLocks != null) {
+      unit.skillLocks = await sanitizeSkillLocks(skillLocks, unit.level);
+    } else if (levelChanged) {
+      unit.skillLocks = await sanitizeSkillLocks(unit.skillLocks, unit.level);
+    }
     if (order != null) unit.order = Number(order) || 0;
     if (status != null) {
       if (!["draft", "published"].includes(status)) {
@@ -194,6 +221,7 @@ async function handler(req, res) {
           key: cat.key,
           theory: {
             html: String((cat.theory && cat.theory.html) || ""),
+            doc: sanitizeDoc(cat.theory && cat.theory.doc),
             audioId: (cat.theory && cat.theory.audioId) || undefined,
             imageId: (cat.theory && cat.theory.imageId) || undefined,
             resourceUrl: normalizeUrl((cat.theory && cat.theory.resourceUrl) || ""),

@@ -3,7 +3,7 @@ const { requireStudent } = require("../../lib/auth");
 const Student = require("../../lib/models/Student");
 const Unit = require("../../lib/models/Unit");
 const Class = require("../../lib/models/Class");
-const { resolveDeadline } = require("../../lib/deadlines");
+const { resolveDeadline, isSkillLocked } = require("../../lib/deadlines");
 
 const iso = (d) => (d ? new Date(d) : null);
 const overdue = (d) => !!d && Date.now() > new Date(d).getTime();
@@ -12,7 +12,9 @@ const overdue = (d) => !!d && Date.now() > new Date(d).getTime();
 // — dùng cho chip ở danh sách bài học.
 function earliestDeadline(unit, classId) {
   const cands = [resolveDeadline(unit, classId, null)];
-  (Unit.CATEGORY_KEYS || []).forEach((k) => cands.push(resolveDeadline(unit, classId, k)));
+  (Unit.CATEGORY_KEYS || []).forEach((k) => {
+    if (!isSkillLocked(unit, classId, k)) cands.push(resolveDeadline(unit, classId, k));
+  });
   const times = cands.filter(Boolean).map((d) => new Date(d).getTime());
   return times.length ? new Date(Math.min(...times)) : null;
 }
@@ -29,6 +31,7 @@ function toPublicUnit(unit, cls) {
       matchOptions: s.matchOptions || [],
       labelPoints: s.labelPoints || [],
       noteText: s.noteText || "",
+      noteDoc: s.noteDoc || null,
       fields: (s.fields || []).map((f) => ({
         id: f.id,
         label: f.label,
@@ -62,14 +65,31 @@ function toPublicUnit(unit, cls) {
     // Hạn sớm nhất bất kỳ (cho chip "Due in N days").
     nextDueAt: iso(earliestDeadline(unit, cid)),
     categories: (unit.categories || []).map((c) => {
+      // Kỹ năng bị khóa cho lớp này: trả về rỗng để KHÔNG lộ nội dung, chỉ
+      // giữ cờ locked để client hiện tab có ổ khóa.
+      if (isSkillLocked(unit, cid, c.key)) {
+        return {
+          key: c.key,
+          locked: true,
+          dueAt: null,
+          isOverdue: false,
+          theory: { html: "", doc: null, resourceUrl: "", resourceLabel: "" },
+          exercises: [],
+          prompts: [],
+          topics: [],
+          groups: [],
+        };
+      }
       const catDue = resolveDeadline(unit, cid, c.key);
       return {
       key: c.key,
+      locked: false,
       // Hạn áp cho kỹ năng này (riêng nếu có, không thì = hạn chung Unit).
       dueAt: iso(catDue),
       isOverdue: overdue(catDue),
       theory: {
         html: (c.theory && c.theory.html) || "",
+        doc: (c.theory && c.theory.doc) || null,
         audioUrl: c.theory && c.theory.audioId && c.theory.audioId.cloudinaryUrl,
         imageUrl: c.theory && c.theory.imageId && c.theory.imageId.cloudinaryUrl,
         resourceUrl: (c.theory && c.theory.resourceUrl) || "",
@@ -179,10 +199,14 @@ async function handler(req, res) {
       dueAt: iso(dueAt),
       isOverdue: overdue(dueAt),
       categories: (u.categories || []).map((c) => {
+        if (isSkillLocked(u, cls._id, c.key)) {
+          return { key: c.key, locked: true, hasContent: false, itemCount: 0 };
+        }
         const topicEx = (c.topics || []).reduce((n, t) => n + (t.exercises || []).length, 0);
         const groupEx = (c.groups || []).reduce((n, g) => n + (g.exercises || []).length, 0);
         return {
           key: c.key,
+          locked: false,
           hasContent: !!(
             (c.theory && c.theory.html && c.theory.html.trim()) ||
             (c.theory && c.theory.resourceUrl && c.theory.resourceUrl.trim()) ||
