@@ -12,8 +12,12 @@ const { requireAuth } = require("../../../lib/auth");
 const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const AttendanceSession = require("../../../lib/models/AttendanceSession");
+const Unit = require("../../../lib/models/Unit");
+const Submission = require("../../../lib/models/Submission");
+const { autoHomework } = require("../../../lib/attendanceHomework");
 
 const STATUSES = AttendanceSession.STATUSES;
+const HW_STATUSES = AttendanceSession.HW_STATUSES;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function todayStr() {
@@ -33,22 +37,82 @@ function tally(records) {
   return t;
 }
 
+function hwTally(records) {
+  const t = { done: 0, partial: 0, missing: 0, none: 0 };
+  for (const r of records || []) if (t[r.homework] != null) t[r.homework]++;
+  return t;
+}
+
+// Trạng thái bài tập về nhà tự suy cho từng học sinh của buổi `session`.
+// -> Map<studentIdStr, "done"|"partial"|"missing"|"none">
+async function autoHomeworkMap(session, roster) {
+  const prevSession = await AttendanceSession.findOne({
+    classId: session.classId,
+    number: { $lt: session.number },
+  })
+    .sort({ number: -1 })
+    .select("date number")
+    .lean();
+
+  const units = await Unit.find({
+    status: "published",
+    "deadlines.classId": session.classId,
+  })
+    .select("name categories deadlines skillLocks")
+    .lean();
+
+  const unitIds = units.map((u) => u._id);
+  const rosterIds = roster.map((s) => s._id);
+  const subs =
+    unitIds.length && rosterIds.length
+      ? await Submission.find({
+          studentId: { $in: rosterIds },
+          unitId: { $in: unitIds },
+          kind: { $in: ["exercise", "writing", "speaking"] },
+        })
+          .select("studentId unitId categoryKey exerciseId promptId kind submittedAt")
+          .lean()
+      : [];
+
+  const subsByStudent = new Map();
+  for (const s of subs) {
+    const k = String(s.studentId);
+    if (!subsByStudent.has(k)) subsByStudent.set(k, []);
+    subsByStudent.get(k).push(s);
+  }
+
+  return autoHomework({
+    session,
+    prevSession,
+    classId: session.classId,
+    roster: roster.map((s) => ({ studentId: s._id })),
+    units,
+    subsByStudent,
+  });
+}
+
 async function rosterFor(classId) {
   return Student.find({ classId }).sort({ name: 1 }).select("name username").lean();
 }
 
 // Trộn roster hiện tại với record đã lưu: giữ trạng thái đã điểm danh, học sinh
 // mới (chưa có record) mặc định "present", bỏ record của học sinh đã rời lớp.
-function mergeRoster(roster, records) {
+function mergeRoster(roster, records, autoHw) {
   const byId = new Map((records || []).map((r) => [String(r.studentId), r]));
   return roster.map((s) => {
     const rec = byId.get(String(s._id));
+    const suggested = (autoHw && autoHw.get(String(s._id))) || "none";
+    // Giữ giá trị giáo viên tự chọn (homeworkAuto === false); còn lại bám auto.
+    const manual = rec && rec.homeworkAuto === false;
     return {
       studentId: String(s._id),
       name: s.name,
       username: s.username,
       status: rec ? rec.status : "present",
       note: rec ? rec.note || "" : "",
+      homework: manual ? rec.homework : suggested,
+      homeworkAuto: manual ? false : true,
+      homeworkSuggested: suggested,
     };
   });
 }
@@ -78,6 +142,7 @@ async function handler(req, res) {
       date: s.date,
       note: s.note || "",
       counts: tally(s.records),
+      homework: hwTally(s.records),
       marked: (s.records || []).length,
       updatedAt: s.updatedAt,
     }));
@@ -127,6 +192,8 @@ async function handler(req, res) {
       Class.findById(session.classId).lean(),
       rosterFor(session.classId),
     ]);
+    const autoHw = await autoHomeworkMap(session, roster);
+    const merged = mergeRoster(roster, session.records, autoHw);
     return res.status(200).json({
       ok: true,
       session: {
@@ -137,8 +204,9 @@ async function handler(req, res) {
         date: session.date,
         note: session.note || "",
         updatedAt: session.updatedAt,
+        hasHomework: merged.some((r) => r.homeworkSuggested !== "none"),
       },
-      roster: mergeRoster(roster, session.records),
+      roster: merged,
     });
   }
 
@@ -159,6 +227,9 @@ async function handler(req, res) {
           studentId: r.studentId,
           status: STATUSES.includes(r.status) ? r.status : "present",
           note: String(r.note || "").trim(),
+          homework: HW_STATUSES.includes(r.homework) ? r.homework : "none",
+          // client gửi homeworkAuto=false khi giáo viên tự chỉnh; mặc định bám auto
+          homeworkAuto: r.homeworkAuto !== false,
         }));
     }
     await session.save();
