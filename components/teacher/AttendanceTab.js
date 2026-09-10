@@ -82,6 +82,8 @@ export default function AttendanceTab({ classId, rosterCount }) {
       <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
         {(rows || []).map((s) => {
           const present = s.counts.present + s.counts.late;
+          const hw = s.homework || {};
+          const hwTotal = (hw.done || 0) + (hw.partial || 0) + (hw.missing || 0);
           return (
             <div
               key={s._id}
@@ -97,6 +99,7 @@ export default function AttendanceTab({ classId, rosterCount }) {
                 <p>
                   {s.note ? s.note + " · " : ""}
                   {present}/{s.marked || 0} present
+                  {hwTotal > 0 ? ` · HW ${hw.done || 0}/${hwTotal} done` : ""}
                 </p>
               </div>
               <div className="att-session-chips">

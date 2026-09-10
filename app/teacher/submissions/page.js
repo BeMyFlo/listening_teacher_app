@@ -261,6 +261,7 @@ function DetailBody({ r, onGraded }) {
               <th>Student answer</th>
               <th style={{ width: 60, textAlign: "center" }}>Result</th>
               <th>Correct answer</th>
+              <th>Explanation</th>
             </tr>
           </thead>
           <tbody>
@@ -273,6 +274,7 @@ function DetailBody({ r, onGraded }) {
                   <span className={"pill " + (d.correct ? "pill-ok" : "pill-warn")}>{d.correct ? "✓" : "✗"}</span>
                 </td>
                 <td>{d.correct ? "" : (Array.isArray(d.answer) ? d.answer.join(", ") : d.answer) || ""}</td>
+                <td style={{ color: "var(--muted)" }}>{d.explanation || ""}</td>
               </tr>
             ))}
           </tbody>

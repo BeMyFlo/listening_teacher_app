@@ -9,7 +9,7 @@ const { gradeSubmission } = require("../../lib/grade");
 const notifications = require("../../lib/notifications");
 const { notifyTeachersOfSubmission } = require("../../lib/notifications/teacher");
 const { resolveVariant } = require("../../lib/grading/rubric");
-const { resolveDeadline } = require("../../lib/deadlines");
+const { resolveDeadline, isSkillLocked } = require("../../lib/deadlines");
 const { deleteAudioFile } = require("../../lib/cloudinary");
 
 // Hạn nộp áp cho lớp của học sinh + kỹ năng đang nộp (hạn riêng kỹ năng ->
@@ -137,6 +137,9 @@ async function handler(req, res) {
       return res.status(404).json({ ok: false, error: "Lesson unit not found" });
     }
     if (!unit) return res.status(404).json({ ok: false, error: "Lesson unit not found" });
+    if (isSkillLocked(unit, student.classId, categoryKey)) {
+      return res.status(403).json({ ok: false, error: "This skill is locked by your teacher." });
+    }
     const category = unit.categories.find((c) => c.key === categoryKey);
     // Bài tập có thể nằm ở category.exercises, hoặc trong 1 chủ điểm grammar
     // (category.topics[].exercises), hoặc 1 nhóm từ vocab (category.groups[].exercises).
@@ -236,6 +239,9 @@ async function handler(req, res) {
       return res.status(404).json({ ok: false, error: "Lesson unit not found" });
     }
     if (!unit) return res.status(404).json({ ok: false, error: "Lesson unit not found" });
+    if (isSkillLocked(unit, student.classId, categoryKey || kind)) {
+      return res.status(403).json({ ok: false, error: "This skill is locked by your teacher." });
+    }
     const category = unit.categories.find((c) => c.key === categoryKey);
     const prompt = category && category.prompts.id(promptId);
     if (!prompt) return res.status(404).json({ ok: false, error: "Prompt not found" });
@@ -244,6 +250,7 @@ async function handler(req, res) {
     // điền Reflection Log, và chưa có attempt 2 nào rồi (chỉ cho nộp lại 1 lần).
     let attemptNumber = 1;
     let parentId;
+    let inheritLate = null; // resubmission sau Reflection Log: kế thừa trạng thái trễ của bài gốc
     if (parentSubmissionId) {
       const parent = await Submission.findOne({ _id: parentSubmissionId, studentId: student._id, promptId: prompt._id });
       if (!parent) return res.status(404).json({ ok: false, error: "Original submission not found" });
@@ -259,6 +266,10 @@ async function handler(req, res) {
       }
       attemptNumber = (parent.attemptNumber || 1) + 1;
       parentId = parent._id;
+      // Nộp lại là bước "chữa bài" sau khi đã chấm + viết Reflection Log — luôn
+      // xảy ra sau hạn. Không đánh Late cho attempt 2; giữ đúng trạng thái của
+      // bài gốc (nộp đúng hạn thì attempt 2 cũng không trễ).
+      inheritLate = { isLate: !!parent.isLate, dueAt: parent.dueAt || null };
     } else {
       // Nộp thường (không qua Reflection Log). Nếu đã có 1 bài cho prompt này:
       //  - bài mới nhất ĐÃ CHẤM  -> chặn, phải đi qua luồng Reflection Log
@@ -284,7 +295,9 @@ async function handler(req, res) {
       }
     }
 
-    const { isLate, dueAt } = unitLateness(unit, student, kind);
+    const computed = unitLateness(unit, student, kind);
+    const isLate = inheritLate ? inheritLate.isLate : computed.isLate;
+    const dueAt = inheritLate ? inheritLate.dueAt : computed.dueAt;
     const submission = await Submission.create({
       studentId: student._id,
       studentName: student.name,

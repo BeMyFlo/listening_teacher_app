@@ -17,6 +17,7 @@ function toPublicQuestionSkill(skill) {
       matchOptions: s.matchOptions || [],
       labelPoints: s.labelPoints || [],
       noteText: s.noteText || "",
+      noteDoc: s.noteDoc || null,
       fields: (s.fields || []).map((f) => ({
         id: f.id,
         label: f.label,

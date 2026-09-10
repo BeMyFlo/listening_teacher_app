@@ -13,6 +13,7 @@ import { WritingPrompt, SpeakingPrompt } from "@/components/student/PromptBlock"
 import { useTabSwitchGuard } from "@/components/student/useTabSwitchGuard";
 import { useDialog } from "@/components/ui/Dialog";
 import RubricResult from "@/components/RubricResult";
+import NotebookFab from "@/components/student/NotebookFab";
 
 export default function TakeTestPage() {
   const { testId, skill } = useParams();
@@ -317,6 +318,7 @@ function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router,
                       <span className={"result-mark " + (d.correct ? "correct" : "wrong")}>
                         <svg className="icon"><use href={d.correct ? "#icon-check" : "#icon-cross"} /></svg>
                       </span>
+                      {d.explanation && <div className="answer-explanation">{d.explanation}</div>}
                     </div>
                   );
                 })}
@@ -365,6 +367,14 @@ function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router,
             skill={skill}
             answersApi={answersApi}
             onReplay={() => setReplayCount((n) => n + 1)}
+            hlScope={"test:" + testId}
+            noteSource={{
+              kind: "test",
+              testId,
+              contextName: `${test.unit} · ${test.title}`.replace(/^ · /, ""),
+              skill,
+              href: `/student/tests/${testId}/${skill}`,
+            }}
           />
         </div>
         {sections.length > 1 && (
@@ -397,6 +407,16 @@ function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router,
           Submit Test
         </button>
       </div>
+      <NotebookFab
+        filter={{ testId }}
+        source={{
+          kind: "test",
+          testId,
+          contextName: `${test.unit} · ${test.title}`.replace(/^ · /, ""),
+          skill,
+          href: `/student/tests/${testId}/${skill}`,
+        }}
+      />
     </section>
   );
 }

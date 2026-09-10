@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
-import { ATT_STATUSES, ATT_META, fmtAttDate } from "@/lib/attendance";
+import { ATT_STATUSES, ATT_META, HW_STATUSES, HW_META, fmtAttDate } from "@/lib/attendance";
 
 export default function AttendanceSheetPage() {
   const dialog = useDialog();
@@ -12,7 +12,8 @@ export default function AttendanceSheetPage() {
   const router = useRouter();
 
   const [session, setSession] = useState(null);
-  const [rows, setRows] = useState([]); // { studentId, name, username, status, note }
+  // { studentId, name, username, status, note, homework, homeworkAuto, homeworkSuggested }
+  const [rows, setRows] = useState([]);
   const [date, setDate] = useState("");
   const [note, setNote] = useState("");
   const [err, setErr] = useState("");
@@ -39,6 +40,27 @@ export default function AttendanceSheetPage() {
     setRows((r) => r.map((x) => ({ ...x, status })));
     setDirty(true);
   }
+  function setHomework(studentId, homework) {
+    setRows((r) =>
+      r.map((x) => (x.studentId === studentId ? { ...x, homework, homeworkAuto: false } : x))
+    );
+    setDirty(true);
+  }
+  function resetHomework(studentId) {
+    setRows((r) =>
+      r.map((x) =>
+        x.studentId === studentId
+          ? { ...x, homework: x.homeworkSuggested, homeworkAuto: true }
+          : x
+      )
+    );
+    setDirty(true);
+  }
+
+  const hasHomework = useMemo(
+    () => rows.some((r) => r.homeworkSuggested && r.homeworkSuggested !== "none"),
+    [rows]
+  );
 
   const counts = useMemo(() => {
     const t = { present: 0, late: 0, excused: 0, absent: 0 };
@@ -52,7 +74,13 @@ export default function AttendanceSheetPage() {
       await api.teacher.updateAttendanceSession(sessionId, {
         date,
         note,
-        records: rows.map((r) => ({ studentId: r.studentId, status: r.status, note: r.note || "" })),
+        records: rows.map((r) => ({
+          studentId: r.studentId,
+          status: r.status,
+          note: r.note || "",
+          homework: hasHomework ? r.homework : "none",
+          homeworkAuto: hasHomework ? r.homeworkAuto !== false : true,
+        })),
       });
       setDirty(false);
       dialog.toast("Attendance saved");
@@ -132,6 +160,13 @@ export default function AttendanceSheetPage() {
           </button>
         </div>
 
+        {hasHomework && (
+          <p className="att-hw-hint">
+            <svg className="icon"><use href="#icon-info" /></svg>{" "}
+            Homework status is pre-filled from what each student submitted since the last session. Adjust any row and it stops auto-updating.
+          </p>
+        )}
+
         {rows.length === 0 ? (
           <div className="empty-state">This class has no students.</div>
         ) : (
@@ -145,19 +180,54 @@ export default function AttendanceSheetPage() {
                     <span className="att-row-user">{r.username}</span>
                   </div>
                 </div>
-                <div className="att-seg" role="group" aria-label={"Attendance for " + r.name}>
-                  {ATT_STATUSES.map((k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      className={"att-seg-btn " + ATT_META[k].cls + (r.status === k ? " active" : "")}
-                      onClick={() => setStatus(r.studentId, k)}
-                      title={ATT_META[k].label}
-                    >
-                      <span className="att-seg-short">{ATT_META[k].short}</span>
-                      <span className="att-seg-label">{ATT_META[k].label}</span>
-                    </button>
-                  ))}
+                <div className="att-row-controls">
+                  <div className="att-seg" role="group" aria-label={"Attendance for " + r.name}>
+                    {ATT_STATUSES.map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        className={"att-seg-btn " + ATT_META[k].cls + (r.status === k ? " active" : "")}
+                        onClick={() => setStatus(r.studentId, k)}
+                        title={ATT_META[k].label}
+                      >
+                        <span className="att-seg-short">{ATT_META[k].short}</span>
+                        <span className="att-seg-label">{ATT_META[k].label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {hasHomework && (
+                    <div className="att-hw">
+                      <div className="att-seg" role="group" aria-label={"Homework for " + r.name}>
+                        {HW_STATUSES.map((k) => (
+                          <button
+                            key={k}
+                            type="button"
+                            className={"att-seg-btn " + HW_META[k].cls + (r.homework === k ? " active" : "")}
+                            onClick={() => setHomework(r.studentId, k)}
+                            title={HW_META[k].label}
+                          >
+                            <span className="att-seg-short">{HW_META[k].short}</span>
+                            <span className="att-seg-label">{HW_META[k].label}</span>
+                          </button>
+                        ))}
+                      </div>
+                      {r.homeworkAuto ? (
+                        <span className="att-hw-tag" title="Auto-detected from submissions — click to override">
+                          auto
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="att-hw-tag as-btn"
+                          onClick={() => resetHomework(r.studentId)}
+                          title={"Reset to auto (" + HW_META[r.homeworkSuggested].label + ")"}
+                        >
+                          reset
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

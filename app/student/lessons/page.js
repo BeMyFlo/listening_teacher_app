@@ -23,6 +23,13 @@ function CategoryBadges({ unit }) {
       {LESSON_CATS.map((cat) => {
         const c = (unit.categories || []).find((x) => x.key === cat.key);
         const has = c && c.hasContent;
+        if (c && c.locked) {
+          return (
+            <span key={cat.key} className="cat-badge cat-badge-locked">
+              <svg className="icon"><use href="#icon-lock" /></svg> {cat.label}
+            </span>
+          );
+        }
         return has ? (
           <span
             key={cat.key}
