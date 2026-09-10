@@ -5,6 +5,7 @@ import ReadingPassage from "@/components/student/ReadingPassage";
 import { parseNoteInline, parseNoteLayout } from "@/lib/noteLayout";
 import { NoteDoc } from "@/components/student/RichDoc";
 import HighlightText, { hashStr, clearHighlights } from "@/components/student/HighlightText";
+import ExamAudioPlayer from "@/components/student/ExamAudioPlayer";
 
 // Highlightable static text in the question column. `base` scopes it to the
 // current section; `slot` + a hash of the text keep the localStorage key stable
@@ -219,7 +220,19 @@ function DiagramImage({ section, center }) {
 }
 
 // ---------- 1 section (khớp renderSectionBlock của legacy) ----------
-export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, onReplay, hlScope = "", noteSource = null }) {
+export function SectionBlock({
+  section,
+  secIdx,
+  skill,
+  answersApi,
+  reviewById,
+  onReplay,
+  hlScope = "",
+  noteSource = null,
+  examAudio = false,
+  audioPhase = "idle",
+  onAudioPhase,
+}) {
   const [replays, setReplays] = useState(0);
   const [hlNonce, setHlNonce] = useState(0);
   const isReading = skill === "reading";
@@ -298,20 +311,29 @@ export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, o
     <HlSourceContext.Provider value={sectionSource}>
     <div style={{ marginBottom: 30 }}>
       <div className="section-title">{section.name}</div>
-      {section.audioUrl && (
-        <div className="player">
-          <svg className="icon"><use href="#icon-speaker" /></svg>
-          <audio
-            controls
+      {section.audioUrl &&
+        (examAudio ? (
+          <ExamAudioPlayer
             src={section.audioUrl}
-            onPlay={() => {
-              setReplays((n) => n + 1);
-              onReplay && onReplay();
-            }}
+            partLabel={section.name || `Part ${secIdx + 1}`}
+            phase={audioPhase}
+            onPhase={onAudioPhase}
+            warn={secIdx === 0}
           />
-          <span className="replay-count">Listened: {replays} times</span>
-        </div>
-      )}
+        ) : (
+          <div className="player">
+            <svg className="icon"><use href="#icon-speaker" /></svg>
+            <audio
+              controls
+              src={section.audioUrl}
+              onPlay={() => {
+                setReplays((n) => n + 1);
+                onReplay && onReplay();
+              }}
+            />
+            <span className="replay-count">Listened: {replays} times</span>
+          </div>
+        ))}
       {section.imageUrl && <DiagramImage section={section} center />}
       {questionsTools}
       <div key={hlNonce}>{body}</div>

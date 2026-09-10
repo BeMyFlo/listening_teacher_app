@@ -325,6 +325,42 @@ button.unit-list-goto {
 .player audio { flex: 1; width: 100%; }
 .player .replay-count { font-size: .8rem; color: var(--muted); white-space: nowrap; }
 
+/* ---------- Trình phát Listening thi thật (1 lần, không tua) ---------- */
+.exam-audio { margin: 4px 0 20px; }
+.exam-audio-warn {
+  display: flex; gap: 8px; align-items: flex-start;
+  margin: 0 0 10px; padding: 10px 12px;
+  background: #FFF7ED; border: 1px solid #FDBA74; border-radius: 10px;
+  font-size: .85rem; line-height: 1.5; color: var(--ink);
+}
+.exam-audio-warn .icon { color: #EA580C; flex-shrink: 0; margin-top: 2px; }
+.exam-audio-start { display: inline-flex; align-items: center; gap: 8px; }
+.exam-audio-now {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 14px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.exam-audio-now .icon { color: var(--blue); width: 18px; height: 18px; flex-shrink: 0; }
+.exam-audio-bar {
+  flex: 1; min-width: 120px; height: 6px;
+  background: var(--border); border-radius: 999px; overflow: hidden;
+}
+.exam-audio-bar span { display: block; height: 100%; background: var(--blue); border-radius: 999px; transition: width .25s linear; }
+.exam-audio-time { font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.exam-audio-resume { padding: 4px 10px; font-size: .8rem; }
+.exam-audio-done {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px; background: #F0FDF4;
+  border: 1px solid var(--green); border-radius: 10px;
+  font-size: .88rem; color: var(--ink);
+}
+.exam-audio-done .icon { color: var(--green); flex-shrink: 0; }
+.section-nav-btn:disabled, .section-nav-btn.locked {
+  opacity: .45; cursor: not-allowed;
+}
+.section-nav-btn.locked:hover { border-color: var(--border); color: var(--ink); }
+.section-nav-btn.locked .icon { width: 15px; height: 15px; }
+
 .section-title {
   font-weight: 700;
   color: var(--navy);

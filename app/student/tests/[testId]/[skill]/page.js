@@ -189,7 +189,26 @@ function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router,
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
+  // Listening thi thật: mỗi Part chỉ phát 1 lần. Nhớ trạng thái audio từng
+  // section ("idle"/"playing"/"done") ở đây để quay lại Part cũ không phát
+  // lại được, và để chỉ mở Part sau khi Part trước đã nghe xong.
+  const [audioPhase, setAudioPhase] = useState({});
   const sections = skillData.sections || [];
+  const isListening = skill === "listening";
+
+  const setSectionPhase = (si) => (p) =>
+    setAudioPhase((prev) => (prev[si] === p ? prev : { ...prev, [si]: p }));
+
+  // Part được phép nhảy tới: 0 luôn mở; Part i mở khi Part i-1 đã "done"
+  // (hoặc không có audio). Không giới hạn với Reading / bài tập thường.
+  let maxNavSection = sections.length - 1;
+  if (isListening) {
+    maxNavSection = 0;
+    for (let i = 1; i < sections.length; i++) {
+      if (!sections[i - 1].audioUrl || audioPhase[i - 1] === "done") maxNavSection = i;
+      else break;
+    }
+  }
   const session = readSession("student") || {};
   const studentName = session.name || "";
   const studentId = (session.payload && session.payload.studentId) || "anon";
@@ -358,7 +377,13 @@ function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router,
         <h2>{test.unit} · {test.title}</h2>
         <p style={{ color: "var(--muted)", marginBottom: 20 }}>{skillData.instructions}</p>
         {sections.length > 1 && (
-          <SectionNav sections={sections} active={activeSection} onSelect={setActiveSection} answersApi={answersApi} />
+          <SectionNav
+            sections={sections}
+            active={activeSection}
+            onSelect={setActiveSection}
+            answersApi={answersApi}
+            maxSection={maxNavSection}
+          />
         )}
         <div id="testForm">
           <SectionBlock
@@ -366,6 +391,9 @@ function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router,
             secIdx={activeSection}
             skill={skill}
             answersApi={answersApi}
+            examAudio={isListening}
+            audioPhase={audioPhase[activeSection] || "idle"}
+            onAudioPhase={setSectionPhase(activeSection)}
             onReplay={() => setReplayCount((n) => n + 1)}
             hlScope={"test:" + testId}
             noteSource={{
@@ -390,12 +418,17 @@ function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router,
             <button
               type="button"
               className="btn secondary"
-              disabled={activeSection === sections.length - 1}
-              onClick={() => setActiveSection((i) => Math.min(sections.length - 1, i + 1))}
+              disabled={activeSection >= Math.min(sections.length - 1, maxNavSection)}
+              onClick={() => setActiveSection((i) => Math.min(sections.length - 1, maxNavSection, i + 1))}
             >
               Next section <svg className="icon"><use href="#icon-arrow-right" /></svg>
             </button>
           </div>
+        )}
+        {isListening && sections.length > 1 && activeSection >= maxNavSection && activeSection < sections.length - 1 && (
+          <p className="practice-hint" style={{ textAlign: "center" }}>
+            Nghe hết Part này thì mới mở được Part sau.
+          </p>
         )}
         <button
           type="button"
@@ -424,7 +457,7 @@ function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router,
 // Thanh chuyển section (giống cách IELTS thi thật chia Passage/Part 1,2,3) —
 // thay vì xếp hết các section chồng xuống, học sinh bấm số để nhảy tới
 // section đang muốn làm. Chấm xanh = section đó đã trả lời hết câu hỏi.
-function SectionNav({ sections, active, onSelect, answersApi }) {
+function SectionNav({ sections, active, onSelect, answersApi, maxSection = Infinity }) {
   return (
     <div className="section-nav" role="tablist">
       {sections.map((sec, i) => {
@@ -435,17 +468,24 @@ function SectionNav({ sections, active, onSelect, answersApi }) {
             const v = answersApi.getValue(f);
             return Array.isArray(v) ? v.length > 0 : v !== "" && v != null;
           });
+        const locked = i > maxSection;
         return (
           <button
             key={i}
             type="button"
             role="tab"
             aria-selected={i === active}
-            className={"section-nav-btn" + (i === active ? " active" : "") + (done ? " done" : "")}
-            onClick={() => onSelect(i)}
-            title={sec.name || `Section ${i + 1}`}
+            disabled={locked}
+            className={
+              "section-nav-btn" +
+              (i === active ? " active" : "") +
+              (done ? " done" : "") +
+              (locked ? " locked" : "")
+            }
+            onClick={() => !locked && onSelect(i)}
+            title={locked ? "Chưa mở — nghe xong Part trước đã" : sec.name || `Section ${i + 1}`}
           >
-            {i + 1}
+            {locked ? <svg className="icon"><use href="#icon-lock" /></svg> : i + 1}
           </button>
         );
       })}
