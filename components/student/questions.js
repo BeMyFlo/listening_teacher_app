@@ -252,7 +252,7 @@ export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, o
   );
 
   const questionsTools = (
-    <div className="questions-tools" key={hlNonce}>
+    <div className="questions-tools">
       <span className="rt-hint">
         <svg className="icon"><use href="#icon-edit" /></svg>
         Select any text in the questions to <b>highlight</b> or add a <b>note</b>

@@ -92,6 +92,26 @@ export function HighlightMarksText({ text, marks, setMarks, inline = false, clas
     };
   }, []);
 
+  // Trên mobile (long-press để bôi chọn) KHÔNG có sự kiện `mouseup` khi thả
+  // tay, nên nút "Highlight" không bao giờ hiện. Nghe thêm `selectionchange`
+  // (debounce để đợi học sinh kéo xong) rồi mở popup ngay tại vùng đã chọn —
+  // cách này chạy cho cả chuột lẫn cảm ứng.
+  useEffect(() => {
+    let t;
+    const onSelChange = () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const s = readSelection();
+        if (s) setPopup({ x: s.rect.left + s.rect.width / 2, y: s.rect.top, start: s.start, end: s.end });
+      }, 400);
+    };
+    document.addEventListener("selectionchange", onSelChange);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("selectionchange", onSelChange);
+    };
+  }, [readSelection]);
+
   const segments = useMemo(() => {
     const t = passage;
     const sorted = [...marks].filter((m) => m.start < m.end).sort((a, b) => a.start - b.start);
