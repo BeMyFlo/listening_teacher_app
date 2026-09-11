@@ -6,6 +6,7 @@ import { parseNoteInline, parseNoteLayout } from "@/lib/noteLayout";
 import { NoteDoc } from "@/components/student/RichDoc";
 import HighlightText, { hashStr, clearHighlights } from "@/components/student/HighlightText";
 import ExamAudioPlayer from "@/components/student/ExamAudioPlayer";
+import { blankIdsFromDoc } from "@/lib/tiptap/doc";
 
 // Highlightable static text in the question column. `base` scopes it to the
 // current section; `slot` + a hash of the text keep the localStorage key stable
@@ -30,6 +31,17 @@ function docHasContent(doc) {
     n.type === "horizontalRule" ||
     (Array.isArray(n.content) && n.content.some(scan));
   return doc.content.some(scan);
+}
+
+// Question ids actually embedded as [[n]] blanks inside a section's Note
+// Completion content (WYSIWYG noteDoc, or legacy noteText string).
+function noteBlankIdSet(section) {
+  if (docHasContent(section.noteDoc)) return new Set(blankIdsFromDoc(section.noteDoc));
+  const ids = [];
+  const re = /\[\[(\d+)\]\]/g;
+  let m;
+  while ((m = re.exec(section.noteText || ""))) ids.push(Number(m[1]));
+  return new Set(ids);
 }
 
 // ---------- State câu trả lời ----------
@@ -246,7 +258,16 @@ export function SectionBlock({
   // localStorage namespace for question-column highlights in this section.
   const hlBase = `qhl:${hlScope}:${skill}:${section.name || ""}:${secIdx}:`;
 
-  const fields = (section.fields || []).map((f) => (
+  // 1 section có thể trộn câu hỏi rời (MCQ/Matching/TFNG...) VÀ 1 khối Note
+  // Completion cùng lúc (vd Q1-7 Matching Headings + Q8-13 Table Completion
+  // trong cùng 1 passage). Chỉ những câu hỏi KHÔNG nằm trong noteDoc/noteText
+  // (không phải [[n]] nào cả) mới hiện ở danh sách rời — câu nào đã là 1 ô
+  // trống trong note thì chỉ hiện đúng 1 lần, bên trong khối note. Trước đây
+  // hễ có note là toàn bộ field rời bị bỏ qua hoàn toàn, làm mất câu hỏi.
+  const noteBlankIds = hasNote ? noteBlankIdSet(section) : new Set();
+  const standaloneFields = (section.fields || []).filter((f) => !noteBlankIds.has(Number(f.id)));
+
+  const fields = standaloneFields.map((f) => (
     <QuestionField
       key={f.id}
       field={f}
@@ -259,7 +280,10 @@ export function SectionBlock({
   ));
 
   const body = hasNote ? (
-    <NoteCompletionBlock section={section} answersApi={answersApi} reviewById={reviewById} hlBase={hlBase} />
+    <>
+      {fields}
+      <NoteCompletionBlock section={section} answersApi={answersApi} reviewById={reviewById} hlBase={hlBase} />
+    </>
   ) : (
     fields
   );
