@@ -105,13 +105,9 @@ async function handler(req, res) {
   }
   const level = cls.level;
 
-  const classFilter = {
-    $or: [
-      { classIds: { $exists: false } },
-      { classIds: { $size: 0 } },
-      { classIds: cls._id },
-    ],
-  };
+  // classIds rỗng/không có = CHƯA giao cho lớp nào (không phải "giao cho tất
+  // cả") — giáo viên phải tick rõ lớp thì học sinh lớp đó mới thấy bài.
+  const classFilter = { classIds: cls._id };
 
   if (id) {
     let test;

@@ -36,15 +36,9 @@ async function handler(req, res) {
   const cls = await Class.findById(me.classId).lean();
   if (!cls) return res.status(200).json(EMPTY);
 
-  // Cùng quy tắc lọc Unit như pages/api/units.js: Unit chưa gán lớp -> mọi HS
-  // đúng level; ngoài ra chỉ Unit gán đúng lớp mình.
-  const classFilter = {
-    $or: [
-      { classIds: { $exists: false } },
-      { classIds: { $size: 0 } },
-      { classIds: cls._id },
-    ],
-  };
+  // Cùng quy tắc lọc Unit như pages/api/units.js: classIds rỗng = CHƯA giao
+  // cho lớp nào, chỉ Unit gán đúng lớp mình mới hiện.
+  const classFilter = { classIds: cls._id };
 
   const [units, classmates] = await Promise.all([
     Unit.find({ status: "published", level: cls.level, ...classFilter }).lean(),

@@ -199,6 +199,14 @@ async function handler(req, res) {
             error: "Requires content in at least 1 skill before publishing."
           });
         }
+        // classIds rỗng = chưa giao cho lớp nào, không phải "giao cho tất cả" —
+        // publish mà không tick lớp thì không học sinh nào thấy bài, chặn luôn.
+        if (!(test.classIds || []).length) {
+          return res.status(400).json({
+            ok: false,
+            error: "Select at least 1 class before publishing."
+          });
+        }
       }
       test.status = status;
     }

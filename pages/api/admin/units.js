@@ -205,6 +205,11 @@ async function handler(req, res) {
       if (!["draft", "published"].includes(status)) {
         return res.status(400).json({ ok: false, error: "Invalid status" });
       }
+      // classIds rỗng = chưa giao cho lớp nào, không phải "giao cho tất cả" —
+      // publish mà không tick lớp thì không học sinh nào thấy Unit, chặn luôn.
+      if (status === "published" && !(unit.classIds || []).length) {
+        return res.status(400).json({ ok: false, error: "Select at least 1 class before publishing." });
+      }
       unit.status = status;
     }
 

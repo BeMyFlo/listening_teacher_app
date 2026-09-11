@@ -150,15 +150,9 @@ async function handler(req, res) {
   }
   const level = cls.level;
 
-  // Unit "chưa gán lớp" (thiếu field / rỗng) = mọi HS đúng level đều thấy;
-  // ngoài ra HS thấy Unit gán cho đúng lớp mình.
-  const classFilter = {
-    $or: [
-      { classIds: { $exists: false } },
-      { classIds: { $size: 0 } },
-      { classIds: cls._id },
-    ],
-  };
+  // classIds rỗng/không có = CHƯA giao cho lớp nào (không phải "giao cho tất
+  // cả") — giáo viên phải tick rõ lớp thì học sinh lớp đó mới thấy Unit.
+  const classFilter = { classIds: cls._id };
 
   if (id) {
     let unit;

@@ -86,7 +86,7 @@ export default function TeacherTestsPage() {
           </select>
           <select className="select-inline" value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
             <option value="all">All tests</option>
-            <option value="__none__">Assigned to all students</option>
+            <option value="__none__">Not assigned to any class yet</option>
             {classesForFilter.map((c) => (
               <option key={c._id} value={String(c._id)}>
                 Class: {c.name}
