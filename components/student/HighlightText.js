@@ -92,6 +92,28 @@ export function HighlightMarksText({ text, marks, setMarks, inline = false, clas
     };
   }, []);
 
+  const readSelection = useCallback(() => {
+    const sel = typeof window !== "undefined" ? window.getSelection() : null;
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+    const range = sel.getRangeAt(0);
+    const root = ref.current;
+    if (!root || !root.contains(range.startContainer) || !root.contains(range.endContainer)) return null;
+    const toGlobal = (node, offset) => {
+      const el = node.nodeType === 3 ? node.parentElement : node;
+      const base = el && el.getAttribute ? el.getAttribute("data-start") : null;
+      if (base == null) return null;
+      return Number(base) + offset;
+    };
+    const a = toGlobal(range.startContainer, range.startOffset);
+    const b = toGlobal(range.endContainer, range.endOffset);
+    if (a == null || b == null) return null;
+    const start = Math.min(a, b);
+    const end = Math.max(a, b);
+    if (end - start < 1) return null;
+    const rect = range.getBoundingClientRect();
+    return { start, end, rect };
+  }, []);
+
   // Trên mobile (long-press để bôi chọn) KHÔNG có sự kiện `mouseup` khi thả
   // tay, nên nút "Highlight" không bao giờ hiện. Nghe thêm `selectionchange`
   // (debounce để đợi học sinh kéo xong) rồi mở popup ngay tại vùng đã chọn —
@@ -129,28 +151,6 @@ export function HighlightMarksText({ text, marks, setMarks, inline = false, clas
     if (!segs.length) segs.push({ type: "plain", start: 0, text: t });
     return segs;
   }, [passage, marks]);
-
-  const readSelection = useCallback(() => {
-    const sel = typeof window !== "undefined" ? window.getSelection() : null;
-    if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
-    const range = sel.getRangeAt(0);
-    const root = ref.current;
-    if (!root || !root.contains(range.startContainer) || !root.contains(range.endContainer)) return null;
-    const toGlobal = (node, offset) => {
-      const el = node.nodeType === 3 ? node.parentElement : node;
-      const base = el && el.getAttribute ? el.getAttribute("data-start") : null;
-      if (base == null) return null;
-      return Number(base) + offset;
-    };
-    const a = toGlobal(range.startContainer, range.startOffset);
-    const b = toGlobal(range.endContainer, range.endOffset);
-    if (a == null || b == null) return null;
-    const start = Math.min(a, b);
-    const end = Math.max(a, b);
-    if (end - start < 1) return null;
-    const rect = range.getBoundingClientRect();
-    return { start, end, rect };
-  }, []);
 
   function onMouseUp() {
     const s = readSelection();
