@@ -97,12 +97,18 @@ export function answerLabel(field, value, section) {
 }
 
 // ---------- 1 câu hỏi (khớp .field-row của legacy) ----------
+// Câu "chọn N trong M" gộp nhiều số thứ tự liền nhau (vd id=21, idEnd=22) ->
+// hiện "21-22." thay vì chỉ số đầu.
+function fieldNum(field) {
+  return field.idEnd && field.idEnd > field.id ? `${field.id}-${field.idEnd}` : field.id;
+}
+
 export function QuestionField({ field, section, value, onChange, review, hlBase }) {
   const isChoice = field.type === "choice";
   const selectCount = Number(field.selectCount) || 1;
   const options = fieldOptions(field, section);
   const rowCls =
-    "field-row" + (review ? (review.correct ? " correct" : " wrong") : "");
+    "field-row" + (review ? (review.correct ? " correct" : review.partial ? " partial" : " wrong") : "");
 
   // "Correct answer" lưu ở DB là VALUE nội bộ của lựa chọn (VD "o3_2"), không
   // phải chữ học sinh đọc được — map qua option để hiện đúng nhãn.
@@ -122,7 +128,7 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
   if (isChoice) {
     return (
       <div className={rowCls} id={"row-" + field.id}>
-        <span className="num">{field.id}.</span>
+        <span className="num">{fieldNum(field)}.</span>
         <div style={{ flex: 1 }}>
           <div className="label" style={{ marginBottom: 6 }}>
             <HL base={hlBase} slot={field.id + ":label"} text={field.label} />
@@ -166,12 +172,15 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
           </div>
         </div>
         {review && (
-          <span className={"result-mark " + (review.correct ? "correct" : "wrong")}>
+          <span className={"result-mark " + (review.correct ? "correct" : review.partial ? "partial" : "wrong")}>
             <svg className="icon"><use href={review.correct ? "#icon-check" : "#icon-cross"} /></svg>
           </span>
         )}
         {review && !review.correct && (
-          <div className="correct-answer-note">Correct answer: {correctAnswerLabel}</div>
+          <div className="correct-answer-note">
+            {review.partial ? "Partially correct — full answer: " : "Correct answer: "}
+            {correctAnswerLabel}
+          </div>
         )}
         {review && review.explanation && (
           <div className="answer-explanation">{review.explanation}</div>
@@ -182,7 +191,7 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
 
   return (
     <div className={rowCls} id={"row-" + field.id}>
-      <span className="num">{field.id}.</span>
+      <span className="num">{fieldNum(field)}.</span>
       <span className="label">
         <HL base={hlBase} slot={field.id + ":label"} text={field.label} />
         {field.pre ? <>: <HL base={hlBase} slot={field.id + ":pre"} text={field.pre} /></> : ""}

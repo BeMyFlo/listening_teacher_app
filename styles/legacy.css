@@ -418,9 +418,13 @@ button.unit-list-goto {
 
 .field-row.correct input { border-color: var(--green); background: #DFF7E9; }
 .field-row.wrong input { border-color: var(--red); background: #FFE0E2; }
+/* Câu nhiều đáp án được điểm 1 phần (chọn đúng 1/N) — không hẳn đúng, không
+   hẳn sai, tô vàng thay vì đỏ để không đánh đồng với "sai hoàn toàn". */
+.field-row.partial input { border-color: #E08A2E; background: #FFF4E0; }
 .result-mark { font-weight: 700; }
 .result-mark.correct { color: var(--green); }
 .result-mark.wrong { color: var(--red); }
+.result-mark.partial { color: #E08A2E; }
 
 .correct-answer-note {
   font-size: .83rem;

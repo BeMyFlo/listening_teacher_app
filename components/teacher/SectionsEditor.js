@@ -535,8 +535,32 @@ function QuestionDetail({ f, fi, si, sec, media, patch }) {
             ? "Tick the box next to each correct option."
             : f.correctOptionIds.length === 1
             ? "1 correct answer — students pick one."
-            : f.correctOptionIds.length + " correct answers — students must pick exactly " + f.correctOptionIds.length + "."}
+            : f.correctOptionIds.length + " correct answers — students must pick up to " + f.correctOptionIds.length + ". Each pick is graded independently (partial credit)."}
         </div>
+        {f.correctOptionIds.length > 1 && (
+          <div className="f-group" style={{ marginTop: 8 }}>
+            <label>Spans question numbers (optional) — e.g. "Questions {f.id}-{f.id + f.correctOptionIds.length - 1}"</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: ".85rem", color: "var(--muted)" }}>Ends at question #</span>
+              <input
+                type="number"
+                style={{ width: 90 }}
+                placeholder={String(f.id)}
+                value={f.idEnd || ""}
+                onChange={(e) => setF("idEnd", e.target.value ? Number(e.target.value) : null)}
+              />
+              {Number(f.score) !== f.correctOptionIds.length && (
+                <button
+                  type="button"
+                  className="btn secondary sm"
+                  onClick={() => setF("score", f.correctOptionIds.length)}
+                >
+                  Set score = {f.correctOptionIds.length} (1 per answer)
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </>
     );
   }
