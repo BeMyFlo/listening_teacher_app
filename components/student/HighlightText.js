@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { postNote } from "@/lib/client/useNotes";
 import { api } from "@/lib/client/api";
+import { readSession } from "@/lib/client/session";
 
 /* Reusable "select text -> highlight + note" engine, shared by the reading
    passage tool and the question column. Marks are stored per text block in
@@ -32,28 +33,49 @@ function mergeMark(marks, start, end, note) {
   return [...rest, { id: hashStr(s + "-" + e + "-" + Math.random()), start: s, end: e, note: notes.join(" · ") }];
 }
 
+// localStorage is shared by every tab/login on the same browser (vd máy tính
+// dùng chung trong lớp) — phải gắn studentId vào key, nếu không highlight của
+// học sinh này sẽ "nhảy" sang màn hình học sinh khác đăng nhập cùng máy.
+function scopedKey(lsKey) {
+  const session = readSession("student");
+  const studentId = (session && session.payload && session.payload.studentId) || "anon";
+  return `hl:${studentId}:${lsKey}`;
+}
+
 // localStorage-backed marks for one text block, addressed by an explicit key.
 export function useHighlightStore(lsKey) {
   const [marks, setMarks] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const key = scopedKey(lsKey);
 
   useEffect(() => {
     let next = [];
     try {
-      const raw = localStorage.getItem(lsKey);
+      let raw = localStorage.getItem(key);
+      // Migrate one-time from the old, unscoped key (data written before the
+      // per-student fix) — claim it for whoever opens it first, then delete
+      // it so it stops leaking to the next student who opens this same item.
+      if (!raw) {
+        const legacy = localStorage.getItem(lsKey);
+        if (legacy) {
+          raw = legacy;
+          localStorage.setItem(key, legacy);
+          localStorage.removeItem(lsKey);
+        }
+      }
       if (raw) next = JSON.parse(raw);
     } catch {}
     setMarks(Array.isArray(next) ? next : []);
     setLoaded(true);
-  }, [lsKey]);
+  }, [key, lsKey]);
 
   useEffect(() => {
     if (!loaded) return;
     try {
-      if (marks.length) localStorage.setItem(lsKey, JSON.stringify(marks));
-      else localStorage.removeItem(lsKey);
+      if (marks.length) localStorage.setItem(key, JSON.stringify(marks));
+      else localStorage.removeItem(key);
     } catch {}
-  }, [marks, lsKey, loaded]);
+  }, [marks, key, loaded]);
 
   return { marks, setMarks };
 }
@@ -61,10 +83,12 @@ export function useHighlightStore(lsKey) {
 // Remove every question-highlight block belonging to one section.
 export function clearHighlights(prefix) {
   try {
+    const scopedPrefix = scopedKey(prefix);
     const doomed = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith(prefix)) doomed.push(k);
+      // Match both the new per-student key and any not-yet-migrated legacy key.
+      if (k && (k.startsWith(scopedPrefix) || k.startsWith(prefix))) doomed.push(k);
     }
     doomed.forEach((k) => localStorage.removeItem(k));
     return doomed.length;

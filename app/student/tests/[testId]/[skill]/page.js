@@ -31,6 +31,15 @@ export default function TakeTestPage() {
   const isQuestion = QUESTION_SKILLS.includes(skill);
   const canGuardPrompts = !!(test && !locked && !isQuestion && tab && !promptsDone);
 
+  // Nộp ngay bài đang làm dở của MỌI prompt (nếu có nội dung) rồi quay lại
+  // danh sách test — dùng chung cho cả vi phạm tab-switch và hết giờ đếm ngược.
+  async function forceSubmitPrompts() {
+    const refs = Object.values(promptRefs.current).filter(Boolean);
+    await Promise.all(refs.map((r) => r.forceSubmit && r.forceSubmit().catch(() => {})));
+    setPromptsDone(true);
+    router.push("/student/tests");
+  }
+
   // Listening/Reading dùng guard riêng trong QuestionRunner (nộp cả bài 1
   // lần). Writing/Speaking nộp theo từng prompt độc lập nên xử lý ở đây:
   // vi phạm quá số lần cho phép -> nộp ngay bài đang làm dở của MỌI prompt
@@ -39,13 +48,13 @@ export default function TakeTestPage() {
     enabled: canGuardPrompts,
     dialog,
     label: tab ? `bài ${tab.label}` : "bài thi",
-    onExceeded: async () => {
-      const refs = Object.values(promptRefs.current).filter(Boolean);
-      await Promise.all(refs.map((r) => r.forceSubmit && r.forceSubmit().catch(() => {})));
-      setPromptsDone(true);
-      router.push("/student/tests");
-    },
+    onExceeded: forceSubmitPrompts,
   });
+
+  const session = readSession("student") || {};
+  const studentId = (session.payload && session.payload.studentId) || "anon";
+  const timerKey =
+    test && tab ? `test-timer:${studentId}:${test.id}:${skill}` : null;
 
   useEffect(() => {
     api.student
@@ -94,10 +103,20 @@ export default function TakeTestPage() {
     );
 
   if (!isQuestion) {
+    const allSubmitted =
+      (skillData.prompts || []).length > 0 &&
+      (skillData.prompts || []).every((p) => !!latestPromptSub(subs, p.id));
     return (
       <section>
         <div className="card">
           {backLink}
+          {skillData.durationMinutes && !promptsDone && !allSubmitted ? (
+            <Countdown
+              minutes={Number(skillData.durationMinutes)}
+              onExpire={forceSubmitPrompts}
+              storageKey={timerKey}
+            />
+          ) : null}
           <span className={"badge test " + skill}>{tab.label} Test</span>
           <h2>{(test.unit ? test.unit + " · " : "") + test.title}</h2>
           {skillData.instructions && (
