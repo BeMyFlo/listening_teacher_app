@@ -74,7 +74,7 @@ export const WritingPrompt = forwardRef(function WritingPrompt(
   return (
     <>
       <textarea
-        rows={8}
+        rows={20}
         className="essay-input"
         placeholder="Type your essay here..."
         style={{ width: "100%" }}

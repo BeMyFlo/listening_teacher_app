@@ -3486,6 +3486,18 @@ tr:hover td { background: #FFF7FB; }
 }
 .prompt-instructions p:last-child { margin-bottom: 0; }
 
+/* Ô viết bài Writing — từ khi tách 2 cột (đề trái, viết phải), ô chỉ còn nửa
+   bề ngang trang nên `rows` không đủ cao nữa (chữ xuống dòng sớm hơn). Ép
+   chiều cao tối thiểu rộng rãi để gõ cả bài luận không phải cuộn liên tục;
+   vẫn kéo giãn thêm được (resize dọc). */
+.essay-input {
+  min-height: 420px;
+  resize: vertical;
+}
+@media (max-width: 860px) {
+  .essay-input { min-height: 320px; }
+}
+
 /* Chấm Speaking */
 .speaking-review { margin-bottom: 14px; }
 .sr-addnote { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
