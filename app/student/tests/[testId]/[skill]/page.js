@@ -171,6 +171,7 @@ export default function TakeTestPage() {
   return (
     <QuestionRunner
       test={test}
+      testId={testId}
       skill={skill}
       tab={tab}
       skillData={skillData}
@@ -182,7 +183,7 @@ export default function TakeTestPage() {
   );
 }
 
-function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router, onSubmitted }) {
+function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded, router, onSubmitted }) {
   const dialog = useDialog();
   const answersApi = useAnswers();
   const [replayCount, setReplayCount] = useState(0);
