@@ -91,44 +91,53 @@ export function TheoryDoc({ doc, renderText }) {
 
 // ---------- Note / Summary Completion ----------
 // renderBlank(id, key) -> element (the numbered input). Content before the
-// first horizontalRule is the instructions (outside the box).
+// FIRST horizontalRule is the shared instructions (outside any box). Each
+// horizontalRule after that starts a new boxed block — lets one section carry
+// more than one instruction/word-limit group (e.g. Q31-35 "TWO WORDS ONLY",
+// Q36-40 "ONE WORD ONLY") instead of just a single instructions+box split.
 export function NoteDoc({ doc, renderBlank, renderText }) {
   if (!doc || !Array.isArray(doc.content)) return null;
   const nodes = doc.content;
-  const dividerAt = nodes.findIndex((n) => n.type === "horizontalRule");
-  const intro = dividerAt >= 0 ? nodes.slice(0, dividerAt) : [];
-  const box = dividerAt >= 0 ? nodes.slice(dividerAt + 1) : nodes;
+
+  const segments = [[]];
+  nodes.forEach((n) => {
+    if (n.type === "horizontalRule") segments.push([]);
+    else segments[segments.length - 1].push(n);
+  });
+  const hasDivider = segments.length > 1;
+  const intro = hasDivider ? segments[0] : [];
+  const boxes = hasDivider ? segments.slice(1) : [segments[0]];
 
   const inl = (n, kb) => inlineChildren(n.content, renderBlank, renderText, kb);
 
-  const block = (node, i) => {
+  const block = (node, key) => {
     switch (node.type) {
       case "heading":
         return (node.attrs && node.attrs.level) >= 2 ? (
-          <h4 key={i} className="note-h2">
-            {inl(node, "b" + i + ":")}
+          <h4 key={key} className="note-h2">
+            {inl(node, "b" + key + ":")}
           </h4>
         ) : (
-          <h3 key={i} className="note-h1">
-            {inl(node, "b" + i + ":")}
+          <h3 key={key} className="note-h1">
+            {inl(node, "b" + key + ":")}
           </h3>
         );
       case "bulletList":
         return (
-          <ul key={i} className="note-ul">
+          <ul key={key} className="note-ul">
             {(node.content || []).map((li, k) => (
-              <li key={k}>{inl((li.content || [])[0] || {}, "b" + i + "-" + k + ":")}</li>
+              <li key={k}>{inl((li.content || [])[0] || {}, "b" + key + "-" + k + ":")}</li>
             ))}
           </ul>
         );
       case "paragraph":
       default: {
-        const kids = inl(node, "b" + i + ":");
+        const kids = inl(node, "b" + key + ":");
         const empty = !(node.content && node.content.length);
         return empty ? (
-          <div key={i} style={{ height: 8 }} />
+          <div key={key} style={{ height: 8 }} />
         ) : (
-          <p key={i} className="note-p">
+          <p key={key} className="note-p">
             {kids}
           </p>
         );
@@ -143,7 +152,11 @@ export function NoteDoc({ doc, renderBlank, renderText }) {
           {inlineChildren(n.content, renderBlank, renderText, "intro" + i + ":")}
         </p>
       ))}
-      <div className="note-completion-box">{box.map((n, i) => block(n, i))}</div>
+      {boxes.map((boxNodes, bi) => (
+        <div key={bi} className="note-completion-box">
+          {boxNodes.map((n, i) => block(n, bi + "-" + i))}
+        </div>
+      ))}
     </div>
   );
 }

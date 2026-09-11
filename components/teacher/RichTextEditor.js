@@ -125,14 +125,6 @@ export default function RichTextEditor({ value, onChange, variant = "theory", pl
     editor.chain().focus().insertBlank(id).run();
   }
 
-  const hasDivider = () => {
-    let found = false;
-    editor.state.doc.forEach((n) => {
-      if (n.type.name === "horizontalRule") found = true;
-    });
-    return found;
-  };
-
   const B = ({ on, onClick, title, children, disabled }) => (
     <button
       type="button"
@@ -205,8 +197,11 @@ export default function RichTextEditor({ value, onChange, variant = "theory", pl
         )}
 
         <B
-          title={isNote ? "Divider — instructions above, notes below" : "Divider"}
-          disabled={hasDivider()}
+          title={
+            isNote
+              ? "Divider — 1st one splits instructions/notes; add more to start a new box (e.g. a different word limit for the next group of questions)"
+              : "Divider"
+          }
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
         >
           — Divider
