@@ -105,8 +105,9 @@ export default function TakeTestPage() {
           )}
           {(skillData.prompts || []).map((p) => {
             const last = latestPromptSub(subs, p.id);
-            return (
-              <div className="lesson-block" key={p.id}>
+
+            const promptInfo = (
+              <>
                 <h4 style={{ margin: "0 0 8px" }}>{p.title || "Prompt"}</h4>
                 {p.instructions && (
                   <div className="prompt-instructions">
@@ -118,7 +119,12 @@ export default function TakeTestPage() {
                 {p.imageUrl && (
                   <img src={p.imageUrl} className="diagram-image" style={{ margin: "10px 0" }} alt="" />
                 )}
-                <div className="prompt-work" style={{ marginTop: 12 }}>
+              </>
+            );
+
+            const workAndStatus = (
+              <>
+                <div className="prompt-work" style={skill === "writing" ? undefined : { marginTop: 12 }}>
                   {skill === "writing" ? (
                     <WritingPrompt
                       ref={(el) => (promptRefs.current[p.id] = el)}
@@ -160,6 +166,27 @@ export default function TakeTestPage() {
                       <div className="notice info">Submitted — pending teacher review.</div>
                     ))}
                 </div>
+              </>
+            );
+
+            // Writing: tách 2 cột như Reading — đề bên trái, ô viết bài bên
+            // phải, cùng cuộn ngang hàng — dễ vừa đọc đề vừa viết hơn là cuộn
+            // lên xuống. Speaking giữ nguyên 1 cột (không cần đọc/viết song song).
+            if (skill === "writing") {
+              return (
+                <div className="lesson-block" key={p.id}>
+                  <div className="reading-layout">
+                    <div className="passage-pane">{promptInfo}</div>
+                    <div className="questions-pane">{workAndStatus}</div>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="lesson-block" key={p.id}>
+                {promptInfo}
+                {workAndStatus}
               </div>
             );
           })}
