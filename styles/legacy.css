@@ -1331,6 +1331,46 @@ tr:hover td { background: #FFF7FB; }
 .questions-card-head h4 { margin: 0; font-size: .94rem; }
 .questions-card-head .head-sub { font-size: .76rem; color: var(--muted); margin-top: 1px; }
 .questions-card-body { padding: 14px 18px 18px; }
+/* Note layout + Illustration/Shared bank giờ sống chung trong khung
+   Questions (không tách riêng ra ngoài) — thêm viền ngăn cách nhẹ + khoảng
+   cách với bảng câu hỏi bên dưới cho rõ ràng. */
+.note-editor-inline { margin-bottom: 16px; }
+.questions-media-row {
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed var(--border);
+}
+
+/* Lưới chọn dạng bài khi bấm "+ Add Question" — thay cho việc tạo câu rỗng
+   rồi tự chọn 6 cơ chế nền trong dropdown Type. */
+.format-pick-panel {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.format-pick-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  font-size: .85rem; font-weight: 700; color: var(--ink);
+  border-bottom: 1px solid var(--border);
+}
+.format-pick-grid {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 14px;
+}
+.format-pick-btn {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: .82rem;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.format-pick-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
 
 .question-grid-cols {
   display: grid;

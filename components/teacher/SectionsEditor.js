@@ -78,6 +78,10 @@ export default function SectionsEditor({ sections, subject, media, onChange }) {
 function SectionCard({ sec, si, subject, media, allSections, patch }) {
   const set = (k, v) => patch((d) => (d[si][k] = v));
   const formats = questionFormatsFor(subject);
+  // true = đang hiện lưới chọn dạng bài (bấm "+ Add Question" mở ra, chọn
+  // xong hoặc Cancel thì đóng lại). Không có state riêng cho "loại nào" vì
+  // chọn xong là tạo câu luôn — không có bước "xác nhận" thừa.
+  const [pickingFormat, setPickingFormat] = useState(false);
 
   // Tạo câu hỏi mới theo ĐÚNG tên dạng bài IELTS (vd "Table Completion")
   // thay vì bắt giáo viên tự biết chọn cơ chế nền (Fill/Matching/...) rồi tự
@@ -106,12 +110,12 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
         s.matchBank = [{ id: newOptionId(), text: "" }];
       }
     });
-    // Cuộn tới đúng chỗ giáo viên cần làm tiếp theo (đợi 1 khung hình để
-    // React render xong phần vừa patch rồi mới cuộn).
-    requestAnimationFrame(() => {
-      const targetId = fmt.noteMode ? `note-editor-${si}` : fmt.needsBank || fmt.needsImage ? `media-bank-${si}` : null;
-      document.getElementById(targetId || "")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
+    setPickingFormat(false);
+  }
+
+  function addPlainQuestion() {
+    patch((d) => d[si].fields.push(emptyField(nextFieldId(allSections))));
+    setPickingFormat(false);
   }
 
   return (
@@ -167,35 +171,6 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
         </div>
       )}
 
-      <div id={`note-editor-${si}`}>
-        <NoteCompletionEditor sec={sec} si={si} allSections={allSections} patch={patch} />
-      </div>
-
-      <div className="builder-2col" id={`media-bank-${si}`}>
-        <div className="form-row" style={{ marginBottom: 0 }}>
-          <label>Illustration (Diagram / Map — optional)</label>
-          <select
-            className="select-inline section-image-select"
-            style={{ width: "100%" }}
-            value={sec.imageId || ""}
-            onChange={(e) => set("imageId", e.target.value)}
-          >
-            <option value="">— No diagram/map image —</option>
-            {media.images.map((im) => (
-              <option key={im._id} value={im._id}>
-                {(im.unit ? im.unit + " · " : "") + im.title}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="form-row" style={{ marginBottom: 0 }}>
-          <label>Shared answer bank (for Matching questions — optional)</label>
-          <div className="match-bank-box">
-            <MatchBank sec={sec} si={si} patch={patch} />
-          </div>
-        </div>
-      </div>
-
       <div className="questions-card">
         <div className="questions-card-head">
           <div className="head-left">
@@ -207,6 +182,37 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
           </div>
         </div>
         <div className="questions-card-body">
+          {/* Note layout, ảnh minh hoạ, kho đáp án Matching — đều là NGUYÊN
+              LIỆU để soạn câu hỏi, nên nằm chung 1 khung với Questions thay
+              vì tách ra ngoài (dễ lạc, phải cuộn tìm mỗi khi cần). */}
+          <div className="note-editor-inline">
+            <NoteCompletionEditor sec={sec} si={si} allSections={allSections} patch={patch} />
+          </div>
+          <div className="builder-2col questions-media-row">
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label>Illustration (Diagram / Map — for Labelling questions)</label>
+              <select
+                className="select-inline section-image-select"
+                style={{ width: "100%" }}
+                value={sec.imageId || ""}
+                onChange={(e) => set("imageId", e.target.value)}
+              >
+                <option value="">— No diagram/map image —</option>
+                {media.images.map((im) => (
+                  <option key={im._id} value={im._id}>
+                    {(im.unit ? im.unit + " · " : "") + im.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label>Shared answer bank (for Matching questions)</label>
+              <div className="match-bank-box">
+                <MatchBank sec={sec} si={si} patch={patch} />
+              </div>
+            </div>
+          </div>
+
           <div className="question-grid-cols question-grid-head">
             <span />
             <span />
@@ -221,37 +227,44 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
               <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} media={media} patch={patch} />
             ))}
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+
+          {pickingFormat ? (
+            <div className="format-pick-panel">
+              <div className="format-pick-head">
+                <span>What format is this question?</span>
+                <button type="button" className="icon-btn" title="Cancel" onClick={() => setPickingFormat(false)}>
+                  <svg className="icon"><use href="#icon-cross" /></svg>
+                </button>
+              </div>
+              <div className="format-pick-grid">
+                {formats
+                  ? formats.map((f) => (
+                      <button key={f.key} type="button" className="format-pick-btn" onClick={() => addQuestionWithFormat(f)}>
+                        {f.label}
+                      </button>
+                    ))
+                  : QUESTION_KINDS.map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        className="format-pick-btn"
+                        onClick={() => addQuestionWithFormat({ kind: k })}
+                      >
+                        {QUESTION_KIND_LABELS[k]}
+                      </button>
+                    ))}
+              </div>
+            </div>
+          ) : (
             <button
               type="button"
               className="btn secondary btn-add-field"
-              style={{ padding: "8px 14px", fontSize: ".85rem" }}
-              onClick={() => patch((d) => d[si].fields.push(emptyField(nextFieldId(allSections))))}
+              style={{ marginTop: 10, padding: "8px 14px", fontSize: ".85rem" }}
+              onClick={() => (formats ? setPickingFormat(true) : addPlainQuestion())}
             >
               <svg className="icon"><use href="#icon-plus" /></svg> Add Question
             </button>
-            {formats && (
-              <select
-                className="select-inline format-picker"
-                style={{ fontSize: ".85rem" }}
-                value=""
-                onChange={(e) => {
-                  const fmt = formats.find((f) => f.key === e.target.value);
-                  if (fmt) addQuestionWithFormat(fmt);
-                  e.target.value = "";
-                }}
-              >
-                <option value="" disabled>
-                  or add by IELTS format…
-                </option>
-                {formats.map((f) => (
-                  <option key={f.key} value={f.key}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>
