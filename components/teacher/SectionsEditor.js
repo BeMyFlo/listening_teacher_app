@@ -182,36 +182,43 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
           </div>
         </div>
         <div className="questions-card-body">
-          {/* Note layout, ảnh minh hoạ, kho đáp án Matching — đều là NGUYÊN
-              LIỆU để soạn câu hỏi, nên nằm chung 1 khung với Questions thay
-              vì tách ra ngoài (dễ lạc, phải cuộn tìm mỗi khi cần). */}
-          <div className="note-editor-inline">
-            <NoteCompletionEditor sec={sec} si={si} allSections={allSections} patch={patch} />
-          </div>
-          <div className="builder-2col questions-media-row">
-            <div className="form-row" style={{ marginBottom: 0 }}>
-              <label>Illustration (Diagram / Map — for Labelling questions)</label>
-              <select
-                className="select-inline section-image-select"
-                style={{ width: "100%" }}
-                value={sec.imageId || ""}
-                onChange={(e) => set("imageId", e.target.value)}
-              >
-                <option value="">— No diagram/map image —</option>
-                {media.images.map((im) => (
-                  <option key={im._id} value={im._id}>
-                    {(im.unit ? im.unit + " · " : "") + im.title}
-                  </option>
-                ))}
-              </select>
+          {/* Note layout, ảnh minh hoạ, kho đáp án Matching — đều là nguyên
+              liệu để soạn câu hỏi, nên nằm trong khung Questions. Nhưng CHỈ
+              hiện khi thật sự có câu hỏi cần tới (đã bật Note layout, hoặc
+              đã có câu Matching/Labelling) — section trống chỉ có mỗi nút
+              "Add Question", không hiện sẵn cả đống thứ chưa cần dùng. Chọn
+              đúng dạng ở bước "Add Question" sẽ tự bật/hiện đúng phần này. */}
+          {sec.noteMode && (
+            <div className="note-editor-inline">
+              <NoteCompletionEditor sec={sec} si={si} allSections={allSections} patch={patch} />
             </div>
-            <div className="form-row" style={{ marginBottom: 0 }}>
-              <label>Shared answer bank (for Matching questions)</label>
-              <div className="match-bank-box">
-                <MatchBank sec={sec} si={si} patch={patch} />
+          )}
+          {(sec.fields || []).some((f) => f.kind === "matching" || f.kind === "labelling") && (
+            <div className="builder-2col questions-media-row">
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <label>Illustration (Diagram / Map — for Labelling questions)</label>
+                <select
+                  className="select-inline section-image-select"
+                  style={{ width: "100%" }}
+                  value={sec.imageId || ""}
+                  onChange={(e) => set("imageId", e.target.value)}
+                >
+                  <option value="">— No diagram/map image —</option>
+                  {media.images.map((im) => (
+                    <option key={im._id} value={im._id}>
+                      {(im.unit ? im.unit + " · " : "") + im.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <label>Shared answer bank (for Matching questions)</label>
+                <div className="match-bank-box">
+                  <MatchBank sec={sec} si={si} patch={patch} />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="question-grid-cols question-grid-head">
             <span />
