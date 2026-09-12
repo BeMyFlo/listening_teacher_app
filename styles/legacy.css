@@ -629,6 +629,20 @@ tr:hover td { background: #FFF7FB; }
 .note-blank.wrong .note-blank-input { border-color: var(--red); }
 .note-blank-correct { font-size: .78rem; color: var(--red); white-space: nowrap; }
 
+/* Flow-chart Completion — mỗi bước 1 khung riêng nối bằng mũi tên, giống đề
+   thi thật, thay vì 1 khung to chứa mọi dòng như Note/Summary Completion. */
+.note-flow-chart { display: flex; flex-direction: column; align-items: center; margin-top: 4px; }
+.note-flow-step {
+  width: 100%;
+  max-width: 460px;
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  padding: 10px 16px;
+  text-align: center;
+  line-height: 1.6;
+}
+.note-flow-arrow { color: var(--muted); font-size: 1.1rem; line-height: 1; margin: 4px 0; }
+
 /* ---------- Note/Summary Completion — soạn đề (giáo viên) ---------- */
 .note-completion-editor { margin-bottom: 10px; }
 .note-mode-toggle {
@@ -3343,6 +3357,21 @@ tr:hover td { background: #FFF7FB; }
 .ui-dialog-actions .btn { padding: 9px 18px; font-size: .9rem; }
 .btn.btn-danger-solid { background: var(--red); color: #fff; }
 .btn.btn-danger-solid:hover { background: #C24E68; }
+
+/* "Có gì mới" — popup 1 lần sau mỗi bản cập nhật */
+.changelog-modal { max-width: 480px; animation: ui-pop-in .16s ease; }
+.changelog-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 22px 22px 4px;
+}
+.changelog-head .icon { width: 1.2rem; height: 1.2rem; color: var(--brand, #E85D8A); }
+.changelog-head h3 { margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--ink); }
+.changelog-body { padding: 10px 22px 4px; overflow-y: auto; }
+.changelog-entry + .changelog-entry { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.changelog-date { font-size: .78rem; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
+.changelog-body ul { margin: 0; padding-left: 20px; }
+.changelog-body li { margin-bottom: 8px; line-height: 1.6; color: var(--ink); }
+.changelog-body li:last-child { margin-bottom: 0; }
 
 /* Toasts */
 .ui-toast-wrap {

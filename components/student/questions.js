@@ -436,6 +436,7 @@ export function NoteCompletionBlock({ section, answersApi, reviewById, hlBase })
       <>
         <NoteDoc
           doc={section.noteDoc}
+          fieldsById={fieldsById}
           renderBlank={(id, key) => (
             <NoteBlankInput
               key={key}

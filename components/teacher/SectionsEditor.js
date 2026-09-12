@@ -36,6 +36,14 @@ function appendNoteBlank(s, id, fmt) {
   const lastField = lastBlankId != null ? (s.fields || []).find((x) => Number(x.id) === lastBlankId) : null;
   const startsNewBlock = !!(lastField && lastField.formatLabel && fmt.label && lastField.formatLabel !== fmt.label);
   if (startsNewBlock) {
+    // Segment TRƯỚC divider đầu tiên luôn bị NoteDoc coi là "intro" (hiện
+    // trơn, không đóng khung) — nếu đây là divider đầu tiên của note, chèn
+    // thêm 1 divider RỖNG lên đầu để nội dung box 1 (đang có sẵn câu hỏi)
+    // không bị "giáng cấp" xuống thành intro.
+    const hasExistingDivider = s.noteDoc.content.some((n) => n.type === "horizontalRule");
+    if (!hasExistingDivider) {
+      s.noteDoc.content.unshift({ type: "horizontalRule" });
+    }
     s.noteDoc.content.push({ type: "horizontalRule" });
   }
   s.noteDoc.content.push({ type: "paragraph", content: [{ type: "blank", attrs: { id } }] });

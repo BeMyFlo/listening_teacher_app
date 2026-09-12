@@ -34,6 +34,8 @@ function toPublicUnit(unit, cls) {
       noteDoc: s.noteDoc || null,
       fields: (s.fields || []).map((f) => ({
         id: f.id,
+        idEnd: f.idEnd || null,
+        formatLabel: f.formatLabel || "",
         label: f.label,
         type: f.type,
         pre: f.pre,

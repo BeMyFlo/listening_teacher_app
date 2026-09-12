@@ -89,13 +89,39 @@ export function TheoryDoc({ doc, renderText }) {
   return <div className="lesson-text">{doc.content.map((n, i) => theoryBlock(n, i, renderText))}</div>;
 }
 
+// Tìm id ô trống ĐẦU TIÊN trong 1 node (đệ quy vào content) — dùng để tra
+// formatLabel của khung qua field tương ứng, không cần lưu format riêng cho
+// từng khung.
+function firstBlankId(node) {
+  if (!node) return null;
+  if (node.type === "blank") return Number(node.attrs && node.attrs.id);
+  if (Array.isArray(node.content)) {
+    for (const c of node.content) {
+      const id = firstBlankId(c);
+      if (id != null) return id;
+    }
+  }
+  return null;
+}
+function firstBlankIdInNodes(nodes) {
+  for (const n of nodes || []) {
+    const id = firstBlankId(n);
+    if (id != null) return id;
+  }
+  return null;
+}
+
 // ---------- Note / Summary Completion ----------
 // renderBlank(id, key) -> element (the numbered input). Content before the
 // FIRST horizontalRule is the shared instructions (outside any box). Each
 // horizontalRule after that starts a new boxed block — lets one section carry
 // more than one instruction/word-limit group (e.g. Q31-35 "TWO WORDS ONLY",
 // Q36-40 "ONE WORD ONLY") instead of just a single instructions+box split.
-export function NoteDoc({ doc, renderBlank, renderText }) {
+// `fieldsById` (optional) lets a khung whose questions were picked as "Flow-
+// chart Completion" render as connected boxes+arrows like the real exam,
+// instead of the plain bordered paragraph block used for every other
+// Completion format.
+export function NoteDoc({ doc, renderBlank, renderText, fieldsById }) {
   if (!doc || !Array.isArray(doc.content)) return null;
   const nodes = doc.content;
 
@@ -145,6 +171,27 @@ export function NoteDoc({ doc, renderBlank, renderText }) {
     }
   };
 
+  // Flow-chart box: mỗi paragraph (step) thành 1 khung riêng, nối bằng mũi
+  // tên xuống — heading/bulletList (nếu có, vd tiêu đề chart) vẫn hiện bình
+  // thường ở trên, không đóng khung.
+  const flowBlock = (node, key) => {
+    if (node.type === "heading" || node.type === "bulletList") return block(node, key);
+    const kids = inl(node, "b" + key + ":");
+    if (!(node.content && node.content.length)) return null;
+    return (
+      <div key={key} className="note-flow-step">
+        {kids}
+      </div>
+    );
+  };
+
+  const isFlowChartBox = (boxNodes) => {
+    if (!fieldsById) return false;
+    const id = firstBlankIdInNodes(boxNodes);
+    const f = id != null ? fieldsById[id] : null;
+    return !!(f && f.formatLabel === "Flow-chart Completion");
+  };
+
   return (
     <div className="note-completion">
       {intro.map((n, i) => (
@@ -152,11 +199,32 @@ export function NoteDoc({ doc, renderBlank, renderText }) {
           {inlineChildren(n.content, renderBlank, renderText, "intro" + i + ":")}
         </p>
       ))}
-      {boxes.map((boxNodes, bi) => (
-        <div key={bi} className="note-completion-box">
-          {boxNodes.map((n, i) => block(n, bi + "-" + i))}
-        </div>
-      ))}
+      {boxes.map((boxNodes, bi) => {
+        if (isFlowChartBox(boxNodes)) {
+          const steps = boxNodes
+            .map((n, i) => ({ n, i, el: flowBlock(n, bi + "-" + i) }))
+            .filter((s) => s.el != null);
+          return (
+            <div key={bi} className="note-flow-chart">
+              {steps.map((s, si) => (
+                <Fragment key={s.i}>
+                  {s.el}
+                  {s.n.type !== "heading" && s.n.type !== "bulletList" && si < steps.length - 1 && (
+                    <div className="note-flow-arrow" aria-hidden="true">
+                      &#9660;
+                    </div>
+                  )}
+                </Fragment>
+              ))}
+            </div>
+          );
+        }
+        return (
+          <div key={bi} className="note-completion-box">
+            {boxNodes.map((n, i) => block(n, bi + "-" + i))}
+          </div>
+        );
+      })}
     </div>
   );
 }

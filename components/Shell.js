@@ -7,6 +7,7 @@ import { clearSession, clearTeacherToken } from "@/lib/client/session";
 import { useShellBadges } from "@/lib/client/shellBadges";
 import NotificationBell from "./NotificationBell";
 import SupportWidget from "./tickets/SupportWidget";
+import ChangelogModal from "./ChangelogModal";
 
 function initials(name) {
   const parts = String(name || "?").trim().split(/\s+/);
@@ -177,6 +178,7 @@ export default function Shell({ role, userName, userSub, children }) {
         )}
         <main className="content">{children}</main>
         <SupportWidget role={role} />
+        <ChangelogModal role={role} />
       </div>
     </div>
   );
