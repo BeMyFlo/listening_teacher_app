@@ -18,6 +18,30 @@ import {
 import SpreadsheetImport from "./SpreadsheetImport";
 import { questionFormatsFor } from "@/lib/teacher/questionFormats";
 
+// Chèn 1 chỗ trống mới vào cuối note-doc của section. Nếu chỗ trống NGAY
+// TRƯỚC nó (câu note gần nhất) thuộc 1 dạng "Completion" KHÁC (vd vừa có
+// Flow-chart Completion, giờ thêm Note Completion) thì tự chèn 1 Divider
+// trước — tách thành khung riêng, khớp cách trình bày thi thật (mỗi dạng
+// bài 1 khung), thay vì dồn chung vào 1 đoạn không phân biệt được ranh
+// giới. Cùng 1 dạng liên tiếp (vd 2 câu Note Completion nối nhau, trường
+// hợp phổ biến nhất) thì KHÔNG chèn divider — vẫn 1 đoạn liền mạch bình
+// thường như thi thật.
+function appendNoteBlank(s, id, fmt) {
+  s.noteMode = true;
+  if (!s.noteDoc || !Array.isArray(s.noteDoc.content) || !s.noteDoc.content.length) {
+    s.noteDoc = s.noteText ? noteTextToDoc(s.noteText) : { type: "doc", content: [{ type: "paragraph" }] };
+  }
+  const blankIds = blankIdsFromDoc(s.noteDoc);
+  const lastBlankId = blankIds[blankIds.length - 1];
+  const lastField = lastBlankId != null ? (s.fields || []).find((x) => Number(x.id) === lastBlankId) : null;
+  const startsNewBlock = !!(lastField && lastField.formatLabel && fmt.label && lastField.formatLabel !== fmt.label);
+  if (startsNewBlock) {
+    s.noteDoc.content.push({ type: "horizontalRule" });
+  }
+  s.noteDoc.content.push({ type: "paragraph", content: [{ type: "blank", attrs: { id } }] });
+  s.noteText = docToNoteText(s.noteDoc);
+}
+
 // Trình soạn "section + câu hỏi" dùng chung cho Exercise (Unit) và Mock
 // Test. Controlled; markup khớp renderSectionsEditor của legacy.
 export default function SectionsEditor({ sections, subject, media, onChange }) {
@@ -99,14 +123,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
       if (fmt.kind === "ynng") field.options = ynngOptions();
       s.fields.push(field);
 
-      if (fmt.noteMode) {
-        s.noteMode = true;
-        if (!s.noteDoc || !Array.isArray(s.noteDoc.content) || !s.noteDoc.content.length) {
-          s.noteDoc = s.noteText ? noteTextToDoc(s.noteText) : { type: "doc", content: [{ type: "paragraph" }] };
-        }
-        s.noteDoc.content.push({ type: "paragraph", content: [{ type: "blank", attrs: { id } }] });
-        s.noteText = docToNoteText(s.noteDoc);
-      }
+      if (fmt.noteMode) appendNoteBlank(s, id, fmt);
       if (fmt.needsBank && !(s.matchBank || []).length) {
         s.matchBank = [{ id: newOptionId(), text: "" }];
       }
@@ -473,14 +490,12 @@ function FieldRow({ f, fi, si, sec, subject, media, patch }) {
       }
 
       if (fmt.noteMode) {
+        // Câu này đã sẵn là 1 chỗ trống trong note (đổi Type qua lại giữa các
+        // dạng completion) -> không cần chèn blank mới, tránh nhân đôi.
         s.noteMode = true;
-        if (!s.noteDoc || !Array.isArray(s.noteDoc.content) || !s.noteDoc.content.length) {
-          s.noteDoc = s.noteText ? noteTextToDoc(s.noteText) : { type: "doc", content: [{ type: "paragraph" }] };
-        }
-        if (!blankIdsFromDoc(s.noteDoc).includes(Number(f.id))) {
-          s.noteDoc.content.push({ type: "paragraph", content: [{ type: "blank", attrs: { id: Number(f.id) } }] });
-        }
-        s.noteText = docToNoteText(s.noteDoc);
+        const alreadyBlank =
+          s.noteDoc && Array.isArray(s.noteDoc.content) && blankIdsFromDoc(s.noteDoc).includes(Number(f.id));
+        if (!alreadyBlank) appendNoteBlank(s, Number(f.id), fmt);
       }
       if (fmt.needsBank && !(s.matchBank || []).length) {
         s.matchBank = [{ id: newOptionId(), text: "" }];

@@ -156,6 +156,7 @@ function GradeForm({ prompt, submissionId, kind, writingTask, onGraded }) {
       onGraded && (await onGraded());
     } catch (e) {
       dialog.alert({ tone: "error", title: "Failed to save grade", message: e.message });
+    } finally {
       setBusy(false);
     }
   }

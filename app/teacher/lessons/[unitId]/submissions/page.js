@@ -57,6 +57,7 @@ function Inner() {
 
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
+  const [regrading, setRegrading] = useState(false);
 
   useEffect(() => {
     setData(null);
@@ -66,6 +67,20 @@ function Inner() {
       .then(setData)
       .catch((e) => setErr(e.message));
   }, [unitId]);
+
+  async function handleRegrade() {
+    setRegrading(true);
+    try {
+      const res = await api.teacher.regradeUnit(unitId);
+      const fresh = await api.teacher.unitSubmissions(unitId);
+      setData(fresh);
+      alert(`Regraded ${res.regradedCount} submission(s) against the current answer key.`);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setRegrading(false);
+    }
+  }
 
   const pendingByClass = useMemo(() => {
     const m = {};
@@ -98,6 +113,13 @@ function Inner() {
           <p className="page-sub">Whole unit · 6 skills · graded per student</p>
         </div>
       </div>
+      {data && (
+        <div className="page-head-actions">
+          <button type="button" className="btn secondary" onClick={handleRegrade} disabled={regrading}>
+            {regrading ? "Re-grading…" : "Re-grade all"}
+          </button>
+        </div>
+      )}
     </div>
   );
 
