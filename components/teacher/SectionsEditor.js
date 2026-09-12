@@ -94,6 +94,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
       const s = d[si];
       const field = emptyField(id);
       field.kind = fmt.kind;
+      field.formatLabel = fmt.label || "";
       if (fmt.kind === "tfng") field.options = tfngOptions();
       if (fmt.kind === "ynng") field.options = ynngOptions();
       s.fields.push(field);
@@ -231,7 +232,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
           </div>
           <div className="fields-wrap">
             {sec.fields.map((f, fi) => (
-              <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} media={media} patch={patch} />
+              <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} media={media} patch={patch} />
             ))}
           </div>
 
@@ -417,8 +418,9 @@ function NoteCompletionEditor({ sec, si, allSections, patch }) {
   );
 }
 
-function FieldRow({ f, fi, si, sec, media, patch }) {
+function FieldRow({ f, fi, si, sec, subject, media, patch }) {
   const setF = (k, v) => patch((d) => (d[si].fields[fi][k] = v));
+  const formats = questionFormatsFor(subject);
 
   function changeKind(kind) {
     patch((d) => {
@@ -441,6 +443,59 @@ function FieldRow({ f, fi, si, sec, media, patch }) {
     });
   }
 
+  // Đổi Type qua tên dạng IELTS (thay vì 6 cơ chế nền trần trụi) — cùng 1
+  // danh sách 27 tên với lúc "Add Question", nhất quán khi sửa lại câu đã
+  // tạo. Đổi sang dạng "completion"/"matching" cũng tự bật Note layout /
+  // Shared bank như lúc thêm mới, không phải riêng biệt chỉ áp dụng khi tạo.
+  // QUAN TRỌNG: gộp hết vào 1 lần patch() duy nhất — gọi patch() 2 lần liên
+  // tiếp trong cùng 1 handler sẽ clone `sections` (prop) 2 lần từ cùng 1
+  // bản cũ (React chưa kịp re-render giữa 2 lần gọi), khiến lần patch sau
+  // ghi đè mất thay đổi của lần patch trước.
+  function changeFormat(fmt) {
+    patch((d) => {
+      const s = d[si];
+      const ff = s.fields[fi];
+      const wasTfng = isFixedChoiceShape(ff.options, ["true", "false", "ng"]);
+      const wasYnng = isFixedChoiceShape(ff.options, ["yes", "no", "ng"]);
+      ff.kind = fmt.kind;
+      ff.formatLabel = fmt.label || "";
+      if (fmt.kind === "tfng" && !wasTfng) {
+        ff.options = tfngOptions();
+        ff.correctOptionIds = [];
+      }
+      if (fmt.kind === "ynng" && !wasYnng) {
+        ff.options = ynngOptions();
+        ff.correctOptionIds = [];
+      }
+      if (fmt.kind === "mcq" && (!ff.options.length || wasTfng || wasYnng)) {
+        ff.options = [];
+        ff.correctOptionIds = [];
+      }
+
+      if (fmt.noteMode) {
+        s.noteMode = true;
+        if (!s.noteDoc || !Array.isArray(s.noteDoc.content) || !s.noteDoc.content.length) {
+          s.noteDoc = s.noteText ? noteTextToDoc(s.noteText) : { type: "doc", content: [{ type: "paragraph" }] };
+        }
+        if (!blankIdsFromDoc(s.noteDoc).includes(Number(f.id))) {
+          s.noteDoc.content.push({ type: "paragraph", content: [{ type: "blank", attrs: { id: Number(f.id) } }] });
+        }
+        s.noteText = docToNoteText(s.noteDoc);
+      }
+      if (fmt.needsBank && !(s.matchBank || []).length) {
+        s.matchBank = [{ id: newOptionId(), text: "" }];
+      }
+    });
+  }
+
+  // Nhiều tên IELTS trỏ về cùng 1 cơ chế (vd Note/Table/Flow-chart Completion
+  // đều là "fill") — ưu tiên đúng tên đã lưu (formatLabel) để dropdown hiện
+  // lại chính xác; câu cũ tạo trước khi có formatLabel (hoặc import CSV)
+  // thì mới hiện đại diện đầu tiên khớp cơ chế đó.
+  const currentFormatKey = formats
+    ? ((formats.find((x) => x.label === f.formatLabel) || formats.find((x) => x.kind === f.kind)) || {}).key || ""
+    : "";
+
   return (
     <div className="question-row">
       <div className="question-grid-cols">
@@ -455,13 +510,30 @@ function FieldRow({ f, fi, si, sec, media, patch }) {
           value={f.label}
           onChange={(e) => setF("label", e.target.value)}
         />
-        <select className="f-kind" value={f.kind} onChange={(e) => changeKind(e.target.value)}>
-          {QUESTION_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {QUESTION_KIND_LABELS[k]}
-            </option>
-          ))}
-        </select>
+        {formats ? (
+          <select
+            className="f-kind"
+            value={currentFormatKey}
+            onChange={(e) => {
+              const fmt = formats.find((x) => x.key === e.target.value);
+              if (fmt) changeFormat(fmt);
+            }}
+          >
+            {formats.map((fmt) => (
+              <option key={fmt.key} value={fmt.key}>
+                {fmt.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <select className="f-kind" value={f.kind} onChange={(e) => changeKind(e.target.value)}>
+            {QUESTION_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {QUESTION_KIND_LABELS[k]}
+              </option>
+            ))}
+          </select>
+        )}
         <input
           type="number"
           className="f-score"
