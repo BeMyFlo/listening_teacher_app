@@ -16,6 +16,7 @@ import {
   isFixedChoiceShape,
 } from "@/lib/teacher/sectionTransforms";
 import SpreadsheetImport from "./SpreadsheetImport";
+import { questionFormatsFor } from "@/lib/teacher/questionFormats";
 
 // Trình soạn "section + câu hỏi" dùng chung cho Exercise (Unit) và Mock
 // Test. Controlled; markup khớp renderSectionsEditor của legacy.
@@ -76,6 +77,42 @@ export default function SectionsEditor({ sections, subject, media, onChange }) {
 
 function SectionCard({ sec, si, subject, media, allSections, patch }) {
   const set = (k, v) => patch((d) => (d[si][k] = v));
+  const formats = questionFormatsFor(subject);
+
+  // Tạo câu hỏi mới theo ĐÚNG tên dạng bài IELTS (vd "Table Completion")
+  // thay vì bắt giáo viên tự biết chọn cơ chế nền (Fill/Matching/...) rồi tự
+  // nhớ bật Note layout / điền Shared answer bank ở chỗ khác. Đây CHỈ là lớp
+  // hướng dẫn UI — set đúng field.kind + tự bật/điền sẵn phần liên quan,
+  // không đụng gì tới cách import CSV hay cách chấm điểm.
+  function addQuestionWithFormat(fmt) {
+    const id = nextFieldId(allSections);
+    patch((d) => {
+      const s = d[si];
+      const field = emptyField(id);
+      field.kind = fmt.kind;
+      if (fmt.kind === "tfng") field.options = tfngOptions();
+      if (fmt.kind === "ynng") field.options = ynngOptions();
+      s.fields.push(field);
+
+      if (fmt.noteMode) {
+        s.noteMode = true;
+        if (!s.noteDoc || !Array.isArray(s.noteDoc.content) || !s.noteDoc.content.length) {
+          s.noteDoc = s.noteText ? noteTextToDoc(s.noteText) : { type: "doc", content: [{ type: "paragraph" }] };
+        }
+        s.noteDoc.content.push({ type: "paragraph", content: [{ type: "blank", attrs: { id } }] });
+        s.noteText = docToNoteText(s.noteDoc);
+      }
+      if (fmt.needsBank && !(s.matchBank || []).length) {
+        s.matchBank = [{ id: newOptionId(), text: "" }];
+      }
+    });
+    // Cuộn tới đúng chỗ giáo viên cần làm tiếp theo (đợi 1 khung hình để
+    // React render xong phần vừa patch rồi mới cuộn).
+    requestAnimationFrame(() => {
+      const targetId = fmt.noteMode ? `note-editor-${si}` : fmt.needsBank || fmt.needsImage ? `media-bank-${si}` : null;
+      document.getElementById(targetId || "")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
 
   return (
     <div className="builder-section">
@@ -130,9 +167,11 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
         </div>
       )}
 
-      <NoteCompletionEditor sec={sec} si={si} allSections={allSections} patch={patch} />
+      <div id={`note-editor-${si}`}>
+        <NoteCompletionEditor sec={sec} si={si} allSections={allSections} patch={patch} />
+      </div>
 
-      <div className="builder-2col">
+      <div className="builder-2col" id={`media-bank-${si}`}>
         <div className="form-row" style={{ marginBottom: 0 }}>
           <label>Illustration (Diagram / Map — optional)</label>
           <select
@@ -182,14 +221,37 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
               <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} media={media} patch={patch} />
             ))}
           </div>
-          <button
-            type="button"
-            className="btn secondary btn-add-field"
-            style={{ marginTop: 10, padding: "8px 14px", fontSize: ".85rem" }}
-            onClick={() => patch((d) => d[si].fields.push(emptyField(nextFieldId(allSections))))}
-          >
-            <svg className="icon"><use href="#icon-plus" /></svg> Add Question
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+            <button
+              type="button"
+              className="btn secondary btn-add-field"
+              style={{ padding: "8px 14px", fontSize: ".85rem" }}
+              onClick={() => patch((d) => d[si].fields.push(emptyField(nextFieldId(allSections))))}
+            >
+              <svg className="icon"><use href="#icon-plus" /></svg> Add Question
+            </button>
+            {formats && (
+              <select
+                className="select-inline format-picker"
+                style={{ fontSize: ".85rem" }}
+                value=""
+                onChange={(e) => {
+                  const fmt = formats.find((f) => f.key === e.target.value);
+                  if (fmt) addQuestionWithFormat(fmt);
+                  e.target.value = "";
+                }}
+              >
+                <option value="" disabled>
+                  or add by IELTS format…
+                </option>
+                {formats.map((f) => (
+                  <option key={f.key} value={f.key}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         </div>
       </div>
     </div>
