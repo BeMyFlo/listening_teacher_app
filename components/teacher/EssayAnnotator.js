@@ -189,13 +189,13 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
       if (overlapsExisting(lo, hi)) return; // đoạn này đã có chú thích -> dùng toolbar
       if (type === "insertText" || type === "insertFromPaste" || type === "insertReplacementText") {
         if (!data) return;
-        const a = { id: rid(), action: "replace", start: lo, end: hi, quote: essayText.slice(lo, hi), insertText: data, category: "other", criterion: null, comment: "", source: "teacher" };
+        const a = { id: rid(), action: "replace", start: lo, end: hi, quote: essayText.slice(lo, hi), insertText: data, category: "grammar", criterion: null, comment: "", source: "teacher" };
         emit([...anns, a]);
         queueCaret(lo, a.id);
         return;
       }
       if (type === "deleteContentBackward" || type === "deleteContentForward" || type === "deleteByCut") {
-        const a = { id: rid(), action: "delete", start: lo, end: hi, quote: essayText.slice(lo, hi), insertText: "", category: "other", criterion: null, comment: "", source: "teacher" };
+        const a = { id: rid(), action: "delete", start: lo, end: hi, quote: essayText.slice(lo, hi), insertText: "", category: "grammar", criterion: null, comment: "", source: "teacher" };
         emit([...anns, a]);
         queueCaret(lo, null);
       }
@@ -214,7 +214,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
           return;
         }
       }
-      const a = { id: rid(), action: "insert", start: os, end: os, quote: "", insertText: data, category: "other", criterion: null, comment: "", source: "teacher" };
+      const a = { id: rid(), action: "insert", start: os, end: os, quote: "", insertText: data, category: "grammar", criterion: null, comment: "", source: "teacher" };
       emit([...anns, a]);
       queueCaret(os, a.id);
       return;
@@ -247,7 +247,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
         return;
       }
       if (overlapsExisting(os - 1, os)) return;
-      const a = { id: rid(), action: "delete", start: os - 1, end: os, quote: essayText.slice(os - 1, os), insertText: "", category: "other", criterion: null, comment: "", source: "teacher" };
+      const a = { id: rid(), action: "delete", start: os - 1, end: os, quote: essayText.slice(os - 1, os), insertText: "", category: "grammar", criterion: null, comment: "", source: "teacher" };
       emit([...anns, a]);
       queueCaret(os - 1, null);
       return;
@@ -265,7 +265,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
         return;
       }
       if (overlapsExisting(os, os + 1)) return;
-      const a = { id: rid(), action: "delete", start: os, end: os + 1, quote: essayText.slice(os, os + 1), insertText: "", category: "other", criterion: null, comment: "", source: "teacher" };
+      const a = { id: rid(), action: "delete", start: os, end: os + 1, quote: essayText.slice(os, os + 1), insertText: "", category: "grammar", criterion: null, comment: "", source: "teacher" };
       emit([...anns, a]);
       queueCaret(os, null);
     }
