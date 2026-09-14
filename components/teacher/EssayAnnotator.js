@@ -4,20 +4,28 @@
 // tiêu chí. Xuất ra mảng annotation (lib/grading/annotate.js) — cùng định dạng
 // mà AI (Gemini) sinh ra, nên AI chấm thay được.
 //
-// MỘT khung duy nhất — không có ô "Quick edit" tách riêng nữa (giáo viên phản
-// ánh 2 khung nhìn qua nhìn lại khó dùng). Thao tác trực tiếp trên bản tô màu:
-//   - Bôi đen chữ MỚI  -> mở toolbar tạo chú thích (Comment/Replace/Delete).
-//   - Bấm vào chữ ĐÃ gạch/tô (kể cả do AI chấm) -> mở lại toolbar đó để SỬA
-//     hoặc XOÁ ngay tại chỗ, không cần kéo xuống danh sách bên dưới.
-// (Từng thử làm hẳn vùng tô màu gõ tự do được bằng contentEditable, nhưng với
-// bài nhiều lỗi (15-30+) nó gây lỗi layout của Chrome không ổn định — nên việc
-// sửa/xoá vẫn đi qua toolbar (thao tác rời rạc), không phải gõ tự do.)
+// MỘT khung duy nhất, gõ/xoá TRỰC TIẾP như 1 ô văn bản thật — giáo viên yêu
+// cầu rõ: bấm vào đâu là con trỏ hiện ở đó, Backspace/Delete tại chỗ đó gạch
+// đỏ NGAY ký tự gốc, gõ chữ mới hiện xanh NGAY, không qua toolbar/note gì cả.
+//   - contentEditable=true để có con trỏ thật + focus bàn phím bình thường.
+//   - MỌI thao tác sửa chữ (gõ/Backspace/Delete/dán) bị chặn ở onBeforeInput
+//     rồi tự tay quy đổi thành 1 annotation (delete/insert/replace) neo vào
+//     essayText GỐC — KHÔNG bao giờ để trình duyệt tự ý sửa DOM (đây chính là
+//     nguyên nhân layout Chrome bị lỗi ở lần thử contentEditable tự do trước
+//     đây, với bài nhiều lỗi 15-30+). Sau khi cập nhật state, con trỏ được tự
+//     đặt lại đúng vị trí logic (xem placeCaret/useLayoutEffect bên dưới).
+//   - Bôi đen 1 đoạn rồi thả chuột vẫn mở toolbar Comment/Replace/Delete như
+//     cũ — dùng khi muốn GẮN tiêu chí (GRA/LR/...) + ghi chú giải thích cho
+//     học sinh, không chỉ sửa chữ suông. Annotation nào (kể cả gõ trực tiếp
+//     hay do AI chấm) cũng bấm vào để mở lại toolbar đó, gán tiêu chí/ghi chú
+//     hoặc xoá — xem onMarkClick.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   buildSegments,
   normalizeAnnotation,
   CATEGORIES,
+  MUTATING,
   colorGroup,
   rid,
 } from "@/lib/grading/annotate";
@@ -41,6 +49,11 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
   const [editPos, setEditPos] = useState({ x: 0, y: 0 });
   const [form, setForm] = useState({ action: "comment", insertText: "", category: "grammar", criterion: "", comment: "" });
   const essayRef = useRef(null);
+  // Annotation đang được gõ tiếp (đang "mở"), để ký tự tiếp theo NỐI vào chứ
+  // không tạo annotation insert mới mỗi ký tự. Reset khi con trỏ dời đi.
+  const activeInsertRef = useRef(null); // { id, os } | null
+  // Vị trí con trỏ CẦN đặt lại sau khi React render xong (segments đổi).
+  const caretGoalRef = useRef(null); // { os, insertAnnId } | null
 
   const anns = useMemo(() => (annotations || []).map((a) => normalizeAnnotation(a, essayText)), [annotations, essayText]);
   const segments = useMemo(() => buildSegments(essayText, anns), [essayText, anns]);
@@ -49,6 +62,57 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
   function emit(next) {
     onChange && onChange(next.map((a) => normalizeAnnotation(a, essayText)));
   }
+
+  function queueCaret(os, insertAnnId) {
+    caretGoalRef.current = { os, insertAnnId: insertAnnId || null };
+    activeInsertRef.current = insertAnnId ? { id: insertAnnId, os } : null;
+  }
+
+  // Đặt lại con trỏ thật (Selection API) sau mỗi lần segments đổi vì 1 phím
+  // gõ/xoá — bắt buộc vì React render lại DOM, trình duyệt sẽ mất con trỏ.
+  useLayoutEffect(() => {
+    const goal = caretGoalRef.current;
+    if (!goal || !essayRef.current) return;
+    caretGoalRef.current = null;
+    const s = window.getSelection();
+    if (!s) return;
+    const container = essayRef.current;
+    let node = null;
+    let offset = 0;
+    if (goal.insertAnnId) {
+      const insEl = container.querySelector(`ins[data-ann-id="${goal.insertAnnId}"]`);
+      if (insEl && insEl.firstChild) {
+        node = insEl.firstChild;
+        offset = node.textContent.length;
+      }
+    }
+    if (!node) {
+      const spans = [...container.querySelectorAll("[data-os]")];
+      const keepSpan = spans.find(
+        (sp) => sp.tagName !== "DEL" && Number(sp.getAttribute("data-os")) <= goal.os && goal.os <= Number(sp.getAttribute("data-oe"))
+      );
+      const anySpan =
+        keepSpan ||
+        spans.find((sp) => Number(sp.getAttribute("data-os")) <= goal.os && goal.os <= Number(sp.getAttribute("data-oe")));
+      if (anySpan && anySpan.firstChild) {
+        node = anySpan.firstChild;
+        offset = Math.max(0, goal.os - Number(anySpan.getAttribute("data-os")));
+      } else if (container.lastChild) {
+        const last = container.lastChild;
+        node = last.nodeType === 3 ? last : last.firstChild;
+        offset = node ? (node.textContent || "").length : 0;
+      }
+    }
+    if (!node) return;
+    try {
+      const range = document.createRange();
+      const len = node.textContent ? node.textContent.length : 0;
+      range.setStart(node, Math.max(0, Math.min(offset, len)));
+      range.collapse(true);
+      s.removeAllRanges();
+      s.addRange(range);
+    } catch {}
+  }, [segments]);
 
   // ---- Annotate: bắt vùng bôi đen MỚI -> offset trong bài gốc ----
   function onMouseUp() {
@@ -64,6 +128,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
     if (end <= start) return;
     const rect = r.getBoundingClientRect();
     const box = essayRef.current.getBoundingClientRect();
+    activeInsertRef.current = null;
     setEditId(null);
     setSel({ start, end, quote: essayText.slice(start, end), x: rect.left - box.left, y: rect.bottom - box.top + 6 });
     setForm({ action: "comment", insertText: "", category: "grammar", criterion: "", comment: "" });
@@ -72,12 +137,14 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
   // Bấm vào 1 chỗ ĐÃ chấm (gạch/tô, kể cả của AI) -> mở lại toolbar tại đó để
   // sửa hoặc xoá ngay, thay vì phải kéo xuống danh sách bên dưới.
   function onMarkClick(e, annId) {
+    e.preventDefault(); // đừng để trình duyệt đặt con trỏ gõ vào giữa 1 mark
     e.stopPropagation();
     const a = anns.find((x) => x.id === annId);
     if (!a || !essayRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const box = essayRef.current.getBoundingClientRect();
     window.getSelection()?.removeAllRanges();
+    activeInsertRef.current = null;
     setSel(null);
     setEditId(a.id);
     setForm({
@@ -89,6 +156,135 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
     });
     setEditPos({ x: rect.left - box.left, y: rect.bottom - box.top + 6 });
   }
+
+  // Có annotation nào (kể cả comment không đổi chữ) đang chiếm CHẶT ĐÚNG
+  // khoảng [lo,hi) hoặc chồng lấn không — nếu có thì KHÔNG gõ/xoá trực tiếp ở
+  // đây, để giáo viên dùng toolbar (tránh tự ý phá 1 annotation đã có
+  // tiêu chí/ghi chú/nguồn AI).
+  function overlapsExisting(lo, hi) {
+    return anns.some((a) => a.start < hi && a.end > lo);
+  }
+
+  // ---- Gõ/xoá TRỰC TIẾP: chặn mọi thay đổi DOM của trình duyệt, tự quy đổi
+  // thành annotation neo vào essayText gốc, rồi tự đặt lại con trỏ. ----
+  function onBeforeInput(e) {
+    if (!essayRef.current) return;
+    const type = e.inputType || "";
+    const s = window.getSelection();
+    if (!s || !s.rangeCount) return;
+    const r = s.getRangeAt(0);
+    if (!essayRef.current.contains(r.commonAncestorContainer)) return;
+    e.preventDefault();
+
+    const a0 = boundary(r.startContainer, r.startOffset, "start");
+    const b0 = boundary(r.endContainer, r.endOffset, "end");
+    if (a0 == null || b0 == null) return;
+    const lo = Math.min(a0, b0);
+    const hi = Math.max(a0, b0);
+    const collapsed = lo === hi;
+    const data = e.data != null ? e.data : e.dataTransfer ? e.dataTransfer.getData("text/plain") : "";
+
+    // Có bôi đen sẵn (không phải chỉ đặt con trỏ) — gõ đè/xoá cả đoạn đó.
+    if (!collapsed) {
+      if (overlapsExisting(lo, hi)) return; // đoạn này đã có chú thích -> dùng toolbar
+      if (type === "insertText" || type === "insertFromPaste" || type === "insertReplacementText") {
+        if (!data) return;
+        const a = { id: rid(), action: "replace", start: lo, end: hi, quote: essayText.slice(lo, hi), insertText: data, category: "other", criterion: null, comment: "", source: "teacher" };
+        emit([...anns, a]);
+        queueCaret(lo, a.id);
+        return;
+      }
+      if (type === "deleteContentBackward" || type === "deleteContentForward" || type === "deleteByCut") {
+        const a = { id: rid(), action: "delete", start: lo, end: hi, quote: essayText.slice(lo, hi), insertText: "", category: "other", criterion: null, comment: "", source: "teacher" };
+        emit([...anns, a]);
+        queueCaret(lo, null);
+      }
+      return;
+    }
+
+    const os = lo;
+
+    if (type === "insertText" || type === "insertFromPaste" || type === "insertReplacementText") {
+      if (!data) return;
+      if (activeInsertRef.current && activeInsertRef.current.os === os) {
+        const cur = anns.find((x) => x.id === activeInsertRef.current.id);
+        if (cur) {
+          patchAnn(cur.id, { insertText: cur.insertText + data });
+          queueCaret(os, cur.id);
+          return;
+        }
+      }
+      const a = { id: rid(), action: "insert", start: os, end: os, quote: "", insertText: data, category: "other", criterion: null, comment: "", source: "teacher" };
+      emit([...anns, a]);
+      queueCaret(os, a.id);
+      return;
+    }
+
+    if (type === "deleteContentBackward") {
+      if (activeInsertRef.current && activeInsertRef.current.os === os) {
+        const cur = anns.find((x) => x.id === activeInsertRef.current.id);
+        if (cur) {
+          const nextText = cur.insertText.slice(0, -1);
+          if (nextText) {
+            patchAnn(cur.id, { insertText: nextText });
+            queueCaret(os, cur.id);
+          } else {
+            emit(anns.filter((x) => x.id !== cur.id));
+            queueCaret(os, null);
+          }
+          return;
+        }
+      }
+      if (os <= 0) return;
+      // Đã có 1 vùng xoá/thay thế bắt đầu NGAY tại con trỏ (vd vừa Backspace
+      // xong 1 lần) -> ăn thêm 1 ký tự gốc bên trái bằng cách nới `start`,
+      // thay vì tạo 1 annotation rời rạc mới sát bên.
+      const adj = anns.find((a) => MUTATING.has(a.action) && a.action !== "insert" && a.start === os);
+      if (adj) {
+        const newStart = adj.start - 1;
+        patchAnn(adj.id, { start: newStart, quote: essayText.slice(newStart, adj.end) });
+        queueCaret(newStart, null);
+        return;
+      }
+      if (overlapsExisting(os - 1, os)) return;
+      const a = { id: rid(), action: "delete", start: os - 1, end: os, quote: essayText.slice(os - 1, os), insertText: "", category: "other", criterion: null, comment: "", source: "teacher" };
+      emit([...anns, a]);
+      queueCaret(os - 1, null);
+      return;
+    }
+
+    if (type === "deleteContentForward") {
+      if (os >= essayText.length) return;
+      // Đối xứng: có vùng xoá/thay thế kết thúc NGAY tại con trỏ -> ăn thêm
+      // 1 ký tự gốc bên phải bằng cách nới `end`.
+      const adj = anns.find((a) => MUTATING.has(a.action) && a.action !== "insert" && a.end === os);
+      if (adj) {
+        const newEnd = adj.end + 1;
+        patchAnn(adj.id, { end: newEnd, quote: essayText.slice(adj.start, newEnd) });
+        queueCaret(os, null);
+        return;
+      }
+      if (overlapsExisting(os, os + 1)) return;
+      const a = { id: rid(), action: "delete", start: os, end: os + 1, quote: essayText.slice(os, os + 1), insertText: "", category: "other", criterion: null, comment: "", source: "teacher" };
+      emit([...anns, a]);
+      queueCaret(os, null);
+    }
+  }
+
+  // React's onBeforeInput PROP is unreliable for this (it's built on a
+  // composition-event polyfill, not a plain passthrough of the native
+  // event — plain ASCII typing/backspace often never reaches it). Attach a
+  // REAL native listener instead, via a ref so it always calls the latest
+  // closure without re-attaching on every render.
+  const onBeforeInputRef = useRef(onBeforeInput);
+  onBeforeInputRef.current = onBeforeInput;
+  useEffect(() => {
+    const el = essayRef.current;
+    if (!el) return;
+    const handler = (e) => onBeforeInputRef.current(e);
+    el.addEventListener("beforeinput", handler);
+    return () => el.removeEventListener("beforeinput", handler);
+  }, []);
 
   // node/offset trong DOM -> offset ký tự trong essayText gốc
   function boundary(node, offset, side) {
@@ -175,16 +371,23 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
       </div>
 
       <p style={{ margin: "0 0 8px", color: "var(--muted)", fontSize: ".82rem" }}>
-        <svg className="icon"><use href="#icon-info" /></svg> Bôi đen chữ để chấm; bấm vào chữ đã gạch/tô (kể cả của AI) để sửa hoặc xoá.
+        <svg className="icon"><use href="#icon-info" /></svg> Bấm vào đâu gõ/xoá ngay ở đó (xoá = gạch đỏ, gõ thêm = chữ xanh). Bôi đen 1
+        đoạn để gắn tiêu chí + ghi chú; bấm vào chữ đã gạch/tô (kể cả của AI) để sửa hoặc xoá chú thích đó.
       </p>
-      <div className="essay-annot" ref={essayRef} onMouseUp={onMouseUp}>
+      <div
+        className="essay-annot"
+        ref={essayRef}
+        contentEditable
+        suppressContentEditableWarning
+        onMouseUp={onMouseUp}
+      >
         {segments.map((seg, i) => {
           const clickable = !!seg.ann || (seg.marks && seg.marks.length === 1);
           const clickId = seg.ann ? seg.ann.id : seg.marks && seg.marks.length === 1 ? seg.marks[0].id : null;
           const onClick = clickable ? (e) => onMarkClick(e, clickId) : undefined;
           if (seg.kind === "ins")
             return (
-              <ins key={i} className="ea-add" onClick={onClick} style={clickable ? { cursor: "pointer" } : undefined}>
+              <ins key={i} className="ea-add" data-ann-id={seg.ann ? seg.ann.id : undefined} onClick={onClick} style={clickable ? { cursor: "pointer" } : undefined}>
                 {seg.text}
               </ins>
             );
@@ -212,7 +415,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
         })}
 
         {(sel || editId) && (
-          <div className="ea-toolbar" style={{ left: sel ? sel.x : editPos.x, top: sel ? sel.y : editPos.y }}>
+          <div className="ea-toolbar" contentEditable={false} style={{ left: sel ? sel.x : editPos.x, top: sel ? sel.y : editPos.y }}>
             <div className="ea-tb-actions">
               {["comment", "replace", "delete"].map((act) => (
                 <button
