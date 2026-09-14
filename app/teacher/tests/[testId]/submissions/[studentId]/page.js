@@ -364,6 +364,11 @@ function PromptRow({ prompt, onGraded }) {
   return (
     <div className="lesson-block" style={{ marginBottom: 10 }}>
       <h4 style={{ margin: "0 0 4px" }}>{prompt.title || "Prompt"}</h4>
+      {prompt.orphaned && (
+        <p style={{ margin: "0 0 8px", color: "var(--muted)", fontSize: ".8rem", fontStyle: "italic" }}>
+          <svg className="icon"><use href="#icon-info" /></svg> This prompt was edited or removed from the test after the student submitted — showing their original answer.
+        </p>
+      )}
       {prompt.instructions && (
         <div className="prompt-instructions" style={{ fontSize: ".86rem" }}>
           {prompt.instructions.split(/\n{2,}/).map((para, k) => (
