@@ -9,6 +9,10 @@ import { readSession } from "@/lib/client/session";
    passage tool and the question column. Marks are stored per text block in
    localStorage. Extracted from the original ReadingPassage.js. */
 
+function isCoarsePointer() {
+  return typeof window !== "undefined" && window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+}
+
 export function hashStr(s) {
   let h = 0;
   for (let i = 0; i < s.length; i++) {
@@ -122,11 +126,25 @@ export function HighlightMarksText({ text, marks, setMarks, inline = false, clas
     const range = sel.getRangeAt(0);
     const root = ref.current;
     if (!root || !root.contains(range.startContainer) || !root.contains(range.endContainer)) return null;
+    // Map a selection endpoint to a character offset in `passage`. Text-node
+    // endpoints add their offset to the nearest [data-start] ancestor; element
+    // endpoints (common on touch) treat `offset` as a child index and sum the
+    // text length of the preceding children.
     const toGlobal = (node, offset) => {
-      const el = node.nodeType === 3 ? node.parentElement : node;
+      let el = node.nodeType === 3 ? node.parentElement : node;
+      let hops = 0;
+      while (el && el !== root && (!el.getAttribute || el.getAttribute("data-start") == null) && hops < 5) {
+        el = el.parentElement;
+        hops++;
+      }
       const base = el && el.getAttribute ? el.getAttribute("data-start") : null;
       if (base == null) return null;
-      return Number(base) + offset;
+      if (node.nodeType === 3) return Number(base) + offset;
+      let acc = Number(base);
+      for (let i = 0; i < offset && i < node.childNodes.length; i++) {
+        acc += (node.childNodes[i].textContent || "").length;
+      }
+      return acc;
     };
     const a = toGlobal(range.startContainer, range.startOffset);
     const b = toGlobal(range.endContainer, range.endOffset);
@@ -136,7 +154,10 @@ export function HighlightMarksText({ text, marks, setMarks, inline = false, clas
     if (end - start < 1) return null;
     const rect = range.getBoundingClientRect();
     return { start, end, rect };
-  }, []);
+  }, [passage]);
+
+  const readSelectionRef = useRef(readSelection);
+  readSelectionRef.current = readSelection;
 
   // Trên mobile (long-press để bôi chọn) KHÔNG có sự kiện `mouseup` khi thả
   // tay, nên nút "Highlight" không bao giờ hiện. Nghe thêm `selectionchange`
@@ -179,7 +200,7 @@ export function HighlightMarksText({ text, marks, setMarks, inline = false, clas
   function onMouseUp() {
     const s = readSelection();
     if (!s) return;
-    setPopup({ x: s.rect.left + s.rect.width / 2, y: s.rect.top, start: s.start, end: s.end });
+    setPopup({ x: s.rect.left + s.rect.width / 2, y: s.rect.top, bottom: s.rect.bottom, start: s.start, end: s.end });
   }
 
   function addHighlight(withNote) {
@@ -266,7 +287,11 @@ export function HighlightMarksText({ text, marks, setMarks, inline = false, clas
       {popup && (
         <div
           className="rt-popup"
-          style={{ position: "fixed", left: popup.x, top: popup.y - 8, transform: "translate(-50%, -100%)" }}
+          style={
+            popup.start != null && popup.bottom != null && isCoarsePointer()
+              ? { position: "fixed", left: popup.x, top: popup.bottom + 10, transform: "translate(-50%, 0)" }
+              : { position: "fixed", left: popup.x, top: popup.y - 8, transform: "translate(-50%, -100%)" }
+          }
           onMouseDown={(e) => e.preventDefault()}
         >
           {popup.start != null ? (

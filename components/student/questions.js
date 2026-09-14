@@ -301,7 +301,7 @@ export function SectionBlock({
     <div className="questions-tools">
       <span className="rt-hint">
         <svg className="icon"><use href="#icon-edit" /></svg>
-        Select any text in the questions to <b>highlight</b> or add a <b>note</b>
+        <span>Select any text in the questions to <b>highlight</b> or add a <b>note</b></span>
       </span>
       <button
         type="button"
@@ -333,7 +333,7 @@ export function SectionBlock({
         </div>
         <div className="questions-pane">
           {questionsTools}
-          <div key={hlNonce}>{body}</div>
+          <div key={"qbody-" + hlNonce}>{body}</div>
         </div>
       </div>
       </HlSourceContext.Provider>
@@ -369,7 +369,7 @@ export function SectionBlock({
         ))}
       {section.imageUrl && <DiagramImage section={section} center />}
       {questionsTools}
-      <div key={hlNonce}>{body}</div>
+      <div key={"qbody-" + hlNonce}>{body}</div>
     </div>
     </HlSourceContext.Provider>
   );

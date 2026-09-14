@@ -421,6 +421,24 @@ button.unit-list-goto {
 /* Câu nhiều đáp án được điểm 1 phần (chọn đúng 1/N) — không hẳn đúng, không
    hẳn sai, tô vàng thay vì đỏ để không đánh đồng với "sai hoàn toàn". */
 .field-row.partial input { border-color: #E08A2E; background: #FFF4E0; }
+
+/* iOS Safari zooms the page in whenever a focused input's font is < 16px.
+   Keep every answer field at 16px on small screens so focusing never zooms. */
+@media (max-width: 640px) {
+  .field-row {
+    align-items: stretch;
+    gap: 4px 8px;
+  }
+  .field-row .label { min-width: 0; flex-basis: 100%; }
+  .field-row input,
+  .field-row input[type=text],
+  .note-blank-input,
+  .rt-note-editor textarea {
+    font-size: 16px;
+  }
+  .field-row input { min-width: 0; width: 100%; flex-basis: 100%; }
+  .note-blank-input { min-width: 90px; }
+}
 .result-mark { font-weight: 700; }
 .result-mark.correct { color: var(--green); }
 .result-mark.wrong { color: var(--red); }
@@ -870,9 +888,11 @@ tr:hover td { background: #FFF7FB; }
   gap: 10px; flex-wrap: wrap; margin-bottom: 8px;
 }
 .reading-tools-bar .rt-hint {
+  display: flex; align-items: flex-start; gap: 6px;
+  flex: 1 1 240px;
   font-size: .8rem; color: var(--muted);
 }
-.reading-tools-bar .rt-hint .icon { width: 14px; height: 14px; margin-right: 4px; }
+.reading-tools-bar .rt-hint .icon { width: 14px; height: 14px; flex: none; margin-top: 2px; }
 .rt-clear {
   border: 1px solid var(--border); background: #fff; color: var(--muted);
   border-radius: 999px; padding: 3px 12px; font-size: .78rem; cursor: pointer;
@@ -905,9 +925,15 @@ tr:hover td { background: #FFF7FB; }
   padding-bottom: 8px; border-bottom: 1px dashed var(--border);
 }
 .questions-tools .rt-hint {
+  display: flex; align-items: flex-start; gap: 6px;
+  flex: 1 1 240px;
   font-size: .78rem; color: var(--muted);
 }
-.questions-tools .rt-hint .icon { width: 14px; height: 14px; margin-right: 4px; }
+.questions-tools .rt-hint .icon { width: 14px; height: 14px; flex: none; margin-top: 2px; }
+
+/* The hint sentence flows as normal text — never break inside "highlight" /
+   "note" the way the passage pane's overflow-wrap:anywhere would force. */
+.rt-hint > span { overflow-wrap: normal; word-break: normal; }
 
 /* ---------- Student notebook ---------- */
 .note-fab {
@@ -1002,6 +1028,10 @@ tr:hover td { background: #FFF7FB; }
   white-space: nowrap;
 }
 .rt-popup button:hover { background: rgba(255,255,255,.15); }
+@media (pointer: coarse) {
+  .rt-popup { padding: 5px; gap: 5px; }
+  .rt-popup button { font-size: .9rem; padding: 9px 13px; min-height: 40px; }
+}
 .rt-popup .rt-swatch {
   width: 12px; height: 12px; border-radius: 3px; background: #FFE08A; display: inline-block;
 }
@@ -1035,6 +1065,10 @@ tr:hover td { background: #FFF7FB; }
 .rt-note-editor textarea {
   width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
   font: inherit; resize: vertical;
+}
+/* 16px keeps iOS Safari from zooming the page when the note field is focused. */
+@media (pointer: coarse) {
+  .rt-note-editor textarea { font-size: 16px; }
 }
 .rt-note-editor-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .rt-note-tonotebook {
