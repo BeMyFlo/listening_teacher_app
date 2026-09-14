@@ -60,8 +60,20 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
   const segments = useMemo(() => buildSegments(essayText, anns), [essayText, anns]);
   const crits = CRIT_OPTS[kind] || CRIT_OPTS.writing;
 
+  // Gõ nhanh thật có thể bắn nhiều sự kiện beforeinput liên tiếp TRƯỚC KHI
+  // React kịp render lại — nếu đọc `anns` (đóng gói lúc render) thì phím gõ
+  // thứ 2 vẫn thấy state CŨ (chưa có ký tự thứ 1), tự ghi đè/lệch vị trí.
+  // annsRef luôn giữ giá trị MỚI NHẤT — cập nhật ngay khi emit() gọi (không
+  // đợi re-render) và đồng bộ lại theo props đã commit qua effect bên dưới.
+  const annsRef = useRef(anns);
+  useEffect(() => {
+    annsRef.current = anns;
+  }, [anns]);
+
   function emit(next) {
-    onChange && onChange(next.map((a) => normalizeAnnotation(a, essayText)));
+    const normalized = next.map((a) => normalizeAnnotation(a, essayText));
+    annsRef.current = normalized;
+    onChange && onChange(normalized);
   }
 
   function queueCaret(os, insertAnnId) {
@@ -144,7 +156,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
   function onMarkClick(e, annId) {
     e.preventDefault(); // đừng để trình duyệt đặt con trỏ gõ vào giữa 1 mark
     e.stopPropagation();
-    const a = anns.find((x) => x.id === annId);
+    const a = annsRef.current.find((x) => x.id === annId);
     if (!a || !essayRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     window.getSelection()?.removeAllRanges();
@@ -166,7 +178,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
   // đây, để giáo viên dùng toolbar (tránh tự ý phá 1 annotation đã có
   // tiêu chí/ghi chú/nguồn AI).
   function overlapsExisting(lo, hi) {
-    return anns.some((a) => a.start < hi && a.end > lo);
+    return annsRef.current.some((a) => a.start < hi && a.end > lo);
   }
 
   // ---- Gõ/xoá TRỰC TIẾP: chặn mọi thay đổi DOM của trình duyệt, tự quy đổi
@@ -194,13 +206,13 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
       if (type === "insertText" || type === "insertFromPaste" || type === "insertReplacementText") {
         if (!data) return;
         const a = { id: rid(), action: "replace", start: lo, end: hi, quote: essayText.slice(lo, hi), insertText: data, category: "grammar", criterion: null, comment: "", source: "teacher" };
-        emit([...anns, a]);
+        emit([...annsRef.current, a]);
         queueCaret(lo, a.id);
         return;
       }
       if (type === "deleteContentBackward" || type === "deleteContentForward" || type === "deleteByCut") {
         const a = { id: rid(), action: "delete", start: lo, end: hi, quote: essayText.slice(lo, hi), insertText: "", category: "grammar", criterion: null, comment: "", source: "teacher" };
-        emit([...anns, a]);
+        emit([...annsRef.current, a]);
         queueCaret(lo, null);
       }
       return;
@@ -211,7 +223,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
     if (type === "insertText" || type === "insertFromPaste" || type === "insertReplacementText") {
       if (!data) return;
       if (activeInsertRef.current && activeInsertRef.current.os === os) {
-        const cur = anns.find((x) => x.id === activeInsertRef.current.id);
+        const cur = annsRef.current.find((x) => x.id === activeInsertRef.current.id);
         if (cur) {
           patchAnn(cur.id, { insertText: cur.insertText + data });
           queueCaret(os, cur.id);
@@ -219,21 +231,21 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
         }
       }
       const a = { id: rid(), action: "insert", start: os, end: os, quote: "", insertText: data, category: "grammar", criterion: null, comment: "", source: "teacher" };
-      emit([...anns, a]);
+      emit([...annsRef.current, a]);
       queueCaret(os, a.id);
       return;
     }
 
     if (type === "deleteContentBackward") {
       if (activeInsertRef.current && activeInsertRef.current.os === os) {
-        const cur = anns.find((x) => x.id === activeInsertRef.current.id);
+        const cur = annsRef.current.find((x) => x.id === activeInsertRef.current.id);
         if (cur) {
           const nextText = cur.insertText.slice(0, -1);
           if (nextText) {
             patchAnn(cur.id, { insertText: nextText });
             queueCaret(os, cur.id);
           } else {
-            emit(anns.filter((x) => x.id !== cur.id));
+            emit(annsRef.current.filter((x) => x.id !== cur.id));
             queueCaret(os, null);
           }
           return;
@@ -243,7 +255,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
       // Đã có 1 vùng xoá/thay thế bắt đầu NGAY tại con trỏ (vd vừa Backspace
       // xong 1 lần) -> ăn thêm 1 ký tự gốc bên trái bằng cách nới `start`,
       // thay vì tạo 1 annotation rời rạc mới sát bên.
-      const adj = anns.find((a) => MUTATING.has(a.action) && a.action !== "insert" && a.start === os);
+      const adj = annsRef.current.find((a) => MUTATING.has(a.action) && a.action !== "insert" && a.start === os);
       if (adj) {
         const newStart = adj.start - 1;
         patchAnn(adj.id, { start: newStart, quote: essayText.slice(newStart, adj.end) });
@@ -252,7 +264,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
       }
       if (overlapsExisting(os - 1, os)) return;
       const a = { id: rid(), action: "delete", start: os - 1, end: os, quote: essayText.slice(os - 1, os), insertText: "", category: "grammar", criterion: null, comment: "", source: "teacher" };
-      emit([...anns, a]);
+      emit([...annsRef.current, a]);
       queueCaret(os - 1, null);
       return;
     }
@@ -261,7 +273,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
       if (os >= essayText.length) return;
       // Đối xứng: có vùng xoá/thay thế kết thúc NGAY tại con trỏ -> ăn thêm
       // 1 ký tự gốc bên phải bằng cách nới `end`.
-      const adj = anns.find((a) => MUTATING.has(a.action) && a.action !== "insert" && a.end === os);
+      const adj = annsRef.current.find((a) => MUTATING.has(a.action) && a.action !== "insert" && a.end === os);
       if (adj) {
         const newEnd = adj.end + 1;
         patchAnn(adj.id, { end: newEnd, quote: essayText.slice(adj.start, newEnd) });
@@ -270,7 +282,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
       }
       if (overlapsExisting(os, os + 1)) return;
       const a = { id: rid(), action: "delete", start: os, end: os + 1, quote: essayText.slice(os, os + 1), insertText: "", category: "grammar", criterion: null, comment: "", source: "teacher" };
-      emit([...anns, a]);
+      emit([...annsRef.current, a]);
       queueCaret(os, null);
     }
   }
@@ -322,16 +334,16 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
       comment: form.comment,
       source: "teacher",
     };
-    emit([...anns, a]);
+    emit([...annsRef.current, a]);
     setSel(null);
     window.getSelection()?.removeAllRanges();
   }
 
   function removeAnn(id) {
-    emit(anns.filter((a) => a.id !== id));
+    emit(annsRef.current.filter((a) => a.id !== id));
   }
   function patchAnn(id, patch) {
-    emit(anns.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+    emit(annsRef.current.map((a) => (a.id === id ? { ...a, ...patch } : a)));
   }
 
   // Lưu/xoá annotation đang mở để SỬA (mở từ việc bấm vào chữ đã gạch/tô).
@@ -392,12 +404,19 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
         data-enable-grammarly="false"
       >
         {segments.map((seg, i) => {
+          // Key ổn định theo NỘI DUNG (id annotation, hoặc offset gốc cho
+          // đoạn "keep"), KHÔNG dùng index mảng — mỗi lần gõ/xoá làm số
+          // lượng segment thay đổi (thêm 1 del/ins là dịch index mọi thứ
+          // phía sau), nên key={i} khiến React gán NHẦM node DOM cũ cho nội
+          // dung mới ở cùng vị trí, làm việc đặt lại con trỏ (placeCaret)
+          // tính sai chỗ — đây chính là lỗi gõ số nhảy lung tung vị trí.
+          const key = seg.ann ? `${seg.kind}-${seg.ann.id}` : `keep-${seg.os}`;
           const clickable = !!seg.ann || (seg.marks && seg.marks.length === 1);
           const clickId = seg.ann ? seg.ann.id : seg.marks && seg.marks.length === 1 ? seg.marks[0].id : null;
           const onClick = clickable ? (e) => onMarkClick(e, clickId) : undefined;
           if (seg.kind === "ins")
             return (
-              <ins key={i} className="ea-add" data-ann-id={seg.ann ? seg.ann.id : undefined} onClick={onClick} style={clickable ? { cursor: "pointer" } : undefined}>
+              <ins key={key} className="ea-add" data-ann-id={seg.ann ? seg.ann.id : undefined} onClick={onClick} style={clickable ? { cursor: "pointer" } : undefined}>
                 {seg.text}
               </ins>
             );
@@ -410,7 +429,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
           const cat = seg.marks && seg.marks[0] ? seg.marks[0].category : seg.ann ? seg.ann.category : null;
           return (
             <Tag
-              key={i}
+              key={key}
               className={cls.trim() || undefined}
               data-os={seg.os}
               data-oe={seg.oe}
