@@ -380,6 +380,12 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
         contentEditable
         suppressContentEditableWarning
         onMouseUp={onMouseUp}
+        // Grammarly (và tương tự) quét mọi vùng contentEditable và có thể
+        // xung đột với cấu trúc <ins>/<del> lồng nhau ở đây, gây giật/nhảy
+        // trang. Các thuộc tính này báo cho Grammarly bỏ qua khung này.
+        data-gramm="false"
+        data-gramm_editor="false"
+        data-enable-grammarly="false"
       >
         {segments.map((seg, i) => {
           const clickable = !!seg.ann || (seg.marks && seg.marks.length === 1);
