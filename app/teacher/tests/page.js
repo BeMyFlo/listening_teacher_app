@@ -127,6 +127,14 @@ export default function TeacherTestsPage() {
                   </p>
                 </div>
                 <div className="actions">
+                  <button
+                    type="button"
+                    className="btn secondary"
+                    style={{ padding: "6px 12px", fontSize: ".8rem" }}
+                    onClick={() => router.push("/teacher/tests/" + t._id + "/submissions")}
+                  >
+                    <svg className="icon"><use href="#icon-list" /></svg> Submissions
+                  </button>
                   <button type="button" className="icon-btn" title="Edit" onClick={() => router.push("/teacher/tests/" + t._id)}>
                     <svg className="icon"><use href="#icon-edit" /></svg>
                   </button>

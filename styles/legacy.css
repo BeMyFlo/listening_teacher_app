@@ -1708,6 +1708,35 @@ tr:hover td { background: #FFF7FB; }
 .subject-toggle button.active { background: var(--blue); color: #fff; }
 .subject-toggle button:not(:last-child) { border-right: 1px solid var(--border); }
 
+/* Same skill tabs, but as separate pills with breathing room between them —
+   used where each tab also carries a "done" badge, which reads as cramped
+   when the buttons are flush segments (submissions review). */
+.subject-toggle.skill-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+}
+.subject-toggle.skill-tabs button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 16px;
+}
+.subject-toggle.skill-tabs button.active { border-color: var(--blue); }
+.subject-toggle .cat-done {
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.subject-toggle .cat-done .icon { width: 9px; height: 9px; stroke-width: 3; }
+.subject-toggle button.active .cat-done { background: #fff; color: var(--blue); }
+
 .match-options-box {
   border: 1px dashed var(--border);
   border-radius: 8px;
@@ -2361,6 +2390,35 @@ tr:hover td { background: #FFF7FB; }
 .pill-muted { background: var(--bg); color: var(--muted); border-color: var(--border); }
 .pill-muted::before { display: none; }
 .pill-info { background: var(--blue-light); color: var(--blue); border-color: #BEE1F6; }
+
+/* ---------- Question Review (per-skill auto-graded results) ---------- */
+.qr-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border);
+  background: #fff; color: var(--muted); font-size: .82rem; font-weight: 600; cursor: pointer;
+}
+.qr-chip .icon { width: 14px; height: 14px; }
+.qr-chip .count { background: var(--bg); border-radius: 999px; padding: 1px 7px; font-size: .74rem; }
+.qr-chip.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.qr-chip.active .count { background: rgba(255, 255, 255, .25); color: #fff; }
+
+.answer-pill {
+  display: inline-block; padding: 3px 11px; border-radius: 999px; font-size: .82rem; font-weight: 600;
+  background: var(--bg); color: var(--ink); white-space: nowrap;
+}
+.answer-pill.correct { background: var(--teal-light); color: var(--teal); }
+.answer-pill.wrong { background: #FFE0E2; color: var(--red); }
+.answer-pill.blank { background: var(--border); color: var(--muted); font-style: italic; }
+
+.qr-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 14px; }
+.qr-pagination button {
+  min-width: 30px; height: 30px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--border);
+  background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: .82rem;
+}
+.qr-pagination button .icon { width: 14px; height: 14px; }
+.qr-pagination button.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.qr-pagination button:disabled { opacity: .4; cursor: not-allowed; }
 
 /* ---------- Builder page header (icon + title + Preview button) ---------- */
 .builder-toolbar {

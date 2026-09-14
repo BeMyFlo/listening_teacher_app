@@ -4,7 +4,8 @@
   "private": true,
   "description": "IELTS with Ms Nhi — static frontend + Vercel serverless API + MongoDB + Cloudinary",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/use-db.js dev && next dev",
+    "dev:live": "node scripts/use-db.js live && next dev",
     "build": "next build",
     "start": "next start",
     "dev:vercel": "vercel dev",
