@@ -102,7 +102,11 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
     if (!node) {
       const spans = [...container.querySelectorAll("[data-os]")];
       const keepSpan = spans.find(
-        (sp) => sp.tagName !== "DEL" && Number(sp.getAttribute("data-os")) <= goal.os && goal.os <= Number(sp.getAttribute("data-oe"))
+        (sp) =>
+          sp.tagName !== "DEL" &&
+          sp.tagName !== "INS" &&
+          Number(sp.getAttribute("data-os")) <= goal.os &&
+          goal.os <= Number(sp.getAttribute("data-oe"))
       );
       const anySpan =
         keepSpan ||
@@ -308,6 +312,11 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
     while (el && el !== essayRef.current && !el.hasAttribute("data-os")) el = el.parentElement;
     if (el && el.hasAttribute("data-os")) {
       const os = Number(el.getAttribute("data-os"));
+      // <ins> (chữ vừa chèn) không chiếm ký tự gốc nào — nó neo tại ĐÚNG 1
+      // điểm bất kể đã gõ thêm bao nhiêu ký tự vào trong đó. Cộng thêm offset
+      // trong text của nó (như làm với đoạn "keep") sẽ tính SAI vị trí, lệch
+      // dần theo mỗi ký tự đã gõ — đây chính là lỗi gõ chữ nhảy lung tung.
+      if (el.tagName === "INS") return os;
       const within = node.nodeType === 3 ? offset : side === "start" ? 0 : el.textContent.length;
       return os + Math.min(within, el.textContent.length);
     }
@@ -416,7 +425,15 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
           const onClick = clickable ? (e) => onMarkClick(e, clickId) : undefined;
           if (seg.kind === "ins")
             return (
-              <ins key={key} className="ea-add" data-ann-id={seg.ann ? seg.ann.id : undefined} onClick={onClick} style={clickable ? { cursor: "pointer" } : undefined}>
+              <ins
+                key={key}
+                className="ea-add"
+                data-ann-id={seg.ann ? seg.ann.id : undefined}
+                data-os={seg.ann ? seg.ann.start : undefined}
+                data-oe={seg.ann ? seg.ann.start : undefined}
+                onClick={onClick}
+                style={clickable ? { cursor: "pointer" } : undefined}
+              >
                 {seg.text}
               </ins>
             );
