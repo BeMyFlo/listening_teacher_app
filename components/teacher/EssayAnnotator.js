@@ -21,6 +21,7 @@
 //     hoặc xoá — xem onMarkClick.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   buildSegments,
   normalizeAnnotation,
@@ -127,10 +128,14 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
     const end = Math.max(a, b);
     if (end <= start) return;
     const rect = r.getBoundingClientRect();
-    const box = essayRef.current.getBoundingClientRect();
     activeInsertRef.current = null;
     setEditId(null);
-    setSel({ start, end, quote: essayText.slice(start, end), x: rect.left - box.left, y: rect.bottom - box.top + 6 });
+    // Toạ độ theo VIEWPORT (không trừ box) — toolbar giờ portal ra <body>,
+    // định vị bằng position:fixed, để không còn là con của vùng
+    // contentEditable (select/option lồng trong contentEditable có lỗi
+    // tương tác trên 1 số trình duyệt: mở được dropdown nhưng bấm chọn
+    // không ăn).
+    setSel({ start, end, quote: essayText.slice(start, end), x: rect.left, y: rect.bottom + 6 });
     setForm({ action: "comment", insertText: "", category: "grammar", criterion: "", comment: "" });
   }
 
@@ -142,7 +147,6 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
     const a = anns.find((x) => x.id === annId);
     if (!a || !essayRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const box = essayRef.current.getBoundingClientRect();
     window.getSelection()?.removeAllRanges();
     activeInsertRef.current = null;
     setSel(null);
@@ -154,7 +158,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
       criterion: a.criterion || "",
       comment: a.comment || "",
     });
-    setEditPos({ x: rect.left - box.left, y: rect.bottom - box.top + 6 });
+    setEditPos({ x: rect.left, y: rect.bottom + 6 });
   }
 
   // Có annotation nào (kể cả comment không đổi chữ) đang chiếm CHẶT ĐÚNG
@@ -420,8 +424,16 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
           );
         })}
 
-        {(sel || editId) && (
-          <div className="ea-toolbar" contentEditable={false} style={{ left: sel ? sel.x : editPos.x, top: sel ? sel.y : editPos.y }}>
+      </div>
+
+      {/* Portal ra <body>, KHÔNG lồng trong vùng contentEditable ở trên —
+          <select> lồng trong contentEditable mở được dropdown nhưng bấm
+          chọn option không ăn trên 1 số trình duyệt. position:fixed nên
+          toạ độ sel.x/y ở trên đã tính theo viewport, không trừ theo box. */}
+      {(sel || editId) &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="ea-toolbar" style={{ left: sel ? sel.x : editPos.x, top: sel ? sel.y : editPos.y }}>
             <div className="ea-tb-actions">
               {["comment", "replace", "delete"].map((act) => (
                 <button
@@ -475,9 +487,9 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
               )}
               <button type="button" className="ea-tb-btn" onClick={() => { setSel(null); setEditId(null); }}>Cancel</button>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
-      </div>
 
       {anns.length > 0 && (
         <div className="ea-list">

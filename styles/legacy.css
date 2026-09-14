@@ -3589,8 +3589,10 @@ tr:hover td { background: #FFF7FB; }
 }
 
 .ea-toolbar {
-  position: absolute;
-  z-index: 30;
+  /* Portal ra <body> (xem EssayAnnotator.js) nên định vị theo viewport,
+     không phải theo .essay-annot cha nữa. */
+  position: fixed;
+  z-index: 1000;
   width: 260px;
   background: var(--card);
   border: 1px solid var(--border);
