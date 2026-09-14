@@ -3798,31 +3798,13 @@ tr:hover td { background: #FFF7FB; }
   border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; font-size: .85rem; font-family: inherit;
 }
 
-/* "Sửa nhanh" — ô nhập song song với bản tô màu (EssayAnnotator), tự áp màu
-   sau khi ngừng gõ ~400ms, không cần nút Apply/chuyển tab. Đặt cạnh nhau
-   (2 cột) để dễ nhìn qua lại; xuống 1 cột trên màn hẹp. */
-.ea-cols { display: flex; gap: 14px; align-items: stretch; }
-.ea-cols > .essay-annot,
-.ea-cols > .ea-quickedit-wrap { flex: 1 1 0; min-width: 0; }
-.ea-cols > .essay-annot { max-height: 420px; overflow-y: auto; }
-.ea-cols .ea-quickedit { height: 100%; min-height: 420px; }
-@media (max-width: 760px) {
-  .ea-cols { flex-direction: column; }
-  .ea-cols > .essay-annot { max-height: 320px; }
-  .ea-cols .ea-quickedit { min-height: 220px; }
-}
-
-.ea-quickedit-wrap { display: flex; flex-direction: column; }
-.ea-quickedit-label {
-  display: flex; align-items: center; gap: 5px;
-  font-size: .78rem; color: var(--muted); font-weight: 600; margin-bottom: 4px;
-}
-.ea-quickedit-label .icon { width: .85rem; height: .85rem; }
-.ea-quickedit {
-  width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
-  font-family: inherit; font-size: .9rem; line-height: 1.6; resize: vertical;
-}
-.ea-quickedit:focus { border-color: var(--pink); box-shadow: 0 0 0 2px var(--pink-light); outline: none; }
+/* EssayAnnotator's single annotated-essay box (no more side-by-side "quick
+   edit" mirror — teachers found looking back and forth between two panels
+   confusing; editing now happens directly on this box, see the component).
+   No max-height/overflow here: the edit toolbar (.ea-toolbar) is an absolutely
+   positioned child that can open anywhere in the text, including near the
+   bottom — a scrolling ancestor would clip it instead of letting it show in
+   full, so the box just grows with the essay and the page scrolls instead. */
 
 /* "Theory file" box — external theory link editor (components/teacher/TheoryResource.js) */
 .theory-resource-box {
