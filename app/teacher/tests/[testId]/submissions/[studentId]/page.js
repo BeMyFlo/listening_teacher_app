@@ -225,6 +225,40 @@ function QuestionReview({ detail }) {
   );
 }
 
+function formatStatTone(pct) {
+  if (pct == null) return { color: "var(--muted)", bar: "var(--muted)" };
+  if (pct >= 70) return { color: "var(--green)", bar: "var(--green)" };
+  if (pct >= 40) return { color: "#B8860B", bar: "#E0A800" };
+  return { color: "var(--red)", bar: "var(--red)" };
+}
+
+function FormatStatsPanel({ stats }) {
+  if (!stats || stats.length === 0) return null;
+  return (
+    <div className="card" style={{ marginTop: 16, background: "var(--bg)" }}>
+      <h4 style={{ margin: "0 0 10px" }}>Thống kê theo dạng bài</h4>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {stats.map((s) => {
+          const tone = formatStatTone(s.pct);
+          return (
+            <div key={s.label}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".85rem", marginBottom: 4 }}>
+                <span>{s.label}</span>
+                <span style={{ fontWeight: 700, color: tone.color }}>
+                  {s.correct}/{s.total} {s.pct != null ? `(${s.pct}%)` : ""}
+                </span>
+              </div>
+              <div style={{ height: 6, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}>
+                <div style={{ width: `${s.pct || 0}%`, height: "100%", background: tone.bar }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function AutoSkillPanel({ skill }) {
   if (!skill.submissionId) {
     return <div className="empty-state">Student hasn't attempted this skill yet.</div>;
@@ -267,6 +301,30 @@ function AutoSkillPanel({ skill }) {
 
       {detail.length > 0 && <QuestionReview detail={detail} />}
     </div>
+  );
+}
+
+function StatsTab({ skills }) {
+  const withStats = skills.filter((s) => Array.isArray(s.formatStats));
+  if (withStats.length === 0) {
+    return <div className="empty-state">No statistics available yet.</div>;
+  }
+  return (
+    <>
+      {withStats.map((s) =>
+        s.formatStats.length === 0 ? (
+          <div className="card" key={s.key} style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: "0 0 4px" }}>{s.label}</h3>
+            <div className="empty-state">Student hasn't attempted this skill yet.</div>
+          </div>
+        ) : (
+          <div key={s.key} style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: "0 0 8px" }}>{s.label}</h3>
+            <FormatStatsPanel stats={s.formatStats} />
+          </div>
+        )
+      )}
+    </>
   );
 }
 
@@ -417,7 +475,7 @@ function Inner() {
   const search = useSearchParams();
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
-  const [active, setActive] = useState(search.get("tab") || "listening");
+  const [active, setActive] = useState(search.get("tab") || "stats");
 
   function load() {
     return api.teacher
@@ -468,6 +526,9 @@ function Inner() {
       {back}
 
       <div className="subject-toggle skill-tabs" style={{ marginBottom: 14 }}>
+        <button type="button" className={active === "stats" ? "active" : ""} onClick={() => setActive("stats")}>
+          <svg className="icon"><use href="#icon-chart-bar" /></svg> Thống kê
+        </button>
         {TEST_SKILLS.map((s) => {
           const sk = skillByKey[s.key];
           const attempted = sk && (sk.kind === "auto" ? !!sk.submissionId : sk.submitted > 0);
@@ -489,13 +550,17 @@ function Inner() {
         })}
       </div>
 
-      <div className="card">
-        {activeSkill.kind === "auto" ? (
-          <AutoSkillPanel skill={activeSkill} />
-        ) : (
-          <PromptSkillPanel skill={activeSkill} onGraded={load} />
-        )}
-      </div>
+      {active === "stats" ? (
+        <StatsTab skills={data.skills} />
+      ) : (
+        <div className="card">
+          {activeSkill.kind === "auto" ? (
+            <AutoSkillPanel skill={activeSkill} />
+          ) : (
+            <PromptSkillPanel skill={activeSkill} onGraded={load} />
+          )}
+        </div>
+      )}
     </div>
   );
 }

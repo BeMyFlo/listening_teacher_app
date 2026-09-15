@@ -7,6 +7,8 @@ import SuggestedActionsBox from "@/components/SuggestedActionsBox";
 // Hiển thị kết quả chấm theo rubric IELTS: điểm tổng + bảng 4 tiêu chí
 // (band + mô tả + ghi chú). Dùng cho cả giáo viên (bản tóm tắt đã chấm) lẫn
 // học sinh. Nếu submission cũ không có `criteria`, chỉ hiện điểm tổng.
+// `showAnnotationList`: danh sách lỗi sửa chi tiết (before → after, pill tiêu
+// chí) — chỉ giáo viên xem, học sinh truyền false để ẩn.
 const CAT_LABEL = {
   grammar: "Grammar", vocabulary: "Vocabulary", spelling: "Spelling", cohesion: "Cohesion",
   punctuation: "Punctuation", task: "Task", style: "Style", other: "Other",
@@ -31,6 +33,7 @@ export default function RubricResult({
   showFeedback = true,
   showTranscript = true,
   showBandHeader = true,
+  showAnnotationList = true,
 }) {
   const rubric = rubricVariant ? getRubric(rubricVariant) : null;
   const byKey = {};
@@ -51,8 +54,8 @@ export default function RubricResult({
 
   return (
     <div className="rubric-result">
-      {essayText && annotations && annotations.length > 0 && (
-        <AnnotatedEssay essayText={essayText} annotations={annotations} />
+      {essayText && (
+        <AnnotatedEssay essayText={essayText} annotations={annotations || []} showList={showAnnotationList} />
       )}
       {audioUrl && (
         <div className="annotated-essay">
@@ -60,7 +63,7 @@ export default function RubricResult({
           {transcript && annotations && annotations.length > 0 && showTranscript && (
             <details className="sr-transcript" open>
               <summary>Transcript (corrected)</summary>
-              <AnnotatedEssay essayText={transcript} annotations={annotations} />
+              <AnnotatedEssay essayText={transcript} annotations={annotations} showList={showAnnotationList} />
             </details>
           )}
           {transcript && (!annotations || annotations.length === 0) && showTranscript && (
@@ -69,7 +72,7 @@ export default function RubricResult({
               <p>{transcript}</p>
             </details>
           )}
-          {speakingNotes && speakingNotes.length > 0 && showTranscript && (
+          {speakingNotes && speakingNotes.length > 0 && showTranscript && showAnnotationList && (
             <ul className="ea-readlist">
               {speakingNotes.map((n, i) => (
                 <li key={i}>
@@ -119,10 +122,10 @@ export default function RubricResult({
                         <b>Note:</b> {c.comment}
                       </div>
                     )}
-                    {mergeIntoTable && critAnns(c.key).length > 0 && (
+                    {mergeIntoTable && showAnnotationList && critAnns(c.key).length > 0 && (
                       <AnnotatedEssay essayText={transcript} annotations={critAnns(c.key)} showText={false} showListPill={false} />
                     )}
-                    {mergeIntoTable && critNotes(c.key).length > 0 && (
+                    {mergeIntoTable && showAnnotationList && critNotes(c.key).length > 0 && (
                       <ul className="ea-readlist">
                         {critNotes(c.key).map((n, i) => (
                           <li key={i}>
