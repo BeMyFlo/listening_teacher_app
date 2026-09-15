@@ -278,6 +278,7 @@ export default function PromptSubmissionPage() {
             showDescriptors={false}
             showTranscript={cat.key !== "speaking"}
             showBandHeader={cat.key !== "speaking"}
+            showAnnotationList={false}
           />
         )}
       </div>
@@ -324,6 +325,7 @@ export default function PromptSubmissionPage() {
               showDescriptors={false}
               showTranscript={cat.key !== "speaking"}
               showBandHeader={cat.key !== "speaking"}
+              showAnnotationList={false}
             />
           )}
         </div>

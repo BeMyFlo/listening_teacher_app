@@ -2782,8 +2782,8 @@ tr:hover td { background: #FFF7FB; }
 .rubric-result table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .84rem; }
 .rubric-result td { border: 1px solid var(--border); padding: 7px 9px; vertical-align: top; }
 .rubric-result td.b { width: 44px; text-align: center; font-weight: 800; color: var(--navy); }
-.rubric-result td .crit { font-weight: 700; color: var(--ink); }
-.rubric-result td .note { color: var(--muted); margin-top: 2px; }
+.rubric-result td .crit { font-weight: 700; color: var(--blue); }
+.rubric-result td .note { color: var(--ink); margin-top: 2px; }
 
 /* ---------- Student lessons (Phase 3) ---------- */
 .lesson-text {

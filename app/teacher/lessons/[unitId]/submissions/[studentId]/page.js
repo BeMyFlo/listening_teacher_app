@@ -72,6 +72,40 @@ function QuestionTable({ detail }) {
   );
 }
 
+function formatStatTone(pct) {
+  if (pct == null) return { color: "var(--muted)", bar: "var(--muted)" };
+  if (pct >= 70) return { color: "var(--green)", bar: "var(--green)" };
+  if (pct >= 40) return { color: "#B8860B", bar: "#E0A800" };
+  return { color: "var(--red)", bar: "var(--red)" };
+}
+
+function FormatStatsPanel({ stats }) {
+  if (!stats || stats.length === 0) return null;
+  return (
+    <div className="card" style={{ marginBottom: 12, background: "var(--bg)" }}>
+      <h4 style={{ margin: "0 0 10px" }}>Thống kê theo dạng bài</h4>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {stats.map((s) => {
+          const tone = formatStatTone(s.pct);
+          return (
+            <div key={s.label}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".85rem", marginBottom: 4 }}>
+                <span>{s.label}</span>
+                <span style={{ fontWeight: 700, color: tone.color }}>
+                  {s.correct}/{s.total} {s.pct != null ? `(${s.pct}%)` : ""}
+                </span>
+              </div>
+              <div style={{ height: 6, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}>
+                <div style={{ width: `${s.pct || 0}%`, height: "100%", background: tone.bar }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ExerciseRow({ ex }) {
   const [open, setOpen] = useState(false);
   const done = !!ex.submissionId;
@@ -275,11 +309,45 @@ function PromptRow({ prompt, onGraded }) {
   );
 }
 
+const CATEGORY_ICONS = {
+  grammar: "grammar",
+  vocabulary: "vocabulary",
+  listening: "headphones",
+  reading: "book-open",
+  writing: "writing",
+  speaking: "mic",
+};
+
+function StatsTab({ categories }) {
+  const withStats = categories.filter((c) => Array.isArray(c.formatStats));
+  if (withStats.length === 0) {
+    return <div className="empty-state">No statistics available yet.</div>;
+  }
+  return (
+    <>
+      {withStats.map((cat) =>
+        cat.formatStats.length === 0 ? (
+          <div className="card" key={cat.key} style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: "0 0 4px" }}>{cat.label}</h3>
+            <div className="empty-state">Student hasn't attempted this skill yet.</div>
+          </div>
+        ) : (
+          <div key={cat.key}>
+            <h3 style={{ margin: "0 0 8px" }}>{cat.label}</h3>
+            <FormatStatsPanel stats={cat.formatStats} />
+          </div>
+        )
+      )}
+    </>
+  );
+}
+
 export default function StudentUnitSubmissionPage() {
   const { unitId, studentId } = useParams();
   const router = useRouter();
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
+  const [active, setActive] = useState("stats");
 
   function load() {
     return api.teacher
@@ -341,43 +409,66 @@ export default function StudentUnitSubmissionPage() {
           submission{lateCount === 1 ? "" : "s"} in this unit.
         </div>
       )}
-      {data.categories.map((cat) => {
-        const catDue = (data.student.deadlineByCategory || {})[cat.key];
-        const ownDeadline = catDue && catDue !== data.student.dueAt;
-        return (
-        <div className="card" key={cat.key} style={{ marginBottom: 16 }}>
-          <div className="page-head" style={{ marginBottom: 8 }}>
-            <div className="head-left">
-              <h3 style={{ margin: 0 }}>{cat.label}</h3>
-              {ownDeadline && (
-                <span className="pill pill-info" style={{ marginLeft: 8 }}>
-                  Due {fmtDateTime(catDue)}
-                </span>
-              )}
-            </div>
-            <div style={{ color: "var(--muted)", fontSize: ".9rem" }}>
-              {cat.kind === "exercise"
-                ? cat.done > 0
-                  ? `${cat.score}/${cat.total} · ${cat.done}/${cat.itemsTotal} exercises`
-                  : `0/${cat.itemsTotal} exercises`
-                : `${cat.submitted}/${cat.itemsTotal} submitted`}
-            </div>
-          </div>
 
-          {cat.kind === "exercise" ? (
-            cat.exercises.length === 0 ? (
-              <div className="empty-state">No exercises in this section.</div>
-            ) : (
-              cat.exercises.map((ex) => <ExerciseRow key={ex._id} ex={ex} />)
-            )
-          ) : cat.prompts.length === 0 ? (
-            <div className="empty-state">No prompts in this section.</div>
-          ) : (
-            cat.prompts.map((p) => <PromptRow key={p._id} prompt={p} onGraded={load} />)
-          )}
-        </div>
-        );
-      })}
+      <div className="subject-toggle skill-tabs" style={{ marginBottom: 14 }}>
+        <button type="button" className={active === "stats" ? "active" : ""} onClick={() => setActive("stats")}>
+          <svg className="icon"><use href="#icon-chart-bar" /></svg> Thống kê
+        </button>
+        {data.categories.map((cat) => (
+          <button
+            key={cat.key}
+            type="button"
+            className={active === cat.key ? "active" : ""}
+            onClick={() => setActive(cat.key)}
+          >
+            <svg className="icon"><use href={"#icon-" + (CATEGORY_ICONS[cat.key] || "book")} /></svg> {cat.label}
+          </button>
+        ))}
+      </div>
+
+      {active === "stats" ? (
+        <StatsTab categories={data.categories} />
+      ) : (
+        data.categories
+          .filter((cat) => cat.key === active)
+          .map((cat) => {
+            const catDue = (data.student.deadlineByCategory || {})[cat.key];
+            const ownDeadline = catDue && catDue !== data.student.dueAt;
+            return (
+              <div className="card" key={cat.key} style={{ marginBottom: 16 }}>
+                <div className="page-head" style={{ marginBottom: 8 }}>
+                  <div className="head-left">
+                    <h3 style={{ margin: 0 }}>{cat.label}</h3>
+                    {ownDeadline && (
+                      <span className="pill pill-info" style={{ marginLeft: 8 }}>
+                        Due {fmtDateTime(catDue)}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ color: "var(--muted)", fontSize: ".9rem" }}>
+                    {cat.kind === "exercise"
+                      ? cat.done > 0
+                        ? `${cat.score}/${cat.total} · ${cat.done}/${cat.itemsTotal} exercises`
+                        : `0/${cat.itemsTotal} exercises`
+                      : `${cat.submitted}/${cat.itemsTotal} submitted`}
+                  </div>
+                </div>
+
+                {cat.kind === "exercise" ? (
+                  cat.exercises.length === 0 ? (
+                    <div className="empty-state">No exercises in this section.</div>
+                  ) : (
+                    cat.exercises.map((ex) => <ExerciseRow key={ex._id} ex={ex} />)
+                  )
+                ) : cat.prompts.length === 0 ? (
+                  <div className="empty-state">No prompts in this section.</div>
+                ) : (
+                  cat.prompts.map((p) => <PromptRow key={p._id} prompt={p} onGraded={load} />)
+                )}
+              </div>
+            );
+          })
+      )}
     </div>
   );
 }

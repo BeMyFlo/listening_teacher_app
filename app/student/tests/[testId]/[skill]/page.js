@@ -179,6 +179,7 @@ export default function TakeTestPage() {
                       topicVocabulary={last.topicVocabulary}
                       improvedSample={last.improvedSample}
                       mainIssue={last.mainIssue}
+                      showAnnotationList={false}
                         />
                       </div>
                     ) : (
