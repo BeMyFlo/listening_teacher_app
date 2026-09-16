@@ -23,7 +23,8 @@ const LESSON_FIELDS = [
 
 export default function GrammarTopicsEditor({ topics, media, onChange }) {
   const dialog = useDialog();
-  const [importing, setImporting] = useState(false);
+  // null = đang đóng; -1 = nút Import chung ở trên; i = nút Import trong chủ đề i.
+  const [importTarget, setImportTarget] = useState(null);
   const [open, setOpen] = useState(0);
 
   function patch(mut) {
@@ -34,6 +35,35 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
 
   function applyImport(items) {
     const draft = structuredClone(topics);
+
+    // Import từ TRONG 1 chủ đề: chủ đề đầu trong file đổ thẳng vào chủ đề
+    // đang mở (nối thêm bài tập, giữ lý thuyết đã soạn nếu file không kèm),
+    // các chủ đề còn lại chèn ngay sau. Chủ đề tự tạo tay không có extId nên
+    // nút Import chung ở trên không bao giờ khớp vào nó.
+    if (importTarget != null && importTarget >= 0 && draft[importTarget]) {
+      const [first, ...rest] = items;
+      if (first) {
+        const t = draft[importTarget];
+        draft[importTarget] = {
+          ...t,
+          extId: t.extId || first.extId || "",
+          name: t.name || first.name || "",
+          lesson: first.lesson ? { ...t.lesson, ...first.lesson } : t.lesson,
+          exercises: [...(t.exercises || []), ...(first.exercises || [])],
+        };
+      }
+      rest.forEach((it, k) =>
+        draft.splice(importTarget + 1 + k, 0, {
+          extId: it.extId || "",
+          name: it.name || "",
+          lesson: { formula: "", whenToUse: "", commonMistakes: "", examples: "", videoUrl: "", ...(it.lesson || {}) },
+          exercises: it.exercises || [],
+        })
+      );
+      onChange(draft);
+      return;
+    }
+
     items.forEach((it) => {
       const idx = it.extId ? draft.findIndex((t) => t.extId && t.extId === it.extId) : -1;
       const topic = {
@@ -63,7 +93,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
           type="button"
           className="btn secondary"
           style={{ padding: "8px 14px", fontSize: ".85rem" }}
-          onClick={() => setImporting(true)}
+          onClick={() => setImportTarget(-1)}
         >
           <svg className="icon"><use href="#icon-upload" /></svg> Import from file
         </button>
@@ -87,6 +117,15 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
                 value={t.name}
                 onChange={(e) => patch((d) => (d[i].name = e.target.value))}
               />
+              <button
+                type="button"
+                className="btn secondary"
+                style={{ padding: "5px 11px", fontSize: ".78rem", whiteSpace: "nowrap" }}
+                title="Import from a file into this topic"
+                onClick={() => setImportTarget(i)}
+              >
+                <svg className="icon"><use href="#icon-upload" /></svg> Import
+              </button>
               <button
                 type="button"
                 className="icon-btn"
@@ -155,12 +194,12 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
         <svg className="icon"><use href="#icon-plus" /></svg> Add topic
       </button>
 
-      {importing && (
+      {importTarget != null && (
         <LessonImport
           mode="grammar"
           existing={topics.flatMap((t) => t.exercises.flatMap((e) => e._sections || []))}
           onImport={applyImport}
-          onClose={() => setImporting(false)}
+          onClose={() => setImportTarget(null)}
         />
       )}
     </div>

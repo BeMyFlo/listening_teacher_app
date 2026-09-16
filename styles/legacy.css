@@ -1383,6 +1383,20 @@ tr:hover td { background: #FFF7FB; }
    Questions (không tách riêng ra ngoài) — thêm viền ngăn cách nhẹ + khoảng
    cách với bảng câu hỏi bên dưới cho rõ ràng. */
 .note-editor-inline { margin-bottom: 16px; }
+.note-blocks-wrap { display: flex; flex-direction: column; gap: 14px; }
+.note-block-frame {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--bg);
+}
+.note-block-frame-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.note-block-frame-title { font-weight: 700; font-size: .82rem; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
 .questions-media-row {
   margin-bottom: 18px;
   padding-bottom: 16px;

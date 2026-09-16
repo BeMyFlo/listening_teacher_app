@@ -3,6 +3,7 @@
 import { useState } from "react";
 import RichTextEditor from "./RichTextEditor";
 import { noteTextToDoc, docToNoteText, blankIdsFromDoc } from "@/lib/tiptap/noteConvert";
+import { removeBlankFromDoc, remapBlankIds, docIsEmpty, walkDoc } from "@/lib/tiptap/doc";
 import { importNoteText } from "@/lib/tiptap/importText";
 import {
   QUESTION_KINDS,
@@ -18,36 +19,99 @@ import {
 import SpreadsheetImport from "./SpreadsheetImport";
 import { questionFormatsFor } from "@/lib/teacher/questionFormats";
 
-// Chèn 1 chỗ trống mới vào cuối note-doc của section. Nếu chỗ trống NGAY
-// TRƯỚC nó (câu note gần nhất) thuộc 1 dạng "Completion" KHÁC (vd vừa có
-// Flow-chart Completion, giờ thêm Note Completion) thì tự chèn 1 Divider
-// trước — tách thành khung riêng, khớp cách trình bày thi thật (mỗi dạng
-// bài 1 khung), thay vì dồn chung vào 1 đoạn không phân biệt được ranh
-// giới. Cùng 1 dạng liên tiếp (vd 2 câu Note Completion nối nhau, trường
-// hợp phổ biến nhất) thì KHÔNG chèn divider — vẫn 1 đoạn liền mạch bình
-// thường như thi thật.
-function appendNoteBlank(s, id, fmt) {
+// Danh sách khối note/table hiện có của 1 section, để builder SỬA — ưu
+// tiên `noteBlocks` (dữ liệu mới, mỗi khối 1 khung độc lập). Section soạn
+// từ trước (chỉ có noteDoc/noteText gộp) được giữ NGUYÊN VẸN thành 1 khối
+// duy nhất, kể cả khi bên trong có sẵn Divider: không tự ý tách ra nhiều
+// khung, vì như vậy vừa làm giáo viên bất ngờ ("bấm 1 lần ra mấy khung"),
+// vừa đổi cách hiển thị của bài cũ (đoạn hướng dẫn trước Divider đầu tiên
+// vốn nằm NGOÀI khung sẽ bị đóng khung lại). Khung mới chỉ xuất hiện khi
+// giáo viên chủ động bấm "Add Question".
+function editableNoteBlocks(sec) {
+  if (Array.isArray(sec.noteBlocks) && sec.noteBlocks.length) return sec.noteBlocks;
+  const doc =
+    sec.noteDoc && Array.isArray(sec.noteDoc.content)
+      ? sec.noteDoc
+      : sec.noteText
+      ? noteTextToDoc(sec.noteText)
+      : null;
+  return doc && doc.content.length ? [{ noteDoc: doc, noteText: sec.noteText || docToNoteText(doc) }] : [];
+}
+
+// Khối đã có chữ nghĩa/tiêu đề/Divider thật chưa (ô trống không tính) — dùng
+// để phân biệt khung giáo viên đã soạn với khung vừa tạo còn trống trơn.
+function docHasProse(doc) {
+  let found = false;
+  walkDoc(doc, (n) => {
+    if (n.type === "text" && String(n.text || "").trim()) found = true;
+    if (n.type === "horizontalRule" || n.type === "image") found = true;
+  });
+  return found;
+}
+
+// Nội dung import (đã đánh số lại) -> danh sách khối. Mỗi đoạn cách nhau bởi
+// Divider là 1 bảng riêng nên tách thành 1 khung riêng. Đoạn ĐẦU nếu không có
+// ô trống nào thì đó là dòng hướng dẫn chung ("Complete the notes below...")
+// -> gắn liền vào bảng đầu tiên kèm Divider, để nó vẫn hiện NGOÀI khung đúng
+// như đề thi thật thay vì bị đóng hộp thành 1 bảng rỗng.
+function importedDocToBlocks(doc) {
+  const segments = [[]];
+  doc.content.forEach((n) => {
+    if (n.type === "horizontalRule") segments.push([]);
+    else segments[segments.length - 1].push(n);
+  });
+  const parts = segments.filter((seg) => seg.length);
+  const mk = (content) => {
+    const d = { type: "doc", content };
+    return { noteDoc: d, noteText: docToNoteText(d) };
+  };
+  if (parts.length <= 1) return parts.map(mk);
+  const firstIsIntro = blankIdsFromDoc({ type: "doc", content: parts[0] }).length === 0;
+  if (!firstIsIntro) return parts.map(mk);
+  return [mk([...parts[0], { type: "horizontalRule" }, ...parts[1]]), ...parts.slice(2).map(mk)];
+}
+
+function blockBlankIds(block) {
+  return block && block.noteDoc && Array.isArray(block.noteDoc.content) ? blankIdsFromDoc(block.noteDoc) : [];
+}
+
+// Lần đầu sửa note của 1 section — chốt lại `noteBlocks` (tách từ dữ liệu
+// cũ nếu cần) để các lần patch sau thao tác trực tiếp trên mảng này.
+function materializeNoteBlocks(s) {
+  if (!Array.isArray(s.noteBlocks) || !s.noteBlocks.length) s.noteBlocks = editableNoteBlocks(s);
+  return s.noteBlocks;
+}
+
+// Thêm 1 khối MỚI, độc lập, chứa đúng 1 chỗ trống — dùng khi tạo câu hỏi
+// dạng Completion (Note/Table/Flow-chart...) từ "Add Question", hoặc khi
+// đổi Type 1 câu đang có sang dạng Completion. Mỗi lần luôn ra 1 khung
+// riêng (không dồn vào khối trước), giáo viên chỉ cần bấm "Add Question"
+// lần nữa để có thêm 1 bảng/note độc lập khác.
+// Xoá 1 câu hỏi khỏi section — kèm luôn ô trống tương ứng trong khối note
+// (nếu câu đó là 1 ô trống), để note không còn ô mồ côi không có đáp án.
+function removeField(s, fi) {
+  const [removed] = s.fields.splice(fi, 1);
+  const id = Number(removed && removed.id);
+  if (!Number.isFinite(id)) return;
+  const blocks = editableNoteBlocks(s);
+  if (!blocks.some((b) => blockBlankIds(b).includes(id))) return;
+  const list = materializeNoteBlocks(s);
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (!blockBlankIds(list[i]).includes(id)) continue;
+    const nextDoc = removeBlankFromDoc(list[i].noteDoc, id);
+    // Khối chỉ có mỗi ô trống vừa xoá, không còn chữ nghĩa gì -> bỏ cả khung.
+    if (docIsEmpty(nextDoc)) list.splice(i, 1);
+    else list[i] = { noteDoc: nextDoc, noteText: docToNoteText(nextDoc) };
+  }
+  if (!list.length) s.noteMode = false;
+}
+
+function addNoteBlock(s, id) {
+  materializeNoteBlocks(s).push({
+    noteDoc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "blank", attrs: { id } }] }] },
+    noteText: `[[${id}]]`,
+  });
   s.noteMode = true;
-  if (!s.noteDoc || !Array.isArray(s.noteDoc.content) || !s.noteDoc.content.length) {
-    s.noteDoc = s.noteText ? noteTextToDoc(s.noteText) : { type: "doc", content: [{ type: "paragraph" }] };
-  }
-  const blankIds = blankIdsFromDoc(s.noteDoc);
-  const lastBlankId = blankIds[blankIds.length - 1];
-  const lastField = lastBlankId != null ? (s.fields || []).find((x) => Number(x.id) === lastBlankId) : null;
-  const startsNewBlock = !!(lastField && lastField.formatLabel && fmt.label && lastField.formatLabel !== fmt.label);
-  if (startsNewBlock) {
-    // Segment TRƯỚC divider đầu tiên luôn bị NoteDoc coi là "intro" (hiện
-    // trơn, không đóng khung) — nếu đây là divider đầu tiên của note, chèn
-    // thêm 1 divider RỖNG lên đầu để nội dung box 1 (đang có sẵn câu hỏi)
-    // không bị "giáng cấp" xuống thành intro.
-    const hasExistingDivider = s.noteDoc.content.some((n) => n.type === "horizontalRule");
-    if (!hasExistingDivider) {
-      s.noteDoc.content.unshift({ type: "horizontalRule" });
-    }
-    s.noteDoc.content.push({ type: "horizontalRule" });
-  }
-  s.noteDoc.content.push({ type: "paragraph", content: [{ type: "blank", attrs: { id } }] });
-  s.noteText = docToNoteText(s.noteDoc);
 }
 
 // Trình soạn "section + câu hỏi" dùng chung cho Exercise (Unit) và Mock
@@ -131,7 +195,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
       if (fmt.kind === "ynng") field.options = ynngOptions();
       s.fields.push(field);
 
-      if (fmt.noteMode) appendNoteBlank(s, id, fmt);
+      if (fmt.noteMode) addNoteBlock(s, id);
       if (fmt.needsBank && !(s.matchBank || []).length) {
         s.matchBank = [{ id: newOptionId(), text: "" }];
       }
@@ -143,6 +207,14 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
     patch((d) => d[si].fields.push(emptyField(nextFieldId(allSections))));
     setPickingFormat(false);
   }
+
+  // Câu hỏi rời (không thuộc bất kỳ khối Completion nào) — chỉ những câu
+  // này mới hiện trong bảng "Questions" phẳng bên dưới; câu thuộc 1 khối đã
+  // hiện ngay TRONG khung của khối đó (xem NoteBlocksEditor).
+  const blockIds = new Set(editableNoteBlocks(sec).flatMap(blockBlankIds));
+  const standaloneEntries = sec.fields
+    .map((f, fi) => ({ f, fi }))
+    .filter(({ f }) => !blockIds.has(Number(f.id)));
 
   return (
     <div className="builder-section">
@@ -216,7 +288,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
               đúng dạng ở bước "Add Question" sẽ tự bật/hiện đúng phần này. */}
           {sec.noteMode && (
             <div className="note-editor-inline">
-              <NoteCompletionEditor sec={sec} si={si} allSections={allSections} patch={patch} />
+              <NoteBlocksEditor sec={sec} si={si} allSections={allSections} subject={subject} media={media} patch={patch} />
             </div>
           )}
           {(sec.fields || []).some((f) => f.kind === "matching" || f.kind === "labelling") && (
@@ -246,20 +318,24 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
             </div>
           )}
 
-          <div className="question-grid-cols question-grid-head">
-            <span />
-            <span />
-            <span>Question / Prompt</span>
-            <span>Type</span>
-            <span>Score</span>
-            <span>Order</span>
-            <span />
-          </div>
-          <div className="fields-wrap">
-            {sec.fields.map((f, fi) => (
-              <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} media={media} patch={patch} />
-            ))}
-          </div>
+          {standaloneEntries.length > 0 && (
+            <>
+              <div className="question-grid-cols question-grid-head">
+                <span />
+                <span />
+                <span>Question / Prompt</span>
+                <span>Type</span>
+                <span>Score</span>
+                <span>Order</span>
+                <span />
+              </div>
+              <div className="fields-wrap">
+                {standaloneEntries.map(({ f, fi }) => (
+                  <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} media={media} patch={patch} />
+                ))}
+              </div>
+            </>
+          )}
 
           {pickingFormat ? (
             <div className="format-pick-panel">
@@ -342,103 +418,188 @@ function MatchBank({ sec, si, patch }) {
   );
 }
 
-// Soạn "Note/Summary Completion" — giáo viên gõ thẳng đoạn ghi chú như trên
-// Google Docs (WYSIWYG), bấm "+ Blank" để chèn chỗ trống đánh số vào vị trí
-// con trỏ. Mỗi lần chèn tự tạo thêm 1 câu hỏi trong danh sách Questions bên
-// dưới để nhập đáp án đúng/gợi ý/điểm cho số đó. Nội dung lưu dưới dạng
-// TipTap JSON (sec.noteDoc); sec.noteText vẫn được ghi lại để tương thích.
-function NoteCompletionEditor({ sec, si, allSections, patch }) {
-  // Legacy sections only have noteText — chuyển sang doc khi mở editor.
-  const doc =
-    sec.noteDoc && Array.isArray(sec.noteDoc.content)
-      ? sec.noteDoc
-      : sec.noteText
-      ? noteTextToDoc(sec.noteText)
-      : null;
+// Soạn các câu hỏi dạng "Completion" (Note/Summary/Table/Flow-chart...) —
+// mỗi câu hỏi dạng này là 1 KHỐI RIÊNG, độc lập hoàn toàn (khung + editor
+// + đáp án của khối đó không dính tới khối khác). Giáo viên gõ ghi chú/bảng
+// như trên Google Docs (WYSIWYG) trong khung của khối, bấm "+ Blank" để
+// chèn thêm chỗ trống đánh số cho khối ĐÓ (vd ô 2, 3 của cùng 1 bảng). Muốn
+// thêm 1 bảng/note khác, tách biệt hoàn toàn — dùng "Add Question" ở trên
+// và chọn lại 1 dạng Completion, builder tự tạo khung mới. Mỗi blank chèn
+// vào tự tạo thêm 1 câu hỏi trong danh sách Questions bên dưới để nhập đáp
+// án đúng/gợi ý/điểm cho số đó.
+function NoteBlocksEditor({ sec, si, allSections, subject, media, patch }) {
+  const blocks = editableNoteBlocks(sec);
+  if (blocks.length === 0) return null;
 
-  function setDoc(nextDoc) {
+  function updateBlock(bi, nextDoc) {
     patch((d) => {
-      d[si].noteDoc = nextDoc;
-      d[si].noteText = docToNoteText(nextDoc);
-      d[si].noteMode = true;
-      // Mỗi blank trong đoạn ghi chú cần 1 field tương ứng để nhập đáp án.
-      const have = new Set(d[si].fields.map((f) => Number(f.id)));
+      const s = d[si];
+      const list = materializeNoteBlocks(s);
+      list[bi] = { noteDoc: nextDoc, noteText: docToNoteText(nextDoc) };
+      s.noteMode = true;
+      // Mỗi blank trong khối cần 1 field tương ứng để nhập đáp án.
+      const have = new Set(s.fields.map((f) => Number(f.id)));
       for (const id of blankIdsFromDoc(nextDoc)) {
         if (!have.has(id)) {
-          d[si].fields.push(emptyField(id));
+          s.fields.push(emptyField(id));
           have.add(id);
         }
       }
     });
   }
 
-  // Dán nguyên đề do AI soạn: chuyển format + điền luôn đáp án cho từng blank.
-  function importFromAI(raw) {
-    const { doc: nextDoc, answers } = importNoteText(raw);
+  // Dán nguyên đề do AI soạn + điền luôn đáp án cho từng ô trống. Bản import
+  // có bao nhiêu bảng (cách nhau bởi Divider) thì ra bấy nhiêu KHUNG RIÊNG —
+  // không nhồi chung vào 1 khung, vì nhồi chung sẽ khiến bảng đầu bị luật
+  // "đoạn trước Divider đầu tiên = hướng dẫn" đẩy ra ngoài khung.
+  // Khung vừa tạo từ "Add Question" (chưa gõ chữ nào, nhiều nhất 1 ô trống)
+  // thì bị thay hẳn; khung đã soạn rồi thì giữ nguyên, khung mới chèn xuống
+  // ngay sau nó.
+  function importIntoBlock(bi, raw) {
+    const { doc: importedDoc, answers } = importNoteText(raw);
     patch((d) => {
-      d[si].noteDoc = nextDoc;
-      d[si].noteText = docToNoteText(nextDoc);
-      d[si].noteMode = true;
-      const byId = new Map(d[si].fields.map((f) => [Number(f.id), f]));
-      for (const id of blankIdsFromDoc(nextDoc)) {
+      const s = d[si];
+      const list = materializeNoteBlocks(s);
+      const current =
+        list[bi] && list[bi].noteDoc && Array.isArray(list[bi].noteDoc.content) ? list[bi].noteDoc : null;
+      const currentIds = current ? blankIdsFromDoc(current) : [];
+      const replace = !!current && !docHasProse(current) && currentIds.length <= 1;
+
+      // Số thứ tự đang bị chiếm ở mọi nơi trong section. Khung trống sắp bị
+      // thay thì ô trống của nó không tính là đang chiếm.
+      const used = new Set([...s.fields.map((f) => Number(f.id)), ...list.flatMap(blockBlankIds)]);
+      if (replace) currentIds.forEach((id) => used.delete(id));
+
+      // Bản import luôn đánh số từ [[1]]. Chỉ giữ nguyên số đó khi đang thay
+      // khung trống và không đụng ai; còn chèn thêm vào sau bài đã soạn thì
+      // phải đánh số NỐI TIẾP, không thì học sinh thấy số nhảy 12, 1, 2.
+      const importedIds = blankIdsFromDoc(importedDoc);
+      const idMap = new Map();
+      if (!replace || importedIds.some((id) => used.has(id))) {
+        let next = Math.max(0, ...used) + 1;
+        importedIds.forEach((id) => idMap.set(id, next++));
+      }
+      const addedDoc = idMap.size ? remapBlankIds(importedDoc, idMap) : importedDoc;
+      const addedAnswers = {};
+      Object.keys(answers).forEach((k) => {
+        const old = Number(k);
+        addedAnswers[idMap.has(old) ? idMap.get(old) : old] = answers[k];
+      });
+
+      // Câu import kế thừa tên dạng bài của khối (vd "Table Completion") để
+      // thống kê theo dạng bài không xếp nhầm vào nhóm "Khác".
+      const blockFormat = (s.fields.find((f) => currentIds.includes(Number(f.id))) || {}).formatLabel || "";
+
+      const added = importedDocToBlocks(addedDoc);
+      if (!added.length) return;
+      if (replace) {
+        list.splice(bi, 1, ...added);
+        // Ô trống của khung trống vừa bị thay -> bỏ luôn dòng đáp án của nó.
+        const dropped = new Set(currentIds);
+        if (dropped.size) s.fields = s.fields.filter((f) => !dropped.has(Number(f.id)));
+      } else {
+        list.splice(bi + 1, 0, ...added);
+      }
+      s.noteMode = true;
+      const byId = new Map(s.fields.map((f) => [Number(f.id), f]));
+      for (const id of blankIdsFromDoc(addedDoc)) {
         let field = byId.get(id);
         if (!field) {
           field = emptyField(id);
-          d[si].fields.push(field);
+          if (blockFormat) field.formatLabel = blockFormat;
+          s.fields.push(field);
           byId.set(id, field);
         }
-        if (answers[id] && answers[id].length) {
+        if (addedAnswers[id] && addedAnswers[id].length) {
           field.kind = "fill";
-          field.answersText = answers[id].join("\n");
+          field.answersText = addedAnswers[id].join("\n");
         }
       }
     });
   }
 
-  // Cấp id mới cho blank sắp chèn — tránh trùng cả field lẫn blank đang có.
+  function removeBlock(bi) {
+    patch((d) => {
+      const s = d[si];
+      const list = materializeNoteBlocks(s);
+      const [removed] = list.splice(bi, 1);
+      const removedIds = new Set(blockBlankIds(removed));
+      s.fields = s.fields.filter((f) => !removedIds.has(Number(f.id)));
+      if (!list.length) s.noteMode = false;
+    });
+  }
+
+  // Cấp id mới cho blank sắp chèn — tránh trùng cả field lẫn blank đang có
+  // ở BẤT KỲ khối nào trong section (id phải duy nhất toàn bài).
   function requestBlankId() {
     const fromFields = nextFieldId(allSections);
-    const fromDoc = doc ? blankIdsFromDoc(doc) : [];
-    return Math.max(fromFields - 1, ...fromDoc, 0) + 1;
+    const fromBlocks = blocks.flatMap(blockBlankIds);
+    return Math.max(fromFields - 1, ...fromBlocks, 0) + 1;
   }
 
   return (
-    <div className="form-row note-completion-editor">
-      <label className="note-mode-toggle">
-        <input
-          type="checkbox"
-          checked={!!sec.noteMode}
-          onChange={(e) => {
-            const on = e.target.checked;
-            patch((d) => {
-              d[si].noteMode = on;
-              if (on && !(d[si].noteDoc && d[si].noteDoc.content)) {
-                d[si].noteDoc = d[si].noteText ? noteTextToDoc(d[si].noteText) : { type: "doc", content: [{ type: "paragraph" }] };
+    <div className="note-blocks-wrap">
+      {blocks.map((block, bi) => {
+        const doc =
+          block.noteDoc && Array.isArray(block.noteDoc.content)
+            ? block.noteDoc
+            : block.noteText
+            ? noteTextToDoc(block.noteText)
+            : null;
+        const idSet = new Set(blockBlankIds(block));
+        const entries = sec.fields.map((f, fi) => ({ f, fi })).filter(({ f }) => idSet.has(Number(f.id)));
+        return (
+          <div className="note-block-frame" key={bi}>
+            <div className="note-block-frame-head">
+              <span className="note-block-frame-title">Block {bi + 1}</span>
+              <button
+                type="button"
+                className="icon-btn danger"
+                title="Remove this block"
+                onClick={() => removeBlock(bi)}
+              >
+                <svg className="icon"><use href="#icon-trash" /></svg>
+              </button>
+            </div>
+            <RichTextEditor
+              variant="note"
+              value={doc}
+              onChange={(nextDoc) => updateBlock(bi, nextDoc)}
+              onRequestBlankId={requestBlankId}
+              onImport={(raw) => importIntoBlock(bi, raw)}
+              placeholder={
+                "Complete the notes below. Choose ONE WORD ONLY from the passage for each answer.\n" +
+                "Type the table/note content, then use “+ Blank” wherever an answer goes."
               }
-            });
-          }}
-        />
-        Note / Summary completion layout (numbered blanks inside a continuous note, like the real IELTS test)
-      </label>
-      {sec.noteMode && (
-        <>
-          <RichTextEditor
-            variant="note"
-            value={doc}
-            onChange={setDoc}
-            onRequestBlankId={requestBlankId}
-            onImport={importFromAI}
-            placeholder={
-              "Complete the notes below. Choose ONE WORD ONLY from the passage for each answer.\n" +
-              "Add a divider, then: heading, sub-heading, bullets, and a “+ Blank” wherever an answer goes."
-            }
-          />
-          <span className="note-toolbar-hint">
-            Type the note exactly as students should see it. Use “+ Blank” for each numbered answer,
-            then fill in the correct answer for that number in the Questions list below.
-          </span>
-        </>
-      )}
+            />
+            <span className="note-toolbar-hint">
+              Use “+ Blank” above for each numbered answer in this table/note, then fill in the correct
+              answer for that number below.
+            </span>
+            {entries.length > 0 && (
+              <>
+                <div className="question-grid-cols question-grid-head">
+                  <span />
+                  <span />
+                  <span>Question / Prompt</span>
+                  <span>Type</span>
+                  <span>Score</span>
+                  <span>Order</span>
+                  <span />
+                </div>
+                <div className="fields-wrap">
+                  {entries.map(({ f, fi }) => (
+                    <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} media={media} patch={patch} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })}
+      <span className="note-toolbar-hint">
+        To add another separate table/note, use “Add Question” below and pick a Completion format again.
+      </span>
     </div>
   );
 }
@@ -498,12 +659,11 @@ function FieldRow({ f, fi, si, sec, subject, media, patch }) {
       }
 
       if (fmt.noteMode) {
-        // Câu này đã sẵn là 1 chỗ trống trong note (đổi Type qua lại giữa các
-        // dạng completion) -> không cần chèn blank mới, tránh nhân đôi.
+        // Câu này đã sẵn là 1 chỗ trống trong 1 khối note (đổi Type qua lại
+        // giữa các dạng completion) -> không cần tạo khối mới, tránh nhân đôi.
         s.noteMode = true;
-        const alreadyBlank =
-          s.noteDoc && Array.isArray(s.noteDoc.content) && blankIdsFromDoc(s.noteDoc).includes(Number(f.id));
-        if (!alreadyBlank) appendNoteBlank(s, Number(f.id), fmt);
+        const alreadyBlank = materializeNoteBlocks(s).some((b) => blockBlankIds(b).includes(Number(f.id)));
+        if (!alreadyBlank) addNoteBlock(s, Number(f.id));
       }
       if (fmt.needsBank && !(s.matchBank || []).length) {
         s.matchBank = [{ id: newOptionId(), text: "" }];
@@ -576,7 +736,7 @@ function FieldRow({ f, fi, si, sec, subject, media, patch }) {
           type="button"
           className="icon-btn danger f-remove"
           title="Delete question"
-          onClick={() => patch((d) => d[si].fields.splice(fi, 1))}
+          onClick={() => patch((d) => removeField(d[si], fi))}
         >
           <svg className="icon"><use href="#icon-trash" /></svg>
         </button>
