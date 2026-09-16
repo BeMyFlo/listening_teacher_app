@@ -105,11 +105,12 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
               />
               <button
                 type="button"
-                className="icon-btn"
-                title="Import words into this group"
+                className="btn secondary"
+                style={{ padding: "5px 11px", fontSize: ".78rem", whiteSpace: "nowrap" }}
+                title="Import words from a file into this group"
                 onClick={() => setImportTarget(i)}
               >
-                <svg className="icon"><use href="#icon-upload" /></svg>
+                <svg className="icon"><use href="#icon-upload" /></svg> Import
               </button>
               <button
                 type="button"

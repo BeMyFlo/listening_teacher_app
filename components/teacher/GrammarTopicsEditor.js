@@ -119,11 +119,12 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
               />
               <button
                 type="button"
-                className="icon-btn"
-                title="Import into this topic"
+                className="btn secondary"
+                style={{ padding: "5px 11px", fontSize: ".78rem", whiteSpace: "nowrap" }}
+                title="Import from a file into this topic"
                 onClick={() => setImportTarget(i)}
               >
-                <svg className="icon"><use href="#icon-upload" /></svg>
+                <svg className="icon"><use href="#icon-upload" /></svg> Import
               </button>
               <button
                 type="button"
