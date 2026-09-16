@@ -12,7 +12,8 @@ function emptyGroup() {
 
 export default function VocabGroupsEditor({ groups, media, onChange }) {
   const dialog = useDialog();
-  const [importing, setImporting] = useState(false);
+  // null = đang đóng; -1 = nút Import chung ở trên; i = nút Import trong nhóm i.
+  const [importTarget, setImportTarget] = useState(null);
   const [open, setOpen] = useState(0);
 
   function patch(mut) {
@@ -23,6 +24,35 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
 
   function applyImport(items) {
     const draft = structuredClone(groups);
+
+    // Import từ TRONG 1 nhóm: nhóm đầu trong file đổ thẳng vào nhóm đang mở
+    // (nối thêm từ, không xoá từ đã có), các nhóm còn lại chèn ngay sau. Nhóm
+    // tự tạo tay không có extId nên nút Import chung ở trên không bao giờ
+    // khớp vào nó — luôn đẻ ra nhóm mới, đó là lý do cần nút riêng ở đây.
+    if (importTarget != null && importTarget >= 0 && draft[importTarget]) {
+      const [first, ...rest] = items;
+      if (first) {
+        const g = draft[importTarget];
+        draft[importTarget] = {
+          ...g,
+          extId: g.extId || first.extId || "",
+          name: g.name || first.name || "",
+          words: [...(g.words || []), ...(first.words || [])],
+          exercises: [...(g.exercises || []), ...(first.exercises || [])],
+        };
+      }
+      rest.forEach((it, k) =>
+        draft.splice(importTarget + 1 + k, 0, {
+          extId: it.extId || "",
+          name: it.name || "",
+          words: it.words || [],
+          exercises: it.exercises || [],
+        })
+      );
+      onChange(draft);
+      return;
+    }
+
     items.forEach((it) => {
       const idx = it.extId ? draft.findIndex((g) => g.extId && g.extId === it.extId) : -1;
       const group = {
@@ -49,7 +79,7 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
           type="button"
           className="btn secondary"
           style={{ padding: "8px 14px", fontSize: ".85rem" }}
-          onClick={() => setImporting(true)}
+          onClick={() => setImportTarget(-1)}
         >
           <svg className="icon"><use href="#icon-upload" /></svg> Import from file
         </button>
@@ -73,6 +103,14 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
                 value={g.name}
                 onChange={(e) => patch((d) => (d[i].name = e.target.value))}
               />
+              <button
+                type="button"
+                className="icon-btn"
+                title="Import words into this group"
+                onClick={() => setImportTarget(i)}
+              >
+                <svg className="icon"><use href="#icon-upload" /></svg>
+              </button>
               <button
                 type="button"
                 className="icon-btn"
@@ -122,12 +160,12 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
         <svg className="icon"><use href="#icon-plus" /></svg> Add group
       </button>
 
-      {importing && (
+      {importTarget != null && (
         <LessonImport
           mode="vocab"
           existing={groups.flatMap((g) => g.exercises.flatMap((e) => e._sections || []))}
           onImport={applyImport}
-          onClose={() => setImporting(false)}
+          onClose={() => setImportTarget(null)}
         />
       )}
     </div>
