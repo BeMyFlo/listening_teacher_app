@@ -3,7 +3,7 @@
 import { useState } from "react";
 import RichTextEditor from "./RichTextEditor";
 import { noteTextToDoc, docToNoteText, blankIdsFromDoc } from "@/lib/tiptap/noteConvert";
-import { removeBlankFromDoc, docIsEmpty } from "@/lib/tiptap/doc";
+import { removeBlankFromDoc, remapBlankIds, docIsEmpty, walkDoc } from "@/lib/tiptap/doc";
 import { importNoteText } from "@/lib/tiptap/importText";
 import {
   QUESTION_KINDS,
@@ -36,6 +36,17 @@ function editableNoteBlocks(sec) {
       ? noteTextToDoc(sec.noteText)
       : null;
   return doc && doc.content.length ? [{ noteDoc: doc, noteText: sec.noteText || docToNoteText(doc) }] : [];
+}
+
+// Khối đã có chữ nghĩa/tiêu đề/Divider thật chưa (ô trống không tính) — dùng
+// để phân biệt khung giáo viên đã soạn với khung vừa tạo còn trống trơn.
+function docHasProse(doc) {
+  let found = false;
+  walkDoc(doc, (n) => {
+    if (n.type === "text" && String(n.text || "").trim()) found = true;
+    if (n.type === "horizontalRule" || n.type === "image") found = true;
+  });
+  return found;
 }
 
 function blockBlankIds(block) {
@@ -415,26 +426,73 @@ function NoteBlocksEditor({ sec, si, allSections, subject, media, patch }) {
     });
   }
 
-  // Dán nguyên đề do AI soạn cho RIÊNG khối này: thay nội dung khối + điền
-  // luôn đáp án cho từng blank.
+  // Dán nguyên đề do AI soạn vào khối này + điền luôn đáp án cho từng ô trống.
+  // Khối đã có nội dung thật -> NỐI THÊM vào cuối (cách bằng 1 Divider) chứ
+  // KHÔNG ghi đè, vì nội dung import luôn đánh số lại từ [[1]] và trước đây
+  // xoá sạch bảng giáo viên đã soạn. Chỉ khung vừa tạo từ "Add Question"
+  // (chưa gõ chữ nào, nhiều nhất 1 ô trống) mới bị thay hẳn.
   function importIntoBlock(bi, raw) {
-    const { doc: nextDoc, answers } = importNoteText(raw);
+    const { doc: importedDoc, answers } = importNoteText(raw);
     patch((d) => {
       const s = d[si];
       const list = materializeNoteBlocks(s);
+      const current =
+        list[bi] && list[bi].noteDoc && Array.isArray(list[bi].noteDoc.content) ? list[bi].noteDoc : null;
+      const currentIds = current ? blankIdsFromDoc(current) : [];
+      const append = !!current && (docHasProse(current) || currentIds.length > 1);
+
+      // Số thứ tự đang bị chiếm ở mọi nơi trong section. Khi thay khung trống
+      // thì các ô trống của nó sắp bị bỏ nên không tính là đang chiếm.
+      const used = new Set([...s.fields.map((f) => Number(f.id)), ...list.flatMap(blockBlankIds)]);
+      if (!append) currentIds.forEach((id) => used.delete(id));
+
+      // Giữ nguyên số của bản import nếu không đụng ai; ngược lại (nối thêm,
+      // hoặc trùng số) thì dời hết sang dải số trống kế tiếp.
+      const importedIds = blankIdsFromDoc(importedDoc);
+      const idMap = new Map();
+      if (append || importedIds.some((id) => used.has(id))) {
+        let next = Math.max(0, ...used) + 1;
+        importedIds.forEach((id) => idMap.set(id, next++));
+      }
+      const addedDoc = idMap.size ? remapBlankIds(importedDoc, idMap) : importedDoc;
+      const addedAnswers = {};
+      Object.keys(answers).forEach((k) => {
+        const old = Number(k);
+        addedAnswers[idMap.has(old) ? idMap.get(old) : old] = answers[k];
+      });
+
+      let nextDoc;
+      if (append) {
+        const endsWithDivider = current.content[current.content.length - 1].type === "horizontalRule";
+        nextDoc = {
+          type: "doc",
+          content: [...current.content, ...(endsWithDivider ? [] : [{ type: "horizontalRule" }]), ...addedDoc.content],
+        };
+      } else {
+        nextDoc = addedDoc;
+        // Ô trống của khung trống vừa bị thay -> bỏ luôn dòng đáp án của nó.
+        const dropped = new Set(currentIds);
+        if (dropped.size) s.fields = s.fields.filter((f) => !dropped.has(Number(f.id)));
+      }
+
+      // Câu import kế thừa tên dạng bài của khối (vd "Table Completion") để
+      // thống kê theo dạng bài không xếp nhầm vào nhóm "Khác".
+      const blockFormat = (s.fields.find((f) => currentIds.includes(Number(f.id))) || {}).formatLabel || "";
+
       list[bi] = { noteDoc: nextDoc, noteText: docToNoteText(nextDoc) };
       s.noteMode = true;
       const byId = new Map(s.fields.map((f) => [Number(f.id), f]));
-      for (const id of blankIdsFromDoc(nextDoc)) {
+      for (const id of blankIdsFromDoc(addedDoc)) {
         let field = byId.get(id);
         if (!field) {
           field = emptyField(id);
+          if (blockFormat) field.formatLabel = blockFormat;
           s.fields.push(field);
           byId.set(id, field);
         }
-        if (answers[id] && answers[id].length) {
+        if (addedAnswers[id] && addedAnswers[id].length) {
           field.kind = "fill";
-          field.answersText = answers[id].join("\n");
+          field.answersText = addedAnswers[id].join("\n");
         }
       }
     });
