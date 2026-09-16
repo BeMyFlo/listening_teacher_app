@@ -3,6 +3,7 @@
 import { useState } from "react";
 import RichTextEditor from "./RichTextEditor";
 import { noteTextToDoc, docToNoteText, blankIdsFromDoc } from "@/lib/tiptap/noteConvert";
+import { removeBlankFromDoc, docIsEmpty } from "@/lib/tiptap/doc";
 import { importNoteText } from "@/lib/tiptap/importText";
 import {
   QUESTION_KINDS,
@@ -53,6 +54,25 @@ function materializeNoteBlocks(s) {
 // đổi Type 1 câu đang có sang dạng Completion. Mỗi lần luôn ra 1 khung
 // riêng (không dồn vào khối trước), giáo viên chỉ cần bấm "Add Question"
 // lần nữa để có thêm 1 bảng/note độc lập khác.
+// Xoá 1 câu hỏi khỏi section — kèm luôn ô trống tương ứng trong khối note
+// (nếu câu đó là 1 ô trống), để note không còn ô mồ côi không có đáp án.
+function removeField(s, fi) {
+  const [removed] = s.fields.splice(fi, 1);
+  const id = Number(removed && removed.id);
+  if (!Number.isFinite(id)) return;
+  const blocks = editableNoteBlocks(s);
+  if (!blocks.some((b) => blockBlankIds(b).includes(id))) return;
+  const list = materializeNoteBlocks(s);
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (!blockBlankIds(list[i]).includes(id)) continue;
+    const nextDoc = removeBlankFromDoc(list[i].noteDoc, id);
+    // Khối chỉ có mỗi ô trống vừa xoá, không còn chữ nghĩa gì -> bỏ cả khung.
+    if (docIsEmpty(nextDoc)) list.splice(i, 1);
+    else list[i] = { noteDoc: nextDoc, noteText: docToNoteText(nextDoc) };
+  }
+  if (!list.length) s.noteMode = false;
+}
+
 function addNoteBlock(s, id) {
   materializeNoteBlocks(s).push({
     noteDoc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "blank", attrs: { id } }] }] },
@@ -638,7 +658,7 @@ function FieldRow({ f, fi, si, sec, subject, media, patch }) {
           type="button"
           className="icon-btn danger f-remove"
           title="Delete question"
-          onClick={() => patch((d) => d[si].fields.splice(fi, 1))}
+          onClick={() => patch((d) => removeField(d[si], fi))}
         >
           <svg className="icon"><use href="#icon-trash" /></svg>
         </button>
