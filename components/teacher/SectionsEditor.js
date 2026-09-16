@@ -49,6 +49,28 @@ function docHasProse(doc) {
   return found;
 }
 
+// Nội dung import (đã đánh số lại) -> danh sách khối. Mỗi đoạn cách nhau bởi
+// Divider là 1 bảng riêng nên tách thành 1 khung riêng. Đoạn ĐẦU nếu không có
+// ô trống nào thì đó là dòng hướng dẫn chung ("Complete the notes below...")
+// -> gắn liền vào bảng đầu tiên kèm Divider, để nó vẫn hiện NGOÀI khung đúng
+// như đề thi thật thay vì bị đóng hộp thành 1 bảng rỗng.
+function importedDocToBlocks(doc) {
+  const segments = [[]];
+  doc.content.forEach((n) => {
+    if (n.type === "horizontalRule") segments.push([]);
+    else segments[segments.length - 1].push(n);
+  });
+  const parts = segments.filter((seg) => seg.length);
+  const mk = (content) => {
+    const d = { type: "doc", content };
+    return { noteDoc: d, noteText: docToNoteText(d) };
+  };
+  if (parts.length <= 1) return parts.map(mk);
+  const firstIsIntro = blankIdsFromDoc({ type: "doc", content: parts[0] }).length === 0;
+  if (!firstIsIntro) return parts.map(mk);
+  return [mk([...parts[0], { type: "horizontalRule" }, ...parts[1]]), ...parts.slice(2).map(mk)];
+}
+
 function blockBlankIds(block) {
   return block && block.noteDoc && Array.isArray(block.noteDoc.content) ? blankIdsFromDoc(block.noteDoc) : [];
 }
@@ -426,11 +448,13 @@ function NoteBlocksEditor({ sec, si, allSections, subject, media, patch }) {
     });
   }
 
-  // Dán nguyên đề do AI soạn vào khối này + điền luôn đáp án cho từng ô trống.
-  // Khối đã có nội dung thật -> NỐI THÊM vào cuối (cách bằng 1 Divider) chứ
-  // KHÔNG ghi đè, vì nội dung import luôn đánh số lại từ [[1]] và trước đây
-  // xoá sạch bảng giáo viên đã soạn. Chỉ khung vừa tạo từ "Add Question"
-  // (chưa gõ chữ nào, nhiều nhất 1 ô trống) mới bị thay hẳn.
+  // Dán nguyên đề do AI soạn + điền luôn đáp án cho từng ô trống. Bản import
+  // có bao nhiêu bảng (cách nhau bởi Divider) thì ra bấy nhiêu KHUNG RIÊNG —
+  // không nhồi chung vào 1 khung, vì nhồi chung sẽ khiến bảng đầu bị luật
+  // "đoạn trước Divider đầu tiên = hướng dẫn" đẩy ra ngoài khung.
+  // Khung vừa tạo từ "Add Question" (chưa gõ chữ nào, nhiều nhất 1 ô trống)
+  // thì bị thay hẳn; khung đã soạn rồi thì giữ nguyên, khung mới chèn xuống
+  // ngay sau nó.
   function importIntoBlock(bi, raw) {
     const { doc: importedDoc, answers } = importNoteText(raw);
     patch((d) => {
@@ -439,18 +463,19 @@ function NoteBlocksEditor({ sec, si, allSections, subject, media, patch }) {
       const current =
         list[bi] && list[bi].noteDoc && Array.isArray(list[bi].noteDoc.content) ? list[bi].noteDoc : null;
       const currentIds = current ? blankIdsFromDoc(current) : [];
-      const append = !!current && (docHasProse(current) || currentIds.length > 1);
+      const replace = !!current && !docHasProse(current) && currentIds.length <= 1;
 
-      // Số thứ tự đang bị chiếm ở mọi nơi trong section. Khi thay khung trống
-      // thì các ô trống của nó sắp bị bỏ nên không tính là đang chiếm.
+      // Số thứ tự đang bị chiếm ở mọi nơi trong section. Khung trống sắp bị
+      // thay thì ô trống của nó không tính là đang chiếm.
       const used = new Set([...s.fields.map((f) => Number(f.id)), ...list.flatMap(blockBlankIds)]);
-      if (!append) currentIds.forEach((id) => used.delete(id));
+      if (replace) currentIds.forEach((id) => used.delete(id));
 
-      // Giữ nguyên số của bản import nếu không đụng ai; ngược lại (nối thêm,
-      // hoặc trùng số) thì dời hết sang dải số trống kế tiếp.
+      // Bản import luôn đánh số từ [[1]]. Chỉ giữ nguyên số đó khi đang thay
+      // khung trống và không đụng ai; còn chèn thêm vào sau bài đã soạn thì
+      // phải đánh số NỐI TIẾP, không thì học sinh thấy số nhảy 12, 1, 2.
       const importedIds = blankIdsFromDoc(importedDoc);
       const idMap = new Map();
-      if (append || importedIds.some((id) => used.has(id))) {
+      if (!replace || importedIds.some((id) => used.has(id))) {
         let next = Math.max(0, ...used) + 1;
         importedIds.forEach((id) => idMap.set(id, next++));
       }
@@ -461,25 +486,20 @@ function NoteBlocksEditor({ sec, si, allSections, subject, media, patch }) {
         addedAnswers[idMap.has(old) ? idMap.get(old) : old] = answers[k];
       });
 
-      let nextDoc;
-      if (append) {
-        const endsWithDivider = current.content[current.content.length - 1].type === "horizontalRule";
-        nextDoc = {
-          type: "doc",
-          content: [...current.content, ...(endsWithDivider ? [] : [{ type: "horizontalRule" }]), ...addedDoc.content],
-        };
-      } else {
-        nextDoc = addedDoc;
-        // Ô trống của khung trống vừa bị thay -> bỏ luôn dòng đáp án của nó.
-        const dropped = new Set(currentIds);
-        if (dropped.size) s.fields = s.fields.filter((f) => !dropped.has(Number(f.id)));
-      }
-
       // Câu import kế thừa tên dạng bài của khối (vd "Table Completion") để
       // thống kê theo dạng bài không xếp nhầm vào nhóm "Khác".
       const blockFormat = (s.fields.find((f) => currentIds.includes(Number(f.id))) || {}).formatLabel || "";
 
-      list[bi] = { noteDoc: nextDoc, noteText: docToNoteText(nextDoc) };
+      const added = importedDocToBlocks(addedDoc);
+      if (!added.length) return;
+      if (replace) {
+        list.splice(bi, 1, ...added);
+        // Ô trống của khung trống vừa bị thay -> bỏ luôn dòng đáp án của nó.
+        const dropped = new Set(currentIds);
+        if (dropped.size) s.fields = s.fields.filter((f) => !dropped.has(Number(f.id)));
+      } else {
+        list.splice(bi + 1, 0, ...added);
+      }
       s.noteMode = true;
       const byId = new Map(s.fields.map((f) => [Number(f.id), f]));
       for (const id of blankIdsFromDoc(addedDoc)) {
