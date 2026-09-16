@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import RichTextEditor from "./RichTextEditor";
-import { noteTextToDoc, docToNoteText, blankIdsFromDoc, splitNoteDocIntoBlocks } from "@/lib/tiptap/noteConvert";
+import { noteTextToDoc, docToNoteText, blankIdsFromDoc } from "@/lib/tiptap/noteConvert";
 import { importNoteText } from "@/lib/tiptap/importText";
 import {
   QUESTION_KINDS,
@@ -19,9 +19,13 @@ import SpreadsheetImport from "./SpreadsheetImport";
 import { questionFormatsFor } from "@/lib/teacher/questionFormats";
 
 // Danh sách khối note/table hiện có của 1 section, để builder SỬA — ưu
-// tiên `noteBlocks` (dữ liệu mới, mỗi khối 1 khung độc lập); section soạn
-// từ trước (chỉ có noteDoc/noteText gộp, ranh giới đánh dấu bằng Divider)
-// được tự tách lại thành từng khối tương ứng, không cần chạy migrate DB.
+// tiên `noteBlocks` (dữ liệu mới, mỗi khối 1 khung độc lập). Section soạn
+// từ trước (chỉ có noteDoc/noteText gộp) được giữ NGUYÊN VẸN thành 1 khối
+// duy nhất, kể cả khi bên trong có sẵn Divider: không tự ý tách ra nhiều
+// khung, vì như vậy vừa làm giáo viên bất ngờ ("bấm 1 lần ra mấy khung"),
+// vừa đổi cách hiển thị của bài cũ (đoạn hướng dẫn trước Divider đầu tiên
+// vốn nằm NGOÀI khung sẽ bị đóng khung lại). Khung mới chỉ xuất hiện khi
+// giáo viên chủ động bấm "Add Question".
 function editableNoteBlocks(sec) {
   if (Array.isArray(sec.noteBlocks) && sec.noteBlocks.length) return sec.noteBlocks;
   const doc =
@@ -30,7 +34,7 @@ function editableNoteBlocks(sec) {
       : sec.noteText
       ? noteTextToDoc(sec.noteText)
       : null;
-  return doc ? splitNoteDocIntoBlocks(doc) : [];
+  return doc && doc.content.length ? [{ noteDoc: doc, noteText: sec.noteText || docToNoteText(doc) }] : [];
 }
 
 function blockBlankIds(block) {
