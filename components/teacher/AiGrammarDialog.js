@@ -3,11 +3,10 @@
 import { useState } from "react";
 import { api } from "@/lib/client/api";
 
-const PROFICIENCY = [
-  ["beginner", "Beginner (A1–A2 · band 3–4)"],
-  ["elementary", "Pre-intermediate (A2–B1 · band 4–5)"],
-  ["intermediate", "Intermediate (B1–B2 · band 5–6)"],
-  ["upper", "Upper-intermediate (B2–C1 · band 6–7+)"],
+// Chỉ là gợi ý khi bấm vào ô — giáo viên gõ gì cũng được (vd "6.5", "B2").
+const LEVEL_SUGGESTIONS = [
+  "3.0", "3.5", "4.0", "4.5", "5.0", "5.5", "6.0", "6.5", "7.0", "7.5", "8.0",
+  "A1", "A2", "B1", "B2", "C1",
 ];
 
 const LANGUAGES = [
@@ -30,7 +29,7 @@ export default function AiGrammarDialog({ context, onAdd, onClose }) {
     level: context && context.level ? `Level ${context.level}` : "",
     unitName: (context && context.unitName) || "",
     topics: "",
-    proficiency: "elementary",
+    studentLevel: "",
     language: "vi",
     notes: "",
   });
@@ -104,12 +103,19 @@ export default function AiGrammarDialog({ context, onAdd, onClose }) {
               </div>
               <div className="builder-2col" style={{ marginBottom: 12 }}>
                 <div className="form-row" style={{ marginBottom: 0 }}>
-                  <label>Students&apos; level</label>
-                  <select value={form.proficiency} onChange={set("proficiency")}>
-                    {PROFICIENCY.map(([v, l]) => (
-                      <option key={v} value={v}>{l}</option>
+                  <label>Students&apos; level (IELTS band or CEFR)</label>
+                  <input
+                    type="text"
+                    list="ai-grammar-level-suggestions"
+                    placeholder="e.g. 6.5, 5.0–5.5, B1"
+                    value={form.studentLevel}
+                    onChange={set("studentLevel")}
+                  />
+                  <datalist id="ai-grammar-level-suggestions">
+                    {LEVEL_SUGGESTIONS.map((v) => (
+                      <option key={v} value={v} />
                     ))}
-                  </select>
+                  </datalist>
                 </div>
                 <div className="form-row" style={{ marginBottom: 0 }}>
                   <label>Explanation language</label>
