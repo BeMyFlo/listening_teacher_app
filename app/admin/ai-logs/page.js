@@ -8,7 +8,8 @@ import { BudgetBar, fmtUsd, fmtVnd } from "@/components/admin/AiBudget";
 const PURPOSE_LABEL = {
   "grading.writing": "Grading · Writing",
   "grading.speaking": "Grading · Speaking",
-  "generate.grammar": "Generate · Grammar theory",
+  "generate.grammar": "Generate · Grammar lesson",
+  "generate.grammar.check": "Generate · Grammar answer check",
   unknown: "Unknown",
 };
 const purposeLabel = (p) => PURPOSE_LABEL[p] || p;

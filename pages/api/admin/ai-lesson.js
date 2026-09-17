@@ -1,4 +1,5 @@
-// Soạn lý thuyết bài học bằng AI (Gemini). Hiện hỗ trợ kind="grammar".
+// Soạn bài Grammar bằng AI (Gemini): lý thuyết và/hoặc bài tập, theo các
+// phần giáo viên tick. Hiện hỗ trợ kind="grammar".
 // Trả về bản nháp để giáo viên xem trước — KHÔNG ghi gì vào DB; giáo viên
 // bấm thêm vào bài rồi Save như bình thường.
 
@@ -19,7 +20,7 @@ async function handler(req, res) {
   }
   const body = req.body || {};
   if (body.kind !== "grammar") {
-    return res.status(400).json({ ok: false, error: "Only grammar theory is supported for now" });
+    return res.status(400).json({ ok: false, error: "Only grammar is supported for now" });
   }
 
   const { input, error } = grammar.parseInput(body);
@@ -29,39 +30,96 @@ async function handler(req, res) {
   const models = grammar.lessonModels(await getGradingModels());
 
   const unitId = /^[a-f0-9]{24}$/i.test(String(body.unitId || "")) ? String(body.unitId) : "";
-  const log = {
-    purpose: "generate.grammar",
-    actor: req.auth,
-    source: req.url,
-    context: {
-      ...(unitId ? { unitId } : {}),
-      unitName: input.unitName,
-      level: input.level,
-      topics: input.topics,
-      studentLevel: input.studentLevel,
-      language: input.language,
-    },
+  const baseContext = {
+    ...(unitId ? { unitId } : {}),
+    unitName: input.unitName,
+    level: input.level,
+    studentLevel: input.studentLevel,
+    language: input.language,
+    parts: input.parts,
+    ...(input.parts.includes("exercises")
+      ? { questionCount: input.questionCount, exerciseTypes: input.exerciseTypes }
+      : {}),
   };
+  const schema = grammar.buildSchema(input);
 
-  try {
+  // Mỗi chủ đề 1 lần gọi, chạy song song — chủ đề nào lỗi thì vẫn trả các
+  // chủ đề còn lại cho giáo viên.
+  async function one(topic) {
     const { data, model, logId } = await generateJSON({
       systemInstruction: grammar.SYSTEM,
-      prompt: grammar.buildPrompt(input),
-      schema: grammar.SCHEMA,
+      prompt: grammar.buildPrompt(input, topic),
+      schema,
       temperature: 0.4,
       models,
-      log,
+      log: {
+        purpose: "generate.grammar",
+        actor: req.auth,
+        source: req.url,
+        context: { ...baseContext, topics: [topic] },
+      },
     });
-    const topics = grammar.normalizeTopics(data);
-    if (!topics.length) {
-      await flagAiLog(logId, "No usable topics in the AI response");
-      return res.status(502).json({ ok: false, error: "The AI returned no usable content — please try again." });
+    const t = grammar.normalizeTopic(data, input, topic);
+    if (!t) {
+      await flagAiLog(logId, "No usable content in the AI response");
+      throw new Error("The AI returned no usable content");
     }
-    return res.json({ ok: true, topics, model });
-  } catch (e) {
-    if (e.code !== "AI_BUDGET_EXCEEDED") console.error("[ai-lesson]", e);
-    return res.status(e.code === "AI_BUDGET_EXCEEDED" ? 429 : 502).json({ ok: false, error: e.message || "AI request failed" });
+    if (input.parts.includes("exercises") && !t.questions.length) {
+      await flagAiLog(logId, "No valid exercise questions in the AI response");
+    }
+
+    // Lượt 2: giám khảo độc lập soát đáp án — lượt soạn vẫn lọt ~1–2/8 câu
+    // sai hoặc có 2 lựa chọn đúng (đã test). Lượt này lỗi thì vẫn trả bài,
+    // nhưng đánh dấu "chưa kiểm tra" để giáo viên soát kỹ.
+    let questions = t.questions;
+    let check = null;
+    if (questions.length) {
+      try {
+        const { data: verdict, model: checkModel } = await generateJSON({
+          systemInstruction: grammar.CHECK_SYSTEM,
+          prompt: grammar.buildCheckPrompt(questions),
+          schema: grammar.CHECK_SCHEMA,
+          temperature: 0,
+          models,
+          log: {
+            purpose: "generate.grammar.check",
+            actor: req.auth,
+            source: req.url,
+            context: { ...baseContext, topics: [topic], questions: questions.length },
+          },
+        });
+        const r = grammar.checkQuestions(questions, verdict);
+        questions = r.kept;
+        check = { verified: true, model: checkModel, removed: r.removed };
+      } catch (e) {
+        check = { verified: false, error: e.message };
+      }
+    }
+    return { ...grammar.finalizeTopic(t, questions, input), model, check };
   }
+
+  const results = await Promise.allSettled(input.topics.map(one));
+  const topics = [];
+  const failed = [];
+  results.forEach((r, i) => {
+    if (r.status === "fulfilled") topics.push(r.value);
+    else failed.push({ topic: input.topics[i], error: r.reason && r.reason.message, code: r.reason && r.reason.code });
+  });
+
+  if (!topics.length) {
+    const budget = failed.find((f) => f.code === "AI_BUDGET_EXCEEDED");
+    if (!budget) console.error("[ai-lesson] all topics failed:", failed);
+    return res.status(budget ? 429 : 502).json({
+      ok: false,
+      error: budget ? budget.error : `AI request failed: ${failed[0] ? failed[0].error : "unknown error"}`,
+    });
+  }
+  return res.json({
+    ok: true,
+    topics,
+    failed: failed.map(({ topic, error }) => ({ topic, error })),
+    models: [...new Set(topics.map((t) => t.model))],
+  });
 }
 
 module.exports = requireAuth(handler);
