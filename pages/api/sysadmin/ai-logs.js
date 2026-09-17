@@ -5,6 +5,7 @@ const { connectDB } = require("../../../lib/db");
 const { requireRole } = require("../../../lib/auth");
 const AiLog = require("../../../lib/models/AiLog");
 const AiPrompt = require("../../../lib/models/AiPrompt");
+const { getAiBudgetSettings, getMonthSpend } = require("../../../lib/ai/budget");
 
 const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const HEAVY = "-prompt -response -systemHash";
@@ -16,6 +17,7 @@ function buildFilter({ purpose, status, model, q, days }) {
   if (purpose) filter.purpose = new RegExp("^" + escapeRe(purpose) + "(\\.|$)");
   if (status === "ok") filter.ok = true;
   if (status === "error") filter.ok = false;
+  if (status === "blocked") filter.blocked = true;
   if (model) filter.model = String(model);
   if (q) {
     const re = new RegExp(escapeRe(q), "i");
@@ -39,6 +41,8 @@ const sumFields = {
   outputTokens: { $sum: "$outputTokens" },
   thoughtsTokens: { $sum: "$thoughtsTokens" },
   totalTokens: { $sum: "$totalTokens" },
+  costUsd: { $sum: "$costUsd" },
+  blocked: { $sum: { $cond: ["$blocked", 1, 0] } },
   avgMs: { $avg: "$durationMs" },
   maxMs: { $max: "$durationMs" },
 };
@@ -68,7 +72,7 @@ async function handler(req, res) {
   const { filter, days } = buildFilter(req.query);
   const since30 = { at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } };
 
-  const [rows, total, totals, byPurpose, byModel, purposes, models] = await Promise.all([
+  const [rows, total, totals, byPurpose, byModel, purposes, models, settings, spend] = await Promise.all([
     AiLog.find(filter).select(HEAVY).sort({ at: -1 }).skip(skip).limit(lim).lean(),
     AiLog.countDocuments(filter),
     AiLog.aggregate([{ $match: filter }, { $group: { _id: null, ...sumFields } }]),
@@ -76,6 +80,8 @@ async function handler(req, res) {
     AiLog.aggregate([{ $match: filter }, { $group: { _id: "$model", ...sumFields } }, { $sort: { calls: -1 } }]),
     AiLog.distinct("purpose", since30),
     AiLog.distinct("model", since30),
+    getAiBudgetSettings(),
+    getMonthSpend(),
   ]);
 
   return res.status(200).json({
@@ -86,13 +92,14 @@ async function handler(req, res) {
     limit: lim,
     days,
     stats: {
-      totals: totals[0] || { calls: 0, errors: 0, fallbacks: 0, promptTokens: 0, outputTokens: 0, thoughtsTokens: 0, totalTokens: 0, avgMs: 0, maxMs: 0 },
+      totals: totals[0] || { calls: 0, errors: 0, fallbacks: 0, promptTokens: 0, outputTokens: 0, thoughtsTokens: 0, totalTokens: 0, costUsd: 0, blocked: 0, avgMs: 0, maxMs: 0 },
       byPurpose,
       byModel,
     },
     purposes: purposes.sort(),
     models: models.filter(Boolean).sort(),
     retentionDays: AiLog.RETENTION_DAYS,
+    budget: { ...spend, limitUsd: settings.monthlyLimitUsd, usdToVnd: settings.usdToVnd },
   });
 }
 

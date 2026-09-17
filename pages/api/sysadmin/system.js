@@ -5,6 +5,21 @@ const { KNOWN_MODELS, envChain, getGradingModels, setGradingModels } = require("
 const { generateDeadlineNotificationsForAll } = require("../../../lib/notifications/generate");
 const { sweepDeadlineEmailJobs } = require("../../../lib/notifications/deadlineAssign");
 const audit = require("../../../lib/audit");
+const { getAiBudgetSettings, saveAiBudgetSettings, getMonthSpend } = require("../../../lib/ai/budget");
+const { DEFAULT_PRICES } = require("../../../lib/ai/pricing");
+
+// Giới hạn tiền + bảng giá đang áp dụng + đã tiêu tháng này.
+async function budgetView() {
+  const s = await getAiBudgetSettings();
+  return {
+    monthlyLimitUsd: s.monthlyLimitUsd,
+    usdToVnd: s.usdToVnd,
+    prices: s.prices,
+    defaultPrices: DEFAULT_PRICES,
+    overridden: Object.keys(s.overrides),
+    spend: await getMonthSpend(),
+  };
+}
 
 function envSet(name) {
   return !!(process.env[name] && String(process.env[name]).trim());
@@ -36,12 +51,22 @@ async function handler(req, res) {
         models: await getGradingModels(),
         known: KNOWN_MODELS,
         envChain: envChain(),
+        budget: await budgetView(),
       },
     });
   }
 
   if (req.method === "PUT") {
-    const models = Array.isArray(req.body && req.body.models) ? req.body.models : null;
+    const body = req.body || {};
+    if (body.budget && typeof body.budget === "object") {
+      try {
+        await saveAiBudgetSettings(body.budget);
+      } catch (e) {
+        return res.status(e.status || 400).json({ ok: false, error: e.message });
+      }
+      return res.status(200).json({ ok: true, budget: await budgetView() });
+    }
+    const models = Array.isArray(body.models) ? body.models : null;
     if (!models) return res.status(400).json({ ok: false, error: "models must be an array" });
     const saved = await setGradingModels(models);
     return res.status(200).json({ ok: true, models: saved });
