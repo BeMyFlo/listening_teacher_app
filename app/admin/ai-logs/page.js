@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client/api";
 import { DashStat, timeAgo } from "@/components/dash/DashKit";
+import { BudgetBar, fmtUsd, fmtVnd } from "@/components/admin/AiBudget";
 
 const PURPOSE_LABEL = {
   "grading.writing": "Grading · Writing",
@@ -159,6 +160,15 @@ function LogDetail({ id, onClose }) {
                       {log.thoughtsTokens ? ` · ${fmtNum(log.thoughtsTokens)} thinking` : ""}
                     </td>
                   </tr>
+                  <tr>
+                    <th>Cost</th>
+                    <td>
+                      {log.blocked ? "Not called — monthly AI budget used up" : fmtUsd(log.costUsd)}
+                      {!log.blocked && !log.priced && (
+                        <span style={{ color: "var(--muted)", fontSize: ".78rem" }}> (no price set for this model — counted at the highest rate)</span>
+                      )}
+                    </td>
+                  </tr>
                   <tr><th>Duration</th><td>{fmtMs(log.durationMs)}</td></tr>
                   {log.audio && (
                     <tr><th>Audio sent</th><td>{log.audio.mimeType} · {fmtBytes(log.audio.bytes)} (file not stored)</td></tr>
@@ -254,6 +264,7 @@ export default function AdminAiLogsPage() {
             <option value="">Any status</option>
             <option value="ok">Succeeded</option>
             <option value="error">Failed</option>
+            <option value="blocked">Blocked (budget used up)</option>
           </select>
           <select className="select-inline" value={model} onChange={reset(setModel)}>
             <option value="">All models</option>
@@ -275,6 +286,18 @@ export default function AdminAiLogsPage() {
 
       {data && tot && (
         <>
+          <div className="card" style={{ marginBottom: 14 }}>
+            <BudgetBar
+              spentUsd={data.budget.costUsd}
+              limitUsd={data.budget.limitUsd}
+              usdToVnd={data.budget.usdToVnd}
+              month={data.budget.month}
+              blocked={data.budget.blocked}
+            />
+            <p style={{ fontSize: ".78rem", color: "var(--muted)", margin: "6px 0 0" }}>
+              Change the monthly limit in <a href="/admin/system">System → AI budget &amp; pricing</a>.
+            </p>
+          </div>
           <div className="dash-stats">
             <DashStat icon="sparkles" value={fmtNum(tot.calls)} label="AI calls" hint={`${fmtNum(tot.fallbacks)} needed a fallback model`} />
             <DashStat
@@ -282,7 +305,10 @@ export default function AdminAiLogsPage() {
               value={fmtNum(tot.errors)}
               label="Failed"
               tone={tot.errors > 0 ? "pink" : ""}
-              hint={tot.calls ? `${Math.round((tot.errors / tot.calls) * 100)}% of calls` : ""}
+              hint={
+                (tot.calls ? `${Math.round((tot.errors / tot.calls) * 100)}% of calls` : "") +
+                (tot.blocked ? ` · ${fmtNum(tot.blocked)} blocked by budget` : "")
+              }
               onClick={tot.errors > 0 ? () => { setStatus("error"); setPage(0); } : undefined}
             />
             <DashStat
@@ -291,7 +317,12 @@ export default function AdminAiLogsPage() {
               label="Tokens"
               hint={`${fmtNum(tot.promptTokens)} in · ${fmtNum(tot.outputTokens)} out`}
             />
-            <DashStat icon="clock" value={fmtMs(tot.avgMs)} label="Avg time" hint={`slowest ${fmtMs(tot.maxMs)}`} />
+            <DashStat
+              icon="star"
+              value={fmtUsd(tot.costUsd)}
+              label="Estimated cost"
+              hint={`≈ ${fmtVnd(tot.costUsd, data.budget.usdToVnd)} · avg ${fmtMs(tot.avgMs)}/call`}
+            />
           </div>
 
           {(data.stats.byPurpose.length > 1 || data.stats.byModel.length > 1) && (
@@ -299,13 +330,13 @@ export default function AdminAiLogsPage() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20 }}>
                 {[
                   ["By purpose", data.stats.byPurpose, purposeLabel],
-                  ["By model", data.stats.byModel, (m) => m || "—"],
+                  ["By model", data.stats.byModel, (m) => m || "— (blocked)"],
                 ].map(([title, list, label]) => (
                   <div key={title}>
                     <h4 style={{ margin: "0 0 6px" }}>{title}</h4>
                     <table className="admin-table">
                       <thead>
-                        <tr><th></th><th>Calls</th><th>Failed</th><th>Tokens</th><th>Avg</th></tr>
+                        <tr><th></th><th>Calls</th><th>Failed</th><th>Tokens</th><th>Cost</th><th>Avg</th></tr>
                       </thead>
                       <tbody>
                         {list.map((r) => (
@@ -314,6 +345,7 @@ export default function AdminAiLogsPage() {
                             <td>{fmtNum(r.calls)}</td>
                             <td style={{ color: r.errors ? "var(--red)" : undefined }}>{fmtNum(r.errors)}</td>
                             <td>{fmtNum(r.totalTokens)}</td>
+                            <td>{fmtUsd(r.costUsd)}</td>
                             <td>{fmtMs(r.avgMs)}</td>
                           </tr>
                         ))}
@@ -335,6 +367,7 @@ export default function AdminAiLogsPage() {
                   <th>Where</th>
                   <th>Model</th>
                   <th style={{ textAlign: "right" }}>Tokens</th>
+                  <th style={{ textAlign: "right" }}>Cost</th>
                   <th style={{ textAlign: "right" }}>Time</th>
                   <th>Status</th>
                 </tr>
@@ -359,10 +392,16 @@ export default function AdminAiLogsPage() {
                       )}
                     </td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{r.totalTokens ? fmtNum(r.totalTokens) : "—"}</td>
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }} title={r.priced === false ? "No price set for this model — counted at the highest rate" : ""}>
+                      {r.costUsd ? fmtUsd(r.costUsd) : "—"}
+                      {r.priced === false && r.costUsd ? "*" : ""}
+                    </td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{fmtMs(r.durationMs)}</td>
                     <td>
                       {r.ok ? (
                         <span className="pill pill-ok">OK</span>
+                      ) : r.blocked ? (
+                        <span className="pill pill-warn" title={r.error}>Blocked</span>
                       ) : (
                         <span className="pill pill-danger" title={r.error}>Failed</span>
                       )}
@@ -370,7 +409,7 @@ export default function AdminAiLogsPage() {
                   </tr>
                 ))}
                 {rows.length === 0 && (
-                  <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No AI calls in this range.</td></tr>
+                  <tr><td colSpan={9} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No AI calls in this range.</td></tr>
                 )}
               </tbody>
             </table>

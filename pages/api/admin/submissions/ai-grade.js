@@ -6,6 +6,9 @@ const { requireAuth } = require("../../../../lib/auth");
 const Submission = require("../../../../lib/models/Submission");
 const GradingJob = require("../../../../lib/models/GradingJob");
 const { isEnabled, DEFAULT_MODEL } = require("../../../../lib/gemini");
+const { checkBudget, budgetError, countBlocked } = require("../../../../lib/ai/budget");
+const { recordAiCall } = require("../../../../lib/ai/aiLog");
+const { submissionContext } = require("../../../../lib/grading/runAiGrade");
 
 async function handler(req, res) {
   if (req.method !== "POST") {
@@ -17,10 +20,13 @@ async function handler(req, res) {
   }
 
   await connectDB();
+
   const { id } = req.query;
   let submission;
   try {
-    submission = await Submission.findById(id).select("kind essayText audioUrl").lean();
+    submission = await Submission.findById(id)
+      .select("kind essayText audioUrl studentId studentName attemptNumber unitId testId promptId")
+      .lean();
   } catch (err) {
     return res.status(404).json({ ok: false, error: "Submission not found" });
   }
@@ -33,6 +39,25 @@ async function handler(req, res) {
   }
   if (submission.kind !== "writing" && submission.kind !== "speaking") {
     return res.status(400).json({ ok: false, error: "Only Writing and Speaking can be AI-graded" });
+  }
+
+  // Hết tiền AI tháng này -> báo ngay, khỏi tạo job. Vẫn ghi log + đếm để
+  // admin thấy giáo viên nào, bài nào đang bị chặn.
+  const budget = await checkBudget();
+  if (!budget.allowed) {
+    const err = budgetError(budget.spentUsd, budget.limitUsd);
+    await countBlocked();
+    await recordAiCall({
+      log: {
+        purpose: `grading.${submission.kind}`,
+        actor: req.auth,
+        source: req.url,
+        context: await submissionContext(submission),
+      },
+      blocked: true,
+      error: err.message,
+    });
+    return res.status(429).json({ ok: false, error: err.message });
   }
 
   // Dùng lại job pending/running gần nhất (chống double-click).

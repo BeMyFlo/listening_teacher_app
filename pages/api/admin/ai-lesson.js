@@ -59,8 +59,8 @@ async function handler(req, res) {
     }
     return res.json({ ok: true, topics, model });
   } catch (e) {
-    console.error("[ai-lesson]", e);
-    return res.status(502).json({ ok: false, error: e.message || "AI request failed" });
+    if (e.code !== "AI_BUDGET_EXCEEDED") console.error("[ai-lesson]", e);
+    return res.status(e.code === "AI_BUDGET_EXCEEDED" ? 429 : 502).json({ ok: false, error: e.message || "AI request failed" });
   }
 }
 
