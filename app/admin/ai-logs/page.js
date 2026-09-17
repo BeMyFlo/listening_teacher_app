@@ -10,6 +10,8 @@ const PURPOSE_LABEL = {
   "grading.speaking": "Grading · Speaking",
   "generate.grammar": "Generate · Grammar lesson",
   "generate.grammar.check": "Generate · Grammar answer check",
+  "generate.vocab": "Generate · Vocabulary",
+  "generate.vocab.check": "Generate · Vocabulary answer check",
   unknown: "Unknown",
 };
 const purposeLabel = (p) => PURPOSE_LABEL[p] || p;

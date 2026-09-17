@@ -1,5 +1,6 @@
-// Soạn bài Grammar bằng AI (Gemini): lý thuyết và/hoặc bài tập, theo các
-// phần giáo viên tick. Hiện hỗ trợ kind="grammar".
+// Soạn bài bằng AI (Gemini) theo các phần giáo viên tick:
+//   kind="grammar" -> lý thuyết và/hoặc bài tập (lib/ai/grammarLesson.js)
+//   kind="vocab"   -> bảng từ và/hoặc bài tập   (lib/ai/vocabLesson.js)
 // Trả về bản nháp để giáo viên xem trước — KHÔNG ghi gì vào DB; giáo viên
 // bấm thêm vào bài rồi Save như bình thường.
 
@@ -7,8 +8,15 @@ const { requireAuth } = require("../../../lib/auth");
 const { connectDB } = require("../../../lib/db");
 const { generateJSON, isEnabled } = require("../../../lib/gemini");
 const { getGradingModels } = require("../../../lib/grading/aiModels");
-const grammar = require("../../../lib/ai/grammarLesson");
+const { lessonModels, CHECK_SYSTEM, CHECK_SCHEMA } = require("../../../lib/ai/common");
 const { flagAiLog } = require("../../../lib/ai/aiLog");
+
+// Mỗi module có cùng giao diện: parseInput, buildSchema, buildPrompt,
+// normalizeTopic, buildCheckPrompt, checkQuestions, finalizeTopic, PURPOSE...
+const MODULES = {
+  grammar: require("../../../lib/ai/grammarLesson"),
+  vocab: require("../../../lib/ai/vocabLesson"),
+};
 
 async function handler(req, res) {
   if (req.method !== "POST") {
@@ -19,15 +27,14 @@ async function handler(req, res) {
     return res.status(503).json({ ok: false, error: "AI is not configured (GEMINI_API_KEY missing)" });
   }
   const body = req.body || {};
-  if (body.kind !== "grammar") {
-    return res.status(400).json({ ok: false, error: "Only grammar is supported for now" });
-  }
+  const mod = MODULES[body.kind];
+  if (!mod) return res.status(400).json({ ok: false, error: "Unknown lesson kind" });
 
-  const { input, error } = grammar.parseInput(body);
+  const { input, error } = mod.parseInput(body);
   if (error) return res.status(400).json({ ok: false, error });
 
   await connectDB();
-  const models = grammar.lessonModels(await getGradingModels());
+  const models = lessonModels(await getGradingModels());
 
   const unitId = /^[a-f0-9]{24}$/i.test(String(body.unitId || "")) ? String(body.unitId) : "";
   const baseContext = {
@@ -36,30 +43,28 @@ async function handler(req, res) {
     level: input.level,
     studentLevel: input.studentLevel,
     language: input.language,
-    parts: input.parts,
-    ...(input.parts.includes("exercises")
-      ? { questionCount: input.questionCount, exerciseTypes: input.exerciseTypes }
-      : {}),
+    ...mod.logContext(input),
   };
-  const schema = grammar.buildSchema(input);
+  const schema = mod.buildSchema(input);
 
   // Mỗi chủ đề 1 lần gọi, chạy song song — chủ đề nào lỗi thì vẫn trả các
   // chủ đề còn lại cho giáo viên.
   async function one(topic) {
     const { data, model, logId } = await generateJSON({
-      systemInstruction: grammar.SYSTEM,
-      prompt: grammar.buildPrompt(input, topic),
+      systemInstruction: mod.SYSTEM,
+      prompt: mod.buildPrompt(input, topic),
       schema,
       temperature: 0.4,
+      thinkingBudget: mod.GEN_THINKING_BUDGET,
       models,
       log: {
-        purpose: "generate.grammar",
+        purpose: mod.PURPOSE,
         actor: req.auth,
         source: req.url,
         context: { ...baseContext, topics: [topic] },
       },
     });
-    const t = grammar.normalizeTopic(data, input, topic);
+    const t = mod.normalizeTopic(data, input, topic);
     if (!t) {
       await flagAiLog(logId, "No usable content in the AI response");
       throw new Error("The AI returned no usable content");
@@ -76,26 +81,26 @@ async function handler(req, res) {
     if (questions.length) {
       try {
         const { data: verdict, model: checkModel } = await generateJSON({
-          systemInstruction: grammar.CHECK_SYSTEM,
-          prompt: grammar.buildCheckPrompt(questions),
-          schema: grammar.CHECK_SCHEMA,
+          systemInstruction: CHECK_SYSTEM,
+          prompt: mod.buildCheckPrompt(questions, t),
+          schema: CHECK_SCHEMA,
           temperature: 0,
           models,
           log: {
-            purpose: "generate.grammar.check",
+            purpose: `${mod.PURPOSE}.check`,
             actor: req.auth,
             source: req.url,
             context: { ...baseContext, topics: [topic], questions: questions.length },
           },
         });
-        const r = grammar.checkQuestions(questions, verdict);
+        const r = mod.checkQuestions(questions, verdict, t);
         questions = r.kept;
         check = { verified: true, model: checkModel, removed: r.removed };
       } catch (e) {
         check = { verified: false, error: e.message };
       }
     }
-    return { ...grammar.finalizeTopic(t, questions, input), model, check };
+    return { ...mod.finalizeTopic(t, questions, input), model, check };
   }
 
   const results = await Promise.allSettled(input.topics.map(one));

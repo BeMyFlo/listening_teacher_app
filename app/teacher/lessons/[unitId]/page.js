@@ -531,6 +531,7 @@ export default function UnitEditorPage() {
             <VocabGroupsEditor
               groups={cat.groups || []}
               media={media}
+              aiContext={{ unitId, level: unit.level, unitName: unit.name }}
               onChange={(next) => updateCat((c) => (c.groups = next))}
             />
           ) : subTab === "theory" ? (

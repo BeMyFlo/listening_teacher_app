@@ -3,6 +3,7 @@
 import { useState } from "react";
 import LessonImport from "./LessonImport";
 import VocabWordTable from "./VocabWordTable";
+import AiVocabDialog from "./AiVocabDialog";
 import { TopicExercises } from "./GrammarTopicsEditor";
 import { useDialog } from "@/components/ui/Dialog";
 
@@ -10,11 +11,18 @@ function emptyGroup() {
   return { extId: "", name: "", words: [], exercises: [] };
 }
 
-export default function VocabGroupsEditor({ groups, media, onChange }) {
+export default function VocabGroupsEditor({ groups, media, onChange, aiContext }) {
   const dialog = useDialog();
   // null = đang đóng; -1 = nút Import chung ở trên; i = nút Import trong nhóm i.
   const [importTarget, setImportTarget] = useState(null);
+  const [aiOpen, setAiOpen] = useState(false);
   const [open, setOpen] = useState(0);
+
+  function addAiGroups(newGroups) {
+    onChange([...structuredClone(groups), ...newGroups]);
+    setOpen(groups.length);
+    dialog.toast(`Added ${newGroups.length} word group${newGroups.length === 1 ? "" : "s"} — review, then Save`);
+  }
 
   function patch(mut) {
     const draft = structuredClone(groups);
@@ -75,14 +83,24 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <h3 style={{ margin: 0 }}>Vocabulary groups ({groups.length})</h3>
-        <button
-          type="button"
-          className="btn secondary"
-          style={{ padding: "8px 14px", fontSize: ".85rem" }}
-          onClick={() => setImportTarget(-1)}
-        >
-          <svg className="icon"><use href="#icon-upload" /></svg> Import from file
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setAiOpen(true)}
+          >
+            <svg className="icon"><use href="#icon-sparkles" /></svg> Create by AI
+          </button>
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setImportTarget(-1)}
+          >
+            <svg className="icon"><use href="#icon-upload" /></svg> Import from file
+          </button>
+        </div>
       </div>
 
       {groups.length === 0 && (
@@ -160,6 +178,15 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
       >
         <svg className="icon"><use href="#icon-plus" /></svg> Add group
       </button>
+
+      {aiOpen && (
+        <AiVocabDialog
+          context={aiContext}
+          existingWords={groups.flatMap((g) => (g.words || []).map((w) => w.word)).filter(Boolean)}
+          onAdd={addAiGroups}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       {importTarget != null && (
         <LessonImport
