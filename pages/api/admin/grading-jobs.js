@@ -94,7 +94,7 @@ async function handler(req, res) {
   }
 
   try {
-    const { draft, model } = await runAiGrade(claimed.submissionId);
+    const { draft, model } = await runAiGrade(claimed.submissionId, { actor: req.auth, source: req.url });
     claimed.status = "done";
     claimed.result = { ...draft, model };
     claimed.model = model;

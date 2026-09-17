@@ -7,6 +7,7 @@ const { connectDB } = require("../../../lib/db");
 const { generateJSON, isEnabled } = require("../../../lib/gemini");
 const { getGradingModels } = require("../../../lib/grading/aiModels");
 const grammar = require("../../../lib/ai/grammarLesson");
+const { flagAiLog } = require("../../../lib/ai/aiLog");
 
 async function handler(req, res) {
   if (req.method !== "POST") {
@@ -27,16 +28,33 @@ async function handler(req, res) {
   await connectDB();
   const models = grammar.lessonModels(await getGradingModels());
 
+  const unitId = /^[a-f0-9]{24}$/i.test(String(body.unitId || "")) ? String(body.unitId) : "";
+  const log = {
+    purpose: "generate.grammar",
+    actor: req.auth,
+    source: req.url,
+    context: {
+      ...(unitId ? { unitId } : {}),
+      unitName: input.unitName,
+      level: input.level,
+      topics: input.topics,
+      studentLevel: input.studentLevel,
+      language: input.language,
+    },
+  };
+
   try {
-    const { data, model } = await generateJSON({
+    const { data, model, logId } = await generateJSON({
       systemInstruction: grammar.SYSTEM,
       prompt: grammar.buildPrompt(input),
       schema: grammar.SCHEMA,
       temperature: 0.4,
       models,
+      log,
     });
     const topics = grammar.normalizeTopics(data);
     if (!topics.length) {
+      await flagAiLog(logId, "No usable topics in the AI response");
       return res.status(502).json({ ok: false, error: "The AI returned no usable content — please try again." });
     }
     return res.json({ ok: true, topics, model });

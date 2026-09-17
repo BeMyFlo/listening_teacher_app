@@ -48,7 +48,7 @@ export default function AiGrammarDialog({ context, onAdd, onClose }) {
     }
     setBusy(true);
     try {
-      const r = await api.teacher.aiLessonDraft({ kind: "grammar", ...form });
+      const r = await api.teacher.aiLessonDraft({ kind: "grammar", unitId: context && context.unitId, ...form });
       setDraft({ topics: r.topics, model: r.model });
       setPicked(r.topics.map(() => true));
     } catch (e) {
