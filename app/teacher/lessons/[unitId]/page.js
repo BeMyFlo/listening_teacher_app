@@ -524,6 +524,7 @@ export default function UnitEditorPage() {
             <GrammarTopicsEditor
               topics={cat.topics || []}
               media={media}
+              aiContext={{ level: unit.level, unitName: unit.name }}
               onChange={(next) => updateCat((c) => (c.topics = next))}
             />
           ) : catKey === "vocabulary" ? (

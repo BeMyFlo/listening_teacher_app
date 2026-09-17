@@ -3,6 +3,7 @@
 import { useState } from "react";
 import SectionsEditor from "./SectionsEditor";
 import LessonImport from "./LessonImport";
+import AiGrammarDialog from "./AiGrammarDialog";
 import { useDialog } from "@/components/ui/Dialog";
 
 function emptyTopic() {
@@ -21,11 +22,18 @@ const LESSON_FIELDS = [
   ["examples", "Examples"],
 ];
 
-export default function GrammarTopicsEditor({ topics, media, onChange }) {
+export default function GrammarTopicsEditor({ topics, media, onChange, aiContext }) {
   const dialog = useDialog();
   // null = đang đóng; -1 = nút Import chung ở trên; i = nút Import trong chủ đề i.
   const [importTarget, setImportTarget] = useState(null);
+  const [aiOpen, setAiOpen] = useState(false);
   const [open, setOpen] = useState(0);
+
+  function addAiTopics(newTopics) {
+    onChange([...structuredClone(topics), ...newTopics]);
+    setOpen(topics.length);
+    dialog.toast(`Added ${newTopics.length} topic${newTopics.length === 1 ? "" : "s"} — review, then Save`);
+  }
 
   function patch(mut) {
     const draft = structuredClone(topics);
@@ -89,14 +97,24 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <h3 style={{ margin: 0 }}>Grammar topics ({topics.length})</h3>
-        <button
-          type="button"
-          className="btn secondary"
-          style={{ padding: "8px 14px", fontSize: ".85rem" }}
-          onClick={() => setImportTarget(-1)}
-        >
-          <svg className="icon"><use href="#icon-upload" /></svg> Import from file
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setAiOpen(true)}
+          >
+            <svg className="icon"><use href="#icon-sparkles" /></svg> Create by AI
+          </button>
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setImportTarget(-1)}
+          >
+            <svg className="icon"><use href="#icon-upload" /></svg> Import from file
+          </button>
+        </div>
       </div>
 
       {topics.length === 0 && (
@@ -193,6 +211,10 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
       >
         <svg className="icon"><use href="#icon-plus" /></svg> Add topic
       </button>
+
+      {aiOpen && (
+        <AiGrammarDialog context={aiContext} onAdd={addAiTopics} onClose={() => setAiOpen(false)} />
+      )}
 
       {importTarget != null && (
         <LessonImport
