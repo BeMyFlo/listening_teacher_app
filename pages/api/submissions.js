@@ -11,6 +11,7 @@ const { notifyTeachersOfSubmission } = require("../../lib/notifications/teacher"
 const { resolveVariant } = require("../../lib/grading/rubric");
 const { resolveDeadline, isSkillLocked } = require("../../lib/deadlines");
 const { deleteAudioFile } = require("../../lib/cloudinary");
+const { asObjectId, isCloudinaryUrl, publicIdFromUrl } = require("../../lib/validate");
 
 // Hạn nộp áp cho lớp của học sinh + kỹ năng đang nộp (hạn riêng kỹ năng ->
 // fallback hạn chung Unit). Trả cờ trễ + snapshot dueAt để lưu vào Submission.
@@ -103,6 +104,22 @@ async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Mock test is currently closed" });
     }
 
+    // Mỗi (học sinh, đề, kỹ năng) chỉ nộp được MỘT lần. Trang làm bài cũng chặn
+    // làm lại, nhưng đó là phía client — xoá localStorage hoặc gọi thẳng API là
+    // qua mặt được, nên chốt chặn thật phải nằm ở đây.
+    const done = await Submission.exists({
+      studentId: student._id,
+      kind: "test",
+      testId: test._id,
+      testSkill: skill,
+    });
+    if (done) {
+      return res.status(400).json({
+        ok: false,
+        error: "You have already submitted this mock test — open it to see your result",
+      });
+    }
+
     const { score, total, detail } = gradeSubmission(test.skills[skill], answers || {});
 
     const submission = await Submission.create({
@@ -116,7 +133,10 @@ async function handler(req, res) {
       detail,
       score,
       total,
-      replayCount: Number(replayCount) || 0
+      // Con số này do trình phát phía client báo lên nên KHÔNG dùng được để
+      // kỷ luật/chấm điểm — chỉ để tham khảo. Kẹp về số nguyên không âm, có
+      // trần, để không ai bơm giá trị vô lý vào DB.
+      replayCount: Math.min(999, Math.max(0, Math.floor(Number(replayCount) || 0)))
     });
 
     return res.status(201).json({
@@ -129,7 +149,10 @@ async function handler(req, res) {
   }
 
   if (kind === "exercise") {
-    const { unitId, categoryKey, exerciseId, answers } = req.body || {};
+    const { unitId, categoryKey, answers } = req.body || {};
+    // exerciseId sai định dạng -> .id() sẽ ném CastError; chặn ngay từ đầu.
+    const exerciseId = asObjectId(req.body && req.body.exerciseId);
+    if (!exerciseId) return res.status(404).json({ ok: false, error: "Exercise not found" });
     let unit;
     try {
       unit = await Unit.findOne({ _id: unitId, status: "published", level: studentLevel });
@@ -180,13 +203,21 @@ async function handler(req, res) {
   }
 
   if (kind === "writing" || kind === "speaking") {
-    const { testId, unitId, categoryKey, promptId, essayText, audioUrl, audioPublicId, parentSubmissionId } = req.body || {};
+    const { testId, unitId, categoryKey, promptId, essayText, audioUrl, parentSubmissionId } = req.body || {};
     if ((kind === "writing" && !String(essayText || "").trim())) {
       return res.status(400).json({ ok: false, error: "Please enter your essay" });
     }
     if (kind === "speaking" && !audioUrl) {
       return res.status(400).json({ ok: false, error: "Please record audio before submitting" });
     }
+    // File ghi âm phải nằm trên đúng tài khoản Cloudinary của mình, và
+    // publicId phải suy ra TỪ url. Trước đây audioPublicId lấy thẳng từ body,
+    // trong khi nó chính là thứ được đưa vào deleteAudioFile() khi nộp lại —
+    // tức là khai publicId của file người khác là xoá được file đó.
+    if (kind === "speaking" && !isCloudinaryUrl(audioUrl)) {
+      return res.status(400).json({ ok: false, error: "Invalid audio upload" });
+    }
+    const audioPublicId = kind === "speaking" ? publicIdFromUrl(audioUrl) : undefined;
 
     // Prompt nằm trong 1 Mock Test (4-skill) — không phải Lesson Unit.
     if (testId) {

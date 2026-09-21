@@ -2,8 +2,8 @@
 // email). Chạy định kỳ qua Vercel Cron (xem vercel.json).
 //
 // Bảo vệ: Vercel Cron tự gắn header "Authorization: Bearer $CRON_SECRET".
-// Đặt env CRON_SECRET để chặn gọi tay từ ngoài. Không đặt -> chỉ chạy khi
-// không phải môi trường production.
+// CRON_SECRET là BẮT BUỘC — thiếu thì endpoint trả 500 chứ không mở tự do,
+// kể cả khi chạy local.
 
 const { connectDB } = require("../../../lib/db");
 const { generateDeadlineNotificationsForAll } = require("../../../lib/notifications/generate");
@@ -12,15 +12,22 @@ const { sweepDeadlineEmailJobs } = require("../../../lib/notifications/deadlineA
 module.exports = async function handler(req, res) {
   const secret = process.env.CRON_SECRET;
   const auth = req.headers.authorization || "";
-  if (secret) {
-    if (auth !== `Bearer ${secret}`) {
-      return res.status(401).json({ ok: false, error: "Unauthorized" });
-    }
-  } else if (process.env.NODE_ENV === "production") {
+  // Không có CRON_SECRET thì endpoint đóng, ở MỌI môi trường. Trước đây khi
+  // NODE_ENV khác "production" nó chạy tự do — ai gọi cũng kích được một đợt
+  // quét và gửi email hàng loạt.
+  if (!secret) {
     return res.status(500).json({ ok: false, error: "CRON_SECRET not configured" });
   }
+  if (auth !== `Bearer ${secret}`) {
+    return res.status(401).json({ ok: false, error: "Unauthorized" });
+  }
 
-  await connectDB();
+  try {
+    await connectDB();
+  } catch (err) {
+    console.error("[cron] deadline-scan: DB connect failed:", err.message);
+    return res.status(500).json({ ok: false, error: "Database unavailable" });
+  }
   try {
     const result = await generateDeadlineNotificationsForAll();
     // Lưới an toàn: gửi nốt job "vừa có hạn nộp" mà keepalive fetch lúc Save

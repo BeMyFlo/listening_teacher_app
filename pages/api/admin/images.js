@@ -8,7 +8,8 @@ async function handler(req, res) {
   await connectDB();
 
   if (req.method === "GET") {
-    const rows = await Image.find().sort({ uploadedAt: -1 }).lean();
+    // Có trần để trang thư viện không tải nguyên collection khi file nhiều dần.
+    const rows = await Image.find().sort({ uploadedAt: -1 }).limit(500).lean();
     return res.status(200).json({ ok: true, rows });
   }
 

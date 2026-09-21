@@ -6,8 +6,21 @@ const { rebuildDetail } = require("../../../lib/grade");
 const { resolveVariant, getRubric, overallBand, validateCriteria } = require("../../../lib/grading/rubric");
 const { validateAnnotations, reconcileAnnotations } = require("../../../lib/grading/annotate");
 const { notifyStudentGraded } = require("../../../lib/notifications/student");
+const Student = require("../../../lib/models/Student");
+const { teacherScope } = require("../../../lib/teacherScope");
+const { asObjectId } = require("../../../lib/validate");
 
 const KINDS = ["test", "exercise", "writing", "speaking"];
+const LIST_LIMIT = 500;
+
+// Bài nộp không lưu classId, nên phạm vi lớp phải quy về danh sách studentId.
+// Trả null nghĩa là không giới hạn.
+async function scopedStudentIds(auth) {
+  const scope = await teacherScope(auth);
+  if (scope.all) return null;
+  const students = await Student.find({ classId: { $in: scope.classIds } }).select("_id").lean();
+  return students.map((s) => s._id);
+}
 
 // Điểm tổng do giáo viên nhập (override) — band 0–9, bước 0.5.
 function validOverride(v) {
@@ -19,10 +32,18 @@ async function handler(req, res) {
   await connectDB();
   const { id } = req.query;
 
+  // Giáo viên chỉ thấy bài nộp của học sinh trong lớp mình (chưa gán -> tất cả).
+  const studentIds = await scopedStudentIds(req.auth);
+
   if (req.method === "GET") {
     const { testId, name, kind, gradingStatus } = req.query;
     const filter = {};
-    if (testId) filter.testId = testId;
+    if (studentIds) filter.studentId = { $in: studentIds };
+    if (testId) {
+      const tid = asObjectId(testId);
+      if (!tid) return res.status(400).json({ ok: false, error: "Invalid testId" });
+      filter.testId = tid;
+    }
     if (name) filter.studentName = { $regex: String(name).trim(), $options: "i" };
     if (kind) {
       if (!KINDS.includes(kind)) {
@@ -37,7 +58,8 @@ async function handler(req, res) {
       filter.gradingStatus = gradingStatus;
     }
 
-    const rows = await Submission.find(filter).sort({ submittedAt: -1 }).lean();
+    // Có trần để trang không tải nguyên collection khi dữ liệu lớn dần.
+    const rows = await Submission.find(filter).sort({ submittedAt: -1 }).limit(LIST_LIMIT).lean();
 
     // Auto-graded mock tests (listening/reading) store answers as internal
     // option ids. Rebuild a readable per-question detail from the live test so
@@ -71,6 +93,10 @@ async function handler(req, res) {
     }
     if (!submission) {
       return res.status(404).json({ ok: false, error: "Submission not found" });
+    }
+    // Không chấm bài của học sinh ngoài lớp mình phụ trách.
+    if (studentIds && !studentIds.some((sid) => String(sid) === String(submission.studentId))) {
+      return res.status(403).json({ ok: false, error: "That student is not in your assigned classes" });
     }
     if (submission.kind !== "writing" && submission.kind !== "speaking") {
       return res.status(400).json({ ok: false, error: "Only Writing and Speaking submissions can be manually graded" });

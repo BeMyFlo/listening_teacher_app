@@ -6,6 +6,7 @@ const User = require("../../lib/models/User");
 const Teacher = require("../../lib/models/Teacher");
 const Student = require("../../lib/models/Student");
 const audit = require("../../lib/audit");
+const rateLimit = require("../../lib/rateLimit");
 
 // Hồ sơ nghiệp vụ của 1 User (để lấy tên). Admin không có hồ sơ.
 async function profileFor(user) {
@@ -42,7 +43,32 @@ module.exports = async (req, res) => {
     return res.status(400).json({ ok: false, error: "Please enter your username and password" });
   }
 
+  // Chặn dò mật khẩu: đếm theo cả (IP + username) lẫn IP. Cặp IP+username chặn
+  // dò 1 tài khoản; riêng IP chặn quét nhiều tài khoản một lượt.
+  const ip = rateLimit.clientIp(req);
+  const userKey = `login:${ip}:${username}`;
+  const ipKey = `login:${ip}`;
+  const gate = rateLimit.hit(userKey);
+  const ipGate = rateLimit.hit(ipKey, { max: rateLimit.MAX_ATTEMPTS * 5 });
+  if (gate.limited || ipGate.limited) {
+    const retry = Math.max(gate.retryAfterSec, ipGate.retryAfterSec);
+    res.setHeader("Retry-After", String(retry));
+    audit.record({
+      req, res,
+      actor: { role: "system" },
+      action: "auth.login_rate_limited",
+      status: 429,
+      meta: { username },
+    });
+    return res.status(429).json({
+      ok: false,
+      error: `Too many sign-in attempts. Please try again in ${Math.ceil(retry / 60)} minute(s).`,
+    });
+  }
+
   const respond = async (user, profile) => {
+    rateLimit.reset(userKey);
+    rateLimit.reset(ipKey);
     await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
     audit.record({
       req, res,
@@ -58,7 +84,14 @@ module.exports = async (req, res) => {
     });
   };
 
+  // So khớp mật khẩu an toàn kể cả khi bản ghi thiếu passwordHash (tài khoản
+  // do script migrate tạo dở) — bcrypt.compare(pw, undefined) sẽ ném lỗi.
+  const passwordMatches = async (hash) => !!hash && bcrypt.compare(password, hash);
+
   // 1) Bootstrap admin đầu tiên qua ADMIN_PASSWORD.
+  // Nhánh này chỉ mở khi KHÔNG còn admin nào (adminCount === 0). Trạng thái đó
+  // không đạt tới được từ giao diện: pages/api/sysadmin/users.js chặn xoá / vô
+  // hiệu hoá admin cuối cùng. Sửa hai chỗ đó thì phải xem lại chỗ này.
   if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) {
     const adminCount = await User.countDocuments({ role: "admin" });
     if (adminCount === 0) {
@@ -92,7 +125,7 @@ module.exports = async (req, res) => {
 
   // 3) Đăng nhập thường qua bảng User.
   const user = await User.findOne({ username });
-  if (user && (await bcrypt.compare(password, user.passwordHash))) {
+  if (user && (await passwordMatches(user.passwordHash))) {
     if (!user.active) {
       return res.status(403).json({ ok: false, error: "This account has been disabled" });
     }
@@ -102,11 +135,11 @@ module.exports = async (req, res) => {
   // 4) Tài khoản chưa migrate -> khớp trực tiếp Teacher/Student rồi tạo User.
   if (!user) {
     const teacher = await Teacher.findOne({ username });
-    if (teacher && (await bcrypt.compare(password, teacher.passwordHash))) {
+    if (teacher && (await passwordMatches(teacher.passwordHash))) {
       return respond(await backfillUser(teacher, "teacher"), teacher);
     }
     const student = await Student.findOne({ username });
-    if (student && (await bcrypt.compare(password, student.passwordHash))) {
+    if (student && (await passwordMatches(student.passwordHash))) {
       return respond(await backfillUser(student, "student"), student);
     }
   }

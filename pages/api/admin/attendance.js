@@ -12,6 +12,7 @@ const { requireAuth } = require("../../../lib/auth");
 const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const AttendanceSession = require("../../../lib/models/AttendanceSession");
+const { teacherScope, canAccessClass } = require("../../../lib/teacherScope");
 const Unit = require("../../../lib/models/Unit");
 const Submission = require("../../../lib/models/Submission");
 const { autoHomework } = require("../../../lib/attendanceHomework");
@@ -121,6 +122,11 @@ async function handler(req, res) {
   await connectDB();
   const { id, classId } = req.query;
 
+  // Giáo viên chỉ điểm danh lớp mình phụ trách (chưa gán lớp -> tất cả).
+  const scope = await teacherScope(req.auth);
+  const denyClass = () =>
+    res.status(403).json({ ok: false, error: "That class is not in your assigned classes" });
+
   // ----- danh sách buổi của 1 lớp -----
   if (req.method === "GET" && classId) {
     let cls;
@@ -130,6 +136,7 @@ async function handler(req, res) {
       return res.status(404).json({ ok: false, error: "Class not found" });
     }
     if (!cls) return res.status(404).json({ ok: false, error: "Class not found" });
+    if (!canAccessClass(scope, cls._id)) return denyClass();
 
     const [sessions, rosterCount] = await Promise.all([
       AttendanceSession.find({ classId }).sort({ number: -1 }).lean(),
@@ -159,6 +166,7 @@ async function handler(req, res) {
       return res.status(404).json({ ok: false, error: "Class not found" });
     }
     if (!cls) return res.status(404).json({ ok: false, error: "Class not found" });
+    if (!canAccessClass(scope, cls._id)) return denyClass();
 
     let date = String((req.body && req.body.date) || "").trim() || todayStr();
     if (!DATE_RE.test(date)) return res.status(400).json({ ok: false, error: "Invalid date" });
@@ -186,6 +194,7 @@ async function handler(req, res) {
     return res.status(404).json({ ok: false, error: "Session not found" });
   }
   if (!session) return res.status(404).json({ ok: false, error: "Session not found" });
+  if (!canAccessClass(scope, session.classId)) return denyClass();
 
   if (req.method === "GET") {
     const [cls, roster] = await Promise.all([
