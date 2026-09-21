@@ -8,7 +8,10 @@
     "build": "next build",
     "start": "next start",
     "dev:vercel": "vercel dev",
-    "dev:legacy": "node server.js"
+    "dev:legacy": "node server.js",
+    "review": "ocr review",
+    "review:branch": "ocr review --from main",
+    "review:scan": "ocr scan"
   },
   "dependencies": {
     "@tiptap/extension-color": "^2.27.3",
