@@ -31,6 +31,15 @@ export default function TakeTestPage() {
   const isQuestion = QUESTION_SKILLS.includes(skill);
   const canGuardPrompts = !!(test && !locked && !isQuestion && tab && !promptsDone);
 
+  // Nộp ngay bài đang làm dở của MỌI prompt (nếu có nội dung) rồi quay lại
+  // danh sách test — dùng chung cho cả vi phạm tab-switch và hết giờ đếm ngược.
+  async function forceSubmitPrompts() {
+    const refs = Object.values(promptRefs.current).filter(Boolean);
+    await Promise.all(refs.map((r) => r.forceSubmit && r.forceSubmit().catch(() => {})));
+    setPromptsDone(true);
+    router.push("/student/tests");
+  }
+
   // Listening/Reading dùng guard riêng trong QuestionRunner (nộp cả bài 1
   // lần). Writing/Speaking nộp theo từng prompt độc lập nên xử lý ở đây:
   // vi phạm quá số lần cho phép -> nộp ngay bài đang làm dở của MỌI prompt
@@ -39,13 +48,13 @@ export default function TakeTestPage() {
     enabled: canGuardPrompts,
     dialog,
     label: tab ? `bài ${tab.label}` : "bài thi",
-    onExceeded: async () => {
-      const refs = Object.values(promptRefs.current).filter(Boolean);
-      await Promise.all(refs.map((r) => r.forceSubmit && r.forceSubmit().catch(() => {})));
-      setPromptsDone(true);
-      router.push("/student/tests");
-    },
+    onExceeded: forceSubmitPrompts,
   });
+
+  const session = readSession("student") || {};
+  const studentId = (session.payload && session.payload.studentId) || "anon";
+  const timerKey =
+    test && tab ? `test-timer:${studentId}:${test.id}:${skill}` : null;
 
   useEffect(() => {
     api.student
@@ -94,10 +103,20 @@ export default function TakeTestPage() {
     );
 
   if (!isQuestion) {
+    const allSubmitted =
+      (skillData.prompts || []).length > 0 &&
+      (skillData.prompts || []).every((p) => !!latestPromptSub(subs, p.id));
     return (
       <section>
         <div className="card">
           {backLink}
+          {skillData.durationMinutes && !promptsDone && !allSubmitted ? (
+            <Countdown
+              minutes={Number(skillData.durationMinutes)}
+              onExpire={forceSubmitPrompts}
+              storageKey={timerKey}
+            />
+          ) : null}
           <span className={"badge test " + skill}>{tab.label} Test</span>
           <h2>{(test.unit ? test.unit + " · " : "") + test.title}</h2>
           {skillData.instructions && (
@@ -105,8 +124,9 @@ export default function TakeTestPage() {
           )}
           {(skillData.prompts || []).map((p) => {
             const last = latestPromptSub(subs, p.id);
-            return (
-              <div className="lesson-block" key={p.id}>
+
+            const promptInfo = (
+              <>
                 <h4 style={{ margin: "0 0 8px" }}>{p.title || "Prompt"}</h4>
                 {p.instructions && (
                   <div className="prompt-instructions">
@@ -118,7 +138,12 @@ export default function TakeTestPage() {
                 {p.imageUrl && (
                   <img src={p.imageUrl} className="diagram-image" style={{ margin: "10px 0" }} alt="" />
                 )}
-                <div className="prompt-work" style={{ marginTop: 12 }}>
+              </>
+            );
+
+            const workAndStatus = (
+              <>
+                <div className="prompt-work" style={skill === "writing" ? undefined : { marginTop: 12 }}>
                   {skill === "writing" ? (
                     <WritingPrompt
                       ref={(el) => (promptRefs.current[p.id] = el)}
@@ -154,12 +179,34 @@ export default function TakeTestPage() {
                       topicVocabulary={last.topicVocabulary}
                       improvedSample={last.improvedSample}
                       mainIssue={last.mainIssue}
+                      showAnnotationList={false}
                         />
                       </div>
                     ) : (
                       <div className="notice info">Submitted — pending teacher review.</div>
                     ))}
                 </div>
+              </>
+            );
+
+            // Writing: tách 2 cột như Reading — đề bên trái, ô viết bài bên
+            // phải, cùng cuộn ngang hàng — dễ vừa đọc đề vừa viết hơn là cuộn
+            // lên xuống. Speaking giữ nguyên 1 cột (không cần đọc/viết song song).
+            if (skill === "writing") {
+              return (
+                <div className="lesson-block" key={p.id}>
+                  <div className="reading-layout">
+                    <div className="passage-pane">{promptInfo}</div>
+                    <div className="questions-pane">{workAndStatus}</div>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="lesson-block" key={p.id}>
+                {promptInfo}
+                {workAndStatus}
               </div>
             );
           })}
@@ -171,6 +218,7 @@ export default function TakeTestPage() {
   return (
     <QuestionRunner
       test={test}
+      testId={testId}
       skill={skill}
       tab={tab}
       skillData={skillData}
@@ -182,14 +230,33 @@ export default function TakeTestPage() {
   );
 }
 
-function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router, onSubmitted }) {
+function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded, router, onSubmitted }) {
   const dialog = useDialog();
   const answersApi = useAnswers();
   const [replayCount, setReplayCount] = useState(0);
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
+  // Listening thi thật: mỗi Part chỉ phát 1 lần. Nhớ trạng thái audio từng
+  // section ("idle"/"playing"/"done") ở đây để quay lại Part cũ không phát
+  // lại được, và để chỉ mở Part sau khi Part trước đã nghe xong.
+  const [audioPhase, setAudioPhase] = useState({});
   const sections = skillData.sections || [];
+  const isListening = skill === "listening";
+
+  const setSectionPhase = (si) => (p) =>
+    setAudioPhase((prev) => (prev[si] === p ? prev : { ...prev, [si]: p }));
+
+  // Part được phép nhảy tới: 0 luôn mở; Part i mở khi Part i-1 đã "done"
+  // (hoặc không có audio). Không giới hạn với Reading / bài tập thường.
+  let maxNavSection = sections.length - 1;
+  if (isListening) {
+    maxNavSection = 0;
+    for (let i = 1; i < sections.length; i++) {
+      if (!sections[i - 1].audioUrl || audioPhase[i - 1] === "done") maxNavSection = i;
+      else break;
+    }
+  }
   const session = readSession("student") || {};
   const studentName = session.name || "";
   const studentId = (session.payload && session.payload.studentId) || "anon";
@@ -358,7 +425,13 @@ function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router,
         <h2>{test.unit} · {test.title}</h2>
         <p style={{ color: "var(--muted)", marginBottom: 20 }}>{skillData.instructions}</p>
         {sections.length > 1 && (
-          <SectionNav sections={sections} active={activeSection} onSelect={setActiveSection} answersApi={answersApi} />
+          <SectionNav
+            sections={sections}
+            active={activeSection}
+            onSelect={setActiveSection}
+            answersApi={answersApi}
+            maxSection={maxNavSection}
+          />
         )}
         <div id="testForm">
           <SectionBlock
@@ -366,6 +439,9 @@ function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router,
             secIdx={activeSection}
             skill={skill}
             answersApi={answersApi}
+            examAudio={isListening}
+            audioPhase={audioPhase[activeSection] || "idle"}
+            onAudioPhase={setSectionPhase(activeSection)}
             onReplay={() => setReplayCount((n) => n + 1)}
             hlScope={"test:" + testId}
             noteSource={{
@@ -390,12 +466,17 @@ function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router,
             <button
               type="button"
               className="btn secondary"
-              disabled={activeSection === sections.length - 1}
-              onClick={() => setActiveSection((i) => Math.min(sections.length - 1, i + 1))}
+              disabled={activeSection >= Math.min(sections.length - 1, maxNavSection)}
+              onClick={() => setActiveSection((i) => Math.min(sections.length - 1, maxNavSection, i + 1))}
             >
               Next section <svg className="icon"><use href="#icon-arrow-right" /></svg>
             </button>
           </div>
+        )}
+        {isListening && sections.length > 1 && activeSection >= maxNavSection && activeSection < sections.length - 1 && (
+          <p className="practice-hint" style={{ textAlign: "center" }}>
+            Nghe hết Part này thì mới mở được Part sau.
+          </p>
         )}
         <button
           type="button"
@@ -424,7 +505,7 @@ function QuestionRunner({ test, skill, tab, skillData, subs, subsLoaded, router,
 // Thanh chuyển section (giống cách IELTS thi thật chia Passage/Part 1,2,3) —
 // thay vì xếp hết các section chồng xuống, học sinh bấm số để nhảy tới
 // section đang muốn làm. Chấm xanh = section đó đã trả lời hết câu hỏi.
-function SectionNav({ sections, active, onSelect, answersApi }) {
+function SectionNav({ sections, active, onSelect, answersApi, maxSection = Infinity }) {
   return (
     <div className="section-nav" role="tablist">
       {sections.map((sec, i) => {
@@ -435,17 +516,24 @@ function SectionNav({ sections, active, onSelect, answersApi }) {
             const v = answersApi.getValue(f);
             return Array.isArray(v) ? v.length > 0 : v !== "" && v != null;
           });
+        const locked = i > maxSection;
         return (
           <button
             key={i}
             type="button"
             role="tab"
             aria-selected={i === active}
-            className={"section-nav-btn" + (i === active ? " active" : "") + (done ? " done" : "")}
-            onClick={() => onSelect(i)}
-            title={sec.name || `Section ${i + 1}`}
+            disabled={locked}
+            className={
+              "section-nav-btn" +
+              (i === active ? " active" : "") +
+              (done ? " done" : "") +
+              (locked ? " locked" : "")
+            }
+            onClick={() => !locked && onSelect(i)}
+            title={locked ? "Chưa mở — nghe xong Part trước đã" : sec.name || `Section ${i + 1}`}
           >
-            {i + 1}
+            {locked ? <svg className="icon"><use href="#icon-lock" /></svg> : i + 1}
           </button>
         );
       })}

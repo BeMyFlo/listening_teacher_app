@@ -3,6 +3,7 @@
 import { useState } from "react";
 import RichTextEditor from "./RichTextEditor";
 import { noteTextToDoc, docToNoteText, blankIdsFromDoc } from "@/lib/tiptap/noteConvert";
+import { removeBlankFromDoc, remapBlankIds, docIsEmpty, walkDoc } from "@/lib/tiptap/doc";
 import { importNoteText } from "@/lib/tiptap/importText";
 import {
   QUESTION_KINDS,
@@ -16,6 +17,102 @@ import {
   isFixedChoiceShape,
 } from "@/lib/teacher/sectionTransforms";
 import SpreadsheetImport from "./SpreadsheetImport";
+import { questionFormatsFor } from "@/lib/teacher/questionFormats";
+
+// Danh sách khối note/table hiện có của 1 section, để builder SỬA — ưu
+// tiên `noteBlocks` (dữ liệu mới, mỗi khối 1 khung độc lập). Section soạn
+// từ trước (chỉ có noteDoc/noteText gộp) được giữ NGUYÊN VẸN thành 1 khối
+// duy nhất, kể cả khi bên trong có sẵn Divider: không tự ý tách ra nhiều
+// khung, vì như vậy vừa làm giáo viên bất ngờ ("bấm 1 lần ra mấy khung"),
+// vừa đổi cách hiển thị của bài cũ (đoạn hướng dẫn trước Divider đầu tiên
+// vốn nằm NGOÀI khung sẽ bị đóng khung lại). Khung mới chỉ xuất hiện khi
+// giáo viên chủ động bấm "Add Question".
+function editableNoteBlocks(sec) {
+  if (Array.isArray(sec.noteBlocks) && sec.noteBlocks.length) return sec.noteBlocks;
+  const doc =
+    sec.noteDoc && Array.isArray(sec.noteDoc.content)
+      ? sec.noteDoc
+      : sec.noteText
+      ? noteTextToDoc(sec.noteText)
+      : null;
+  return doc && doc.content.length ? [{ noteDoc: doc, noteText: sec.noteText || docToNoteText(doc) }] : [];
+}
+
+// Khối đã có chữ nghĩa/tiêu đề/Divider thật chưa (ô trống không tính) — dùng
+// để phân biệt khung giáo viên đã soạn với khung vừa tạo còn trống trơn.
+function docHasProse(doc) {
+  let found = false;
+  walkDoc(doc, (n) => {
+    if (n.type === "text" && String(n.text || "").trim()) found = true;
+    if (n.type === "horizontalRule" || n.type === "image") found = true;
+  });
+  return found;
+}
+
+// Nội dung import (đã đánh số lại) -> danh sách khối. Mỗi đoạn cách nhau bởi
+// Divider là 1 bảng riêng nên tách thành 1 khung riêng. Đoạn ĐẦU nếu không có
+// ô trống nào thì đó là dòng hướng dẫn chung ("Complete the notes below...")
+// -> gắn liền vào bảng đầu tiên kèm Divider, để nó vẫn hiện NGOÀI khung đúng
+// như đề thi thật thay vì bị đóng hộp thành 1 bảng rỗng.
+function importedDocToBlocks(doc) {
+  const segments = [[]];
+  doc.content.forEach((n) => {
+    if (n.type === "horizontalRule") segments.push([]);
+    else segments[segments.length - 1].push(n);
+  });
+  const parts = segments.filter((seg) => seg.length);
+  const mk = (content) => {
+    const d = { type: "doc", content };
+    return { noteDoc: d, noteText: docToNoteText(d) };
+  };
+  if (parts.length <= 1) return parts.map(mk);
+  const firstIsIntro = blankIdsFromDoc({ type: "doc", content: parts[0] }).length === 0;
+  if (!firstIsIntro) return parts.map(mk);
+  return [mk([...parts[0], { type: "horizontalRule" }, ...parts[1]]), ...parts.slice(2).map(mk)];
+}
+
+function blockBlankIds(block) {
+  return block && block.noteDoc && Array.isArray(block.noteDoc.content) ? blankIdsFromDoc(block.noteDoc) : [];
+}
+
+// Lần đầu sửa note của 1 section — chốt lại `noteBlocks` (tách từ dữ liệu
+// cũ nếu cần) để các lần patch sau thao tác trực tiếp trên mảng này.
+function materializeNoteBlocks(s) {
+  if (!Array.isArray(s.noteBlocks) || !s.noteBlocks.length) s.noteBlocks = editableNoteBlocks(s);
+  return s.noteBlocks;
+}
+
+// Thêm 1 khối MỚI, độc lập, chứa đúng 1 chỗ trống — dùng khi tạo câu hỏi
+// dạng Completion (Note/Table/Flow-chart...) từ "Add Question", hoặc khi
+// đổi Type 1 câu đang có sang dạng Completion. Mỗi lần luôn ra 1 khung
+// riêng (không dồn vào khối trước), giáo viên chỉ cần bấm "Add Question"
+// lần nữa để có thêm 1 bảng/note độc lập khác.
+// Xoá 1 câu hỏi khỏi section — kèm luôn ô trống tương ứng trong khối note
+// (nếu câu đó là 1 ô trống), để note không còn ô mồ côi không có đáp án.
+function removeField(s, fi) {
+  const [removed] = s.fields.splice(fi, 1);
+  const id = Number(removed && removed.id);
+  if (!Number.isFinite(id)) return;
+  const blocks = editableNoteBlocks(s);
+  if (!blocks.some((b) => blockBlankIds(b).includes(id))) return;
+  const list = materializeNoteBlocks(s);
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (!blockBlankIds(list[i]).includes(id)) continue;
+    const nextDoc = removeBlankFromDoc(list[i].noteDoc, id);
+    // Khối chỉ có mỗi ô trống vừa xoá, không còn chữ nghĩa gì -> bỏ cả khung.
+    if (docIsEmpty(nextDoc)) list.splice(i, 1);
+    else list[i] = { noteDoc: nextDoc, noteText: docToNoteText(nextDoc) };
+  }
+  if (!list.length) s.noteMode = false;
+}
+
+function addNoteBlock(s, id) {
+  materializeNoteBlocks(s).push({
+    noteDoc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "blank", attrs: { id } }] }] },
+    noteText: `[[${id}]]`,
+  });
+  s.noteMode = true;
+}
 
 // Trình soạn "section + câu hỏi" dùng chung cho Exercise (Unit) và Mock
 // Test. Controlled; markup khớp renderSectionsEditor của legacy.
@@ -76,6 +173,48 @@ export default function SectionsEditor({ sections, subject, media, onChange }) {
 
 function SectionCard({ sec, si, subject, media, allSections, patch }) {
   const set = (k, v) => patch((d) => (d[si][k] = v));
+  const formats = questionFormatsFor(subject);
+  // true = đang hiện lưới chọn dạng bài (bấm "+ Add Question" mở ra, chọn
+  // xong hoặc Cancel thì đóng lại). Không có state riêng cho "loại nào" vì
+  // chọn xong là tạo câu luôn — không có bước "xác nhận" thừa.
+  const [pickingFormat, setPickingFormat] = useState(false);
+
+  // Tạo câu hỏi mới theo ĐÚNG tên dạng bài IELTS (vd "Table Completion")
+  // thay vì bắt giáo viên tự biết chọn cơ chế nền (Fill/Matching/...) rồi tự
+  // nhớ bật Note layout / điền Shared answer bank ở chỗ khác. Đây CHỈ là lớp
+  // hướng dẫn UI — set đúng field.kind + tự bật/điền sẵn phần liên quan,
+  // không đụng gì tới cách import CSV hay cách chấm điểm.
+  function addQuestionWithFormat(fmt) {
+    const id = nextFieldId(allSections);
+    patch((d) => {
+      const s = d[si];
+      const field = emptyField(id);
+      field.kind = fmt.kind;
+      field.formatLabel = fmt.label || "";
+      if (fmt.kind === "tfng") field.options = tfngOptions();
+      if (fmt.kind === "ynng") field.options = ynngOptions();
+      s.fields.push(field);
+
+      if (fmt.noteMode) addNoteBlock(s, id);
+      if (fmt.needsBank && !(s.matchBank || []).length) {
+        s.matchBank = [{ id: newOptionId(), text: "" }];
+      }
+    });
+    setPickingFormat(false);
+  }
+
+  function addPlainQuestion() {
+    patch((d) => d[si].fields.push(emptyField(nextFieldId(allSections))));
+    setPickingFormat(false);
+  }
+
+  // Câu hỏi rời (không thuộc bất kỳ khối Completion nào) — chỉ những câu
+  // này mới hiện trong bảng "Questions" phẳng bên dưới; câu thuộc 1 khối đã
+  // hiện ngay TRONG khung của khối đó (xem NoteBlocksEditor).
+  const blockIds = new Set(editableNoteBlocks(sec).flatMap(blockBlankIds));
+  const standaloneEntries = sec.fields
+    .map((f, fi) => ({ f, fi }))
+    .filter(({ f }) => !blockIds.has(Number(f.id)));
 
   return (
     <div className="builder-section">
@@ -130,33 +269,6 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
         </div>
       )}
 
-      <NoteCompletionEditor sec={sec} si={si} allSections={allSections} patch={patch} />
-
-      <div className="builder-2col">
-        <div className="form-row" style={{ marginBottom: 0 }}>
-          <label>Illustration (Diagram / Map — optional)</label>
-          <select
-            className="select-inline section-image-select"
-            style={{ width: "100%" }}
-            value={sec.imageId || ""}
-            onChange={(e) => set("imageId", e.target.value)}
-          >
-            <option value="">— No diagram/map image —</option>
-            {media.images.map((im) => (
-              <option key={im._id} value={im._id}>
-                {(im.unit ? im.unit + " · " : "") + im.title}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="form-row" style={{ marginBottom: 0 }}>
-          <label>Shared answer bank (for Matching questions — optional)</label>
-          <div className="match-bank-box">
-            <MatchBank sec={sec} si={si} patch={patch} />
-          </div>
-        </div>
-      </div>
-
       <div className="questions-card">
         <div className="questions-card-head">
           <div className="head-left">
@@ -168,28 +280,100 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
           </div>
         </div>
         <div className="questions-card-body">
-          <div className="question-grid-cols question-grid-head">
-            <span />
-            <span />
-            <span>Question / Prompt</span>
-            <span>Type</span>
-            <span>Score</span>
-            <span>Order</span>
-            <span />
-          </div>
-          <div className="fields-wrap">
-            {sec.fields.map((f, fi) => (
-              <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} media={media} patch={patch} />
-            ))}
-          </div>
-          <button
-            type="button"
-            className="btn secondary btn-add-field"
-            style={{ marginTop: 10, padding: "8px 14px", fontSize: ".85rem" }}
-            onClick={() => patch((d) => d[si].fields.push(emptyField(nextFieldId(allSections))))}
-          >
-            <svg className="icon"><use href="#icon-plus" /></svg> Add Question
-          </button>
+          {/* Note layout, ảnh minh hoạ, kho đáp án Matching — đều là nguyên
+              liệu để soạn câu hỏi, nên nằm trong khung Questions. Nhưng CHỈ
+              hiện khi thật sự có câu hỏi cần tới (đã bật Note layout, hoặc
+              đã có câu Matching/Labelling) — section trống chỉ có mỗi nút
+              "Add Question", không hiện sẵn cả đống thứ chưa cần dùng. Chọn
+              đúng dạng ở bước "Add Question" sẽ tự bật/hiện đúng phần này. */}
+          {sec.noteMode && (
+            <div className="note-editor-inline">
+              <NoteBlocksEditor sec={sec} si={si} allSections={allSections} subject={subject} media={media} patch={patch} />
+            </div>
+          )}
+          {(sec.fields || []).some((f) => f.kind === "matching" || f.kind === "labelling") && (
+            <div className="builder-2col questions-media-row">
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <label>Illustration (Diagram / Map — for Labelling questions)</label>
+                <select
+                  className="select-inline section-image-select"
+                  style={{ width: "100%" }}
+                  value={sec.imageId || ""}
+                  onChange={(e) => set("imageId", e.target.value)}
+                >
+                  <option value="">— No diagram/map image —</option>
+                  {media.images.map((im) => (
+                    <option key={im._id} value={im._id}>
+                      {(im.unit ? im.unit + " · " : "") + im.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <label>Shared answer bank (for Matching questions)</label>
+                <div className="match-bank-box">
+                  <MatchBank sec={sec} si={si} patch={patch} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {standaloneEntries.length > 0 && (
+            <>
+              <div className="question-grid-cols question-grid-head">
+                <span />
+                <span />
+                <span>Question / Prompt</span>
+                <span>Type</span>
+                <span>Score</span>
+                <span>Order</span>
+                <span />
+              </div>
+              <div className="fields-wrap">
+                {standaloneEntries.map(({ f, fi }) => (
+                  <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} media={media} patch={patch} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {pickingFormat ? (
+            <div className="format-pick-panel">
+              <div className="format-pick-head">
+                <span>What format is this question?</span>
+                <button type="button" className="icon-btn" title="Cancel" onClick={() => setPickingFormat(false)}>
+                  <svg className="icon"><use href="#icon-cross" /></svg>
+                </button>
+              </div>
+              <div className="format-pick-grid">
+                {formats
+                  ? formats.map((f) => (
+                      <button key={f.key} type="button" className="format-pick-btn" onClick={() => addQuestionWithFormat(f)}>
+                        {f.label}
+                      </button>
+                    ))
+                  : QUESTION_KINDS.map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        className="format-pick-btn"
+                        onClick={() => addQuestionWithFormat({ kind: k })}
+                      >
+                        {QUESTION_KIND_LABELS[k]}
+                      </button>
+                    ))}
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn secondary btn-add-field"
+              style={{ marginTop: 10, padding: "8px 14px", fontSize: ".85rem" }}
+              onClick={() => (formats ? setPickingFormat(true) : addPlainQuestion())}
+            >
+              <svg className="icon"><use href="#icon-plus" /></svg> Add Question
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -234,109 +418,195 @@ function MatchBank({ sec, si, patch }) {
   );
 }
 
-// Soạn "Note/Summary Completion" — giáo viên gõ thẳng đoạn ghi chú như trên
-// Google Docs (WYSIWYG), bấm "+ Blank" để chèn chỗ trống đánh số vào vị trí
-// con trỏ. Mỗi lần chèn tự tạo thêm 1 câu hỏi trong danh sách Questions bên
-// dưới để nhập đáp án đúng/gợi ý/điểm cho số đó. Nội dung lưu dưới dạng
-// TipTap JSON (sec.noteDoc); sec.noteText vẫn được ghi lại để tương thích.
-function NoteCompletionEditor({ sec, si, allSections, patch }) {
-  // Legacy sections only have noteText — chuyển sang doc khi mở editor.
-  const doc =
-    sec.noteDoc && Array.isArray(sec.noteDoc.content)
-      ? sec.noteDoc
-      : sec.noteText
-      ? noteTextToDoc(sec.noteText)
-      : null;
+// Soạn các câu hỏi dạng "Completion" (Note/Summary/Table/Flow-chart...) —
+// mỗi câu hỏi dạng này là 1 KHỐI RIÊNG, độc lập hoàn toàn (khung + editor
+// + đáp án của khối đó không dính tới khối khác). Giáo viên gõ ghi chú/bảng
+// như trên Google Docs (WYSIWYG) trong khung của khối, bấm "+ Blank" để
+// chèn thêm chỗ trống đánh số cho khối ĐÓ (vd ô 2, 3 của cùng 1 bảng). Muốn
+// thêm 1 bảng/note khác, tách biệt hoàn toàn — dùng "Add Question" ở trên
+// và chọn lại 1 dạng Completion, builder tự tạo khung mới. Mỗi blank chèn
+// vào tự tạo thêm 1 câu hỏi trong danh sách Questions bên dưới để nhập đáp
+// án đúng/gợi ý/điểm cho số đó.
+function NoteBlocksEditor({ sec, si, allSections, subject, media, patch }) {
+  const blocks = editableNoteBlocks(sec);
+  if (blocks.length === 0) return null;
 
-  function setDoc(nextDoc) {
+  function updateBlock(bi, nextDoc) {
     patch((d) => {
-      d[si].noteDoc = nextDoc;
-      d[si].noteText = docToNoteText(nextDoc);
-      d[si].noteMode = true;
-      // Mỗi blank trong đoạn ghi chú cần 1 field tương ứng để nhập đáp án.
-      const have = new Set(d[si].fields.map((f) => Number(f.id)));
+      const s = d[si];
+      const list = materializeNoteBlocks(s);
+      list[bi] = { noteDoc: nextDoc, noteText: docToNoteText(nextDoc) };
+      s.noteMode = true;
+      // Mỗi blank trong khối cần 1 field tương ứng để nhập đáp án.
+      const have = new Set(s.fields.map((f) => Number(f.id)));
       for (const id of blankIdsFromDoc(nextDoc)) {
         if (!have.has(id)) {
-          d[si].fields.push(emptyField(id));
+          s.fields.push(emptyField(id));
           have.add(id);
         }
       }
     });
   }
 
-  // Dán nguyên đề do AI soạn: chuyển format + điền luôn đáp án cho từng blank.
-  function importFromAI(raw) {
-    const { doc: nextDoc, answers } = importNoteText(raw);
+  // Dán nguyên đề do AI soạn + điền luôn đáp án cho từng ô trống. Bản import
+  // có bao nhiêu bảng (cách nhau bởi Divider) thì ra bấy nhiêu KHUNG RIÊNG —
+  // không nhồi chung vào 1 khung, vì nhồi chung sẽ khiến bảng đầu bị luật
+  // "đoạn trước Divider đầu tiên = hướng dẫn" đẩy ra ngoài khung.
+  // Khung vừa tạo từ "Add Question" (chưa gõ chữ nào, nhiều nhất 1 ô trống)
+  // thì bị thay hẳn; khung đã soạn rồi thì giữ nguyên, khung mới chèn xuống
+  // ngay sau nó.
+  function importIntoBlock(bi, raw) {
+    const { doc: importedDoc, answers } = importNoteText(raw);
     patch((d) => {
-      d[si].noteDoc = nextDoc;
-      d[si].noteText = docToNoteText(nextDoc);
-      d[si].noteMode = true;
-      const byId = new Map(d[si].fields.map((f) => [Number(f.id), f]));
-      for (const id of blankIdsFromDoc(nextDoc)) {
+      const s = d[si];
+      const list = materializeNoteBlocks(s);
+      const current =
+        list[bi] && list[bi].noteDoc && Array.isArray(list[bi].noteDoc.content) ? list[bi].noteDoc : null;
+      const currentIds = current ? blankIdsFromDoc(current) : [];
+      const replace = !!current && !docHasProse(current) && currentIds.length <= 1;
+
+      // Số thứ tự đang bị chiếm ở mọi nơi trong section. Khung trống sắp bị
+      // thay thì ô trống của nó không tính là đang chiếm.
+      const used = new Set([...s.fields.map((f) => Number(f.id)), ...list.flatMap(blockBlankIds)]);
+      if (replace) currentIds.forEach((id) => used.delete(id));
+
+      // Bản import luôn đánh số từ [[1]]. Chỉ giữ nguyên số đó khi đang thay
+      // khung trống và không đụng ai; còn chèn thêm vào sau bài đã soạn thì
+      // phải đánh số NỐI TIẾP, không thì học sinh thấy số nhảy 12, 1, 2.
+      const importedIds = blankIdsFromDoc(importedDoc);
+      const idMap = new Map();
+      if (!replace || importedIds.some((id) => used.has(id))) {
+        let next = Math.max(0, ...used) + 1;
+        importedIds.forEach((id) => idMap.set(id, next++));
+      }
+      const addedDoc = idMap.size ? remapBlankIds(importedDoc, idMap) : importedDoc;
+      const addedAnswers = {};
+      Object.keys(answers).forEach((k) => {
+        const old = Number(k);
+        addedAnswers[idMap.has(old) ? idMap.get(old) : old] = answers[k];
+      });
+
+      // Câu import kế thừa tên dạng bài của khối (vd "Table Completion") để
+      // thống kê theo dạng bài không xếp nhầm vào nhóm "Khác".
+      const blockFormat = (s.fields.find((f) => currentIds.includes(Number(f.id))) || {}).formatLabel || "";
+
+      const added = importedDocToBlocks(addedDoc);
+      if (!added.length) return;
+      if (replace) {
+        list.splice(bi, 1, ...added);
+        // Ô trống của khung trống vừa bị thay -> bỏ luôn dòng đáp án của nó.
+        const dropped = new Set(currentIds);
+        if (dropped.size) s.fields = s.fields.filter((f) => !dropped.has(Number(f.id)));
+      } else {
+        list.splice(bi + 1, 0, ...added);
+      }
+      s.noteMode = true;
+      const byId = new Map(s.fields.map((f) => [Number(f.id), f]));
+      for (const id of blankIdsFromDoc(addedDoc)) {
         let field = byId.get(id);
         if (!field) {
           field = emptyField(id);
-          d[si].fields.push(field);
+          if (blockFormat) field.formatLabel = blockFormat;
+          s.fields.push(field);
           byId.set(id, field);
         }
-        if (answers[id] && answers[id].length) {
+        if (addedAnswers[id] && addedAnswers[id].length) {
           field.kind = "fill";
-          field.answersText = answers[id].join("\n");
+          field.answersText = addedAnswers[id].join("\n");
         }
       }
     });
   }
 
-  // Cấp id mới cho blank sắp chèn — tránh trùng cả field lẫn blank đang có.
+  function removeBlock(bi) {
+    patch((d) => {
+      const s = d[si];
+      const list = materializeNoteBlocks(s);
+      const [removed] = list.splice(bi, 1);
+      const removedIds = new Set(blockBlankIds(removed));
+      s.fields = s.fields.filter((f) => !removedIds.has(Number(f.id)));
+      if (!list.length) s.noteMode = false;
+    });
+  }
+
+  // Cấp id mới cho blank sắp chèn — tránh trùng cả field lẫn blank đang có
+  // ở BẤT KỲ khối nào trong section (id phải duy nhất toàn bài).
   function requestBlankId() {
     const fromFields = nextFieldId(allSections);
-    const fromDoc = doc ? blankIdsFromDoc(doc) : [];
-    return Math.max(fromFields - 1, ...fromDoc, 0) + 1;
+    const fromBlocks = blocks.flatMap(blockBlankIds);
+    return Math.max(fromFields - 1, ...fromBlocks, 0) + 1;
   }
 
   return (
-    <div className="form-row note-completion-editor">
-      <label className="note-mode-toggle">
-        <input
-          type="checkbox"
-          checked={!!sec.noteMode}
-          onChange={(e) => {
-            const on = e.target.checked;
-            patch((d) => {
-              d[si].noteMode = on;
-              if (on && !(d[si].noteDoc && d[si].noteDoc.content)) {
-                d[si].noteDoc = d[si].noteText ? noteTextToDoc(d[si].noteText) : { type: "doc", content: [{ type: "paragraph" }] };
+    <div className="note-blocks-wrap">
+      {blocks.map((block, bi) => {
+        const doc =
+          block.noteDoc && Array.isArray(block.noteDoc.content)
+            ? block.noteDoc
+            : block.noteText
+            ? noteTextToDoc(block.noteText)
+            : null;
+        const idSet = new Set(blockBlankIds(block));
+        const entries = sec.fields.map((f, fi) => ({ f, fi })).filter(({ f }) => idSet.has(Number(f.id)));
+        return (
+          <div className="note-block-frame" key={bi}>
+            <div className="note-block-frame-head">
+              <span className="note-block-frame-title">Block {bi + 1}</span>
+              <button
+                type="button"
+                className="icon-btn danger"
+                title="Remove this block"
+                onClick={() => removeBlock(bi)}
+              >
+                <svg className="icon"><use href="#icon-trash" /></svg>
+              </button>
+            </div>
+            <RichTextEditor
+              variant="note"
+              value={doc}
+              onChange={(nextDoc) => updateBlock(bi, nextDoc)}
+              onRequestBlankId={requestBlankId}
+              onImport={(raw) => importIntoBlock(bi, raw)}
+              placeholder={
+                "Complete the notes below. Choose ONE WORD ONLY from the passage for each answer.\n" +
+                "Type the table/note content, then use “+ Blank” wherever an answer goes."
               }
-            });
-          }}
-        />
-        Note / Summary completion layout (numbered blanks inside a continuous note, like the real IELTS test)
-      </label>
-      {sec.noteMode && (
-        <>
-          <RichTextEditor
-            variant="note"
-            value={doc}
-            onChange={setDoc}
-            onRequestBlankId={requestBlankId}
-            onImport={importFromAI}
-            placeholder={
-              "Complete the notes below. Choose ONE WORD ONLY from the passage for each answer.\n" +
-              "Add a divider, then: heading, sub-heading, bullets, and a “+ Blank” wherever an answer goes."
-            }
-          />
-          <span className="note-toolbar-hint">
-            Type the note exactly as students should see it. Use “+ Blank” for each numbered answer,
-            then fill in the correct answer for that number in the Questions list below.
-          </span>
-        </>
-      )}
+            />
+            <span className="note-toolbar-hint">
+              Use “+ Blank” above for each numbered answer in this table/note, then fill in the correct
+              answer for that number below.
+            </span>
+            {entries.length > 0 && (
+              <>
+                <div className="question-grid-cols question-grid-head">
+                  <span />
+                  <span />
+                  <span>Question / Prompt</span>
+                  <span>Type</span>
+                  <span>Score</span>
+                  <span>Order</span>
+                  <span />
+                </div>
+                <div className="fields-wrap">
+                  {entries.map(({ f, fi }) => (
+                    <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} media={media} patch={patch} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })}
+      <span className="note-toolbar-hint">
+        To add another separate table/note, use “Add Question” below and pick a Completion format again.
+      </span>
     </div>
   );
 }
 
-function FieldRow({ f, fi, si, sec, media, patch }) {
+function FieldRow({ f, fi, si, sec, subject, media, patch }) {
   const setF = (k, v) => patch((d) => (d[si].fields[fi][k] = v));
+  const formats = questionFormatsFor(subject);
 
   function changeKind(kind) {
     patch((d) => {
@@ -359,6 +629,56 @@ function FieldRow({ f, fi, si, sec, media, patch }) {
     });
   }
 
+  // Đổi Type qua tên dạng IELTS (thay vì 6 cơ chế nền trần trụi) — cùng 1
+  // danh sách 27 tên với lúc "Add Question", nhất quán khi sửa lại câu đã
+  // tạo. Đổi sang dạng "completion"/"matching" cũng tự bật Note layout /
+  // Shared bank như lúc thêm mới, không phải riêng biệt chỉ áp dụng khi tạo.
+  // QUAN TRỌNG: gộp hết vào 1 lần patch() duy nhất — gọi patch() 2 lần liên
+  // tiếp trong cùng 1 handler sẽ clone `sections` (prop) 2 lần từ cùng 1
+  // bản cũ (React chưa kịp re-render giữa 2 lần gọi), khiến lần patch sau
+  // ghi đè mất thay đổi của lần patch trước.
+  function changeFormat(fmt) {
+    patch((d) => {
+      const s = d[si];
+      const ff = s.fields[fi];
+      const wasTfng = isFixedChoiceShape(ff.options, ["true", "false", "ng"]);
+      const wasYnng = isFixedChoiceShape(ff.options, ["yes", "no", "ng"]);
+      ff.kind = fmt.kind;
+      ff.formatLabel = fmt.label || "";
+      if (fmt.kind === "tfng" && !wasTfng) {
+        ff.options = tfngOptions();
+        ff.correctOptionIds = [];
+      }
+      if (fmt.kind === "ynng" && !wasYnng) {
+        ff.options = ynngOptions();
+        ff.correctOptionIds = [];
+      }
+      if (fmt.kind === "mcq" && (!ff.options.length || wasTfng || wasYnng)) {
+        ff.options = [];
+        ff.correctOptionIds = [];
+      }
+
+      if (fmt.noteMode) {
+        // Câu này đã sẵn là 1 chỗ trống trong 1 khối note (đổi Type qua lại
+        // giữa các dạng completion) -> không cần tạo khối mới, tránh nhân đôi.
+        s.noteMode = true;
+        const alreadyBlank = materializeNoteBlocks(s).some((b) => blockBlankIds(b).includes(Number(f.id)));
+        if (!alreadyBlank) addNoteBlock(s, Number(f.id));
+      }
+      if (fmt.needsBank && !(s.matchBank || []).length) {
+        s.matchBank = [{ id: newOptionId(), text: "" }];
+      }
+    });
+  }
+
+  // Nhiều tên IELTS trỏ về cùng 1 cơ chế (vd Note/Table/Flow-chart Completion
+  // đều là "fill") — ưu tiên đúng tên đã lưu (formatLabel) để dropdown hiện
+  // lại chính xác; câu cũ tạo trước khi có formatLabel (hoặc import CSV)
+  // thì mới hiện đại diện đầu tiên khớp cơ chế đó.
+  const currentFormatKey = formats
+    ? ((formats.find((x) => x.label === f.formatLabel) || formats.find((x) => x.kind === f.kind)) || {}).key || ""
+    : "";
+
   return (
     <div className="question-row">
       <div className="question-grid-cols">
@@ -373,13 +693,30 @@ function FieldRow({ f, fi, si, sec, media, patch }) {
           value={f.label}
           onChange={(e) => setF("label", e.target.value)}
         />
-        <select className="f-kind" value={f.kind} onChange={(e) => changeKind(e.target.value)}>
-          {QUESTION_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {QUESTION_KIND_LABELS[k]}
-            </option>
-          ))}
-        </select>
+        {formats ? (
+          <select
+            className="f-kind"
+            value={currentFormatKey}
+            onChange={(e) => {
+              const fmt = formats.find((x) => x.key === e.target.value);
+              if (fmt) changeFormat(fmt);
+            }}
+          >
+            {formats.map((fmt) => (
+              <option key={fmt.key} value={fmt.key}>
+                {fmt.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <select className="f-kind" value={f.kind} onChange={(e) => changeKind(e.target.value)}>
+            {QUESTION_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {QUESTION_KIND_LABELS[k]}
+              </option>
+            ))}
+          </select>
+        )}
         <input
           type="number"
           className="f-score"
@@ -399,7 +736,7 @@ function FieldRow({ f, fi, si, sec, media, patch }) {
           type="button"
           className="icon-btn danger f-remove"
           title="Delete question"
-          onClick={() => patch((d) => d[si].fields.splice(fi, 1))}
+          onClick={() => patch((d) => removeField(d[si], fi))}
         >
           <svg className="icon"><use href="#icon-trash" /></svg>
         </button>
@@ -535,8 +872,32 @@ function QuestionDetail({ f, fi, si, sec, media, patch }) {
             ? "Tick the box next to each correct option."
             : f.correctOptionIds.length === 1
             ? "1 correct answer — students pick one."
-            : f.correctOptionIds.length + " correct answers — students must pick exactly " + f.correctOptionIds.length + "."}
+            : f.correctOptionIds.length + " correct answers — students must pick up to " + f.correctOptionIds.length + ". Each pick is graded independently (partial credit)."}
         </div>
+        {f.correctOptionIds.length > 1 && (
+          <div className="f-group" style={{ marginTop: 8 }}>
+            <label>Spans question numbers (optional) — e.g. "Questions {f.id}-{f.id + f.correctOptionIds.length - 1}"</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: ".85rem", color: "var(--muted)" }}>Ends at question #</span>
+              <input
+                type="number"
+                style={{ width: 90 }}
+                placeholder={String(f.id)}
+                value={f.idEnd || ""}
+                onChange={(e) => setF("idEnd", e.target.value ? Number(e.target.value) : null)}
+              />
+              {Number(f.score) !== f.correctOptionIds.length && (
+                <button
+                  type="button"
+                  className="btn secondary sm"
+                  onClick={() => setF("score", f.correctOptionIds.length)}
+                >
+                  Set score = {f.correctOptionIds.length} (1 per answer)
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </>
     );
   }

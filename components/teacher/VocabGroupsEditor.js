@@ -3,6 +3,7 @@
 import { useState } from "react";
 import LessonImport from "./LessonImport";
 import VocabWordTable from "./VocabWordTable";
+import AiVocabDialog from "./AiVocabDialog";
 import { TopicExercises } from "./GrammarTopicsEditor";
 import { useDialog } from "@/components/ui/Dialog";
 
@@ -10,10 +11,18 @@ function emptyGroup() {
   return { extId: "", name: "", words: [], exercises: [] };
 }
 
-export default function VocabGroupsEditor({ groups, media, onChange }) {
+export default function VocabGroupsEditor({ groups, media, onChange, aiContext }) {
   const dialog = useDialog();
-  const [importing, setImporting] = useState(false);
+  // null = đang đóng; -1 = nút Import chung ở trên; i = nút Import trong nhóm i.
+  const [importTarget, setImportTarget] = useState(null);
+  const [aiOpen, setAiOpen] = useState(false);
   const [open, setOpen] = useState(0);
+
+  function addAiGroups(newGroups) {
+    onChange([...structuredClone(groups), ...newGroups]);
+    setOpen(groups.length);
+    dialog.toast(`Added ${newGroups.length} word group${newGroups.length === 1 ? "" : "s"} — review, then Save`);
+  }
 
   function patch(mut) {
     const draft = structuredClone(groups);
@@ -23,6 +32,35 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
 
   function applyImport(items) {
     const draft = structuredClone(groups);
+
+    // Import từ TRONG 1 nhóm: nhóm đầu trong file đổ thẳng vào nhóm đang mở
+    // (nối thêm từ, không xoá từ đã có), các nhóm còn lại chèn ngay sau. Nhóm
+    // tự tạo tay không có extId nên nút Import chung ở trên không bao giờ
+    // khớp vào nó — luôn đẻ ra nhóm mới, đó là lý do cần nút riêng ở đây.
+    if (importTarget != null && importTarget >= 0 && draft[importTarget]) {
+      const [first, ...rest] = items;
+      if (first) {
+        const g = draft[importTarget];
+        draft[importTarget] = {
+          ...g,
+          extId: g.extId || first.extId || "",
+          name: g.name || first.name || "",
+          words: [...(g.words || []), ...(first.words || [])],
+          exercises: [...(g.exercises || []), ...(first.exercises || [])],
+        };
+      }
+      rest.forEach((it, k) =>
+        draft.splice(importTarget + 1 + k, 0, {
+          extId: it.extId || "",
+          name: it.name || "",
+          words: it.words || [],
+          exercises: it.exercises || [],
+        })
+      );
+      onChange(draft);
+      return;
+    }
+
     items.forEach((it) => {
       const idx = it.extId ? draft.findIndex((g) => g.extId && g.extId === it.extId) : -1;
       const group = {
@@ -45,14 +83,24 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <h3 style={{ margin: 0 }}>Vocabulary groups ({groups.length})</h3>
-        <button
-          type="button"
-          className="btn secondary"
-          style={{ padding: "8px 14px", fontSize: ".85rem" }}
-          onClick={() => setImporting(true)}
-        >
-          <svg className="icon"><use href="#icon-upload" /></svg> Import from file
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setAiOpen(true)}
+          >
+            <svg className="icon"><use href="#icon-sparkles" /></svg> Create by AI
+          </button>
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setImportTarget(-1)}
+          >
+            <svg className="icon"><use href="#icon-upload" /></svg> Import from file
+          </button>
+        </div>
       </div>
 
       {groups.length === 0 && (
@@ -73,6 +121,15 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
                 value={g.name}
                 onChange={(e) => patch((d) => (d[i].name = e.target.value))}
               />
+              <button
+                type="button"
+                className="btn secondary"
+                style={{ padding: "5px 11px", fontSize: ".78rem", whiteSpace: "nowrap" }}
+                title="Import words from a file into this group"
+                onClick={() => setImportTarget(i)}
+              >
+                <svg className="icon"><use href="#icon-upload" /></svg> Import
+              </button>
               <button
                 type="button"
                 className="icon-btn"
@@ -122,12 +179,21 @@ export default function VocabGroupsEditor({ groups, media, onChange }) {
         <svg className="icon"><use href="#icon-plus" /></svg> Add group
       </button>
 
-      {importing && (
+      {aiOpen && (
+        <AiVocabDialog
+          context={aiContext}
+          existingWords={groups.flatMap((g) => (g.words || []).map((w) => w.word)).filter(Boolean)}
+          onAdd={addAiGroups}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
+
+      {importTarget != null && (
         <LessonImport
           mode="vocab"
           existing={groups.flatMap((g) => g.exercises.flatMap((e) => e._sections || []))}
           onImport={applyImport}
-          onClose={() => setImporting(false)}
+          onClose={() => setImportTarget(null)}
         />
       )}
     </div>

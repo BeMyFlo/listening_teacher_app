@@ -128,6 +128,17 @@ input[type=search]:focus, textarea:focus, select:focus {
   border-color: var(--blue);
 }
 
+/* iOS Safari phóng to trang khi focus vào input có cỡ chữ < 16px. Ép mọi ô
+   nhập trên mobile về đúng 16px để bàn phím bật lên mà không zoom (zoom xong
+   không tự thu lại, làm layout xô lệch — nguồn gốc nhiều lỗi "trên iPhone"). */
+@media (max-width: 768px) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 .form-row { margin-bottom: 16px; }
 .form-row label { display: block; font-weight: 600; margin-bottom: 6px; font-size: .92rem; color: var(--ink); }
 .form-row input[type=text], .form-row input[type=password], .form-row input[type=number],
@@ -314,6 +325,42 @@ button.unit-list-goto {
 .player audio { flex: 1; width: 100%; }
 .player .replay-count { font-size: .8rem; color: var(--muted); white-space: nowrap; }
 
+/* ---------- Trình phát Listening thi thật (1 lần, không tua) ---------- */
+.exam-audio { margin: 4px 0 20px; }
+.exam-audio-warn {
+  display: flex; gap: 8px; align-items: flex-start;
+  margin: 0 0 10px; padding: 10px 12px;
+  background: #FFF7ED; border: 1px solid #FDBA74; border-radius: 10px;
+  font-size: .85rem; line-height: 1.5; color: var(--ink);
+}
+.exam-audio-warn .icon { color: #EA580C; flex-shrink: 0; margin-top: 2px; }
+.exam-audio-start { display: inline-flex; align-items: center; gap: 8px; }
+.exam-audio-now {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 14px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.exam-audio-now .icon { color: var(--blue); width: 18px; height: 18px; flex-shrink: 0; }
+.exam-audio-bar {
+  flex: 1; min-width: 120px; height: 6px;
+  background: var(--border); border-radius: 999px; overflow: hidden;
+}
+.exam-audio-bar span { display: block; height: 100%; background: var(--blue); border-radius: 999px; transition: width .25s linear; }
+.exam-audio-time { font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.exam-audio-resume { padding: 4px 10px; font-size: .8rem; }
+.exam-audio-done {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px; background: #F0FDF4;
+  border: 1px solid var(--green); border-radius: 10px;
+  font-size: .88rem; color: var(--ink);
+}
+.exam-audio-done .icon { color: var(--green); flex-shrink: 0; }
+.section-nav-btn:disabled, .section-nav-btn.locked {
+  opacity: .45; cursor: not-allowed;
+}
+.section-nav-btn.locked:hover { border-color: var(--border); color: var(--ink); }
+.section-nav-btn.locked .icon { width: 15px; height: 15px; }
+
 .section-title {
   font-weight: 700;
   color: var(--navy);
@@ -371,9 +418,31 @@ button.unit-list-goto {
 
 .field-row.correct input { border-color: var(--green); background: #DFF7E9; }
 .field-row.wrong input { border-color: var(--red); background: #FFE0E2; }
+/* Câu nhiều đáp án được điểm 1 phần (chọn đúng 1/N) — không hẳn đúng, không
+   hẳn sai, tô vàng thay vì đỏ để không đánh đồng với "sai hoàn toàn". */
+.field-row.partial input { border-color: #E08A2E; background: #FFF4E0; }
+
+/* iOS Safari zooms the page in whenever a focused input's font is < 16px.
+   Keep every answer field at 16px on small screens so focusing never zooms. */
+@media (max-width: 640px) {
+  .field-row {
+    align-items: stretch;
+    gap: 4px 8px;
+  }
+  .field-row .label { min-width: 0; flex-basis: 100%; }
+  .field-row input,
+  .field-row input[type=text],
+  .note-blank-input,
+  .rt-note-editor textarea {
+    font-size: 16px;
+  }
+  .field-row input { min-width: 0; width: 100%; flex-basis: 100%; }
+  .note-blank-input { min-width: 90px; }
+}
 .result-mark { font-weight: 700; }
 .result-mark.correct { color: var(--green); }
 .result-mark.wrong { color: var(--red); }
+.result-mark.partial { color: #E08A2E; }
 
 .correct-answer-note {
   font-size: .83rem;
@@ -539,6 +608,9 @@ tr:hover td { background: #FFF7FB; }
   padding: 20px 24px;
   margin-top: 4px;
 }
+/* Nhiều divider -> nhiều khung liên tiếp (mỗi khung 1 nhóm câu hỏi/giới hạn
+   từ riêng) — giãn cách rõ hơn 4px mặc định để không dính sát nhau. */
+.note-completion-box + .note-completion-box { margin-top: 18px; }
 .note-h1 { text-align: center; font-size: 1.1rem; margin: 0 0 14px; color: var(--ink); }
 .note-h2 { font-size: .98rem; margin: 16px 0 8px; color: var(--ink); }
 .note-h2:first-child { margin-top: 0; }
@@ -574,6 +646,20 @@ tr:hover td { background: #FFF7FB; }
 .note-blank.correct .note-blank-input { border-color: var(--green); }
 .note-blank.wrong .note-blank-input { border-color: var(--red); }
 .note-blank-correct { font-size: .78rem; color: var(--red); white-space: nowrap; }
+
+/* Flow-chart Completion — mỗi bước 1 khung riêng nối bằng mũi tên, giống đề
+   thi thật, thay vì 1 khung to chứa mọi dòng như Note/Summary Completion. */
+.note-flow-chart { display: flex; flex-direction: column; align-items: center; margin-top: 4px; }
+.note-flow-step {
+  width: 100%;
+  max-width: 460px;
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  padding: 10px 16px;
+  text-align: center;
+  line-height: 1.6;
+}
+.note-flow-arrow { color: var(--muted); font-size: 1.1rem; line-height: 1; margin: 4px 0; }
 
 /* ---------- Note/Summary Completion — soạn đề (giáo viên) ---------- */
 .note-completion-editor { margin-bottom: 10px; }
@@ -802,10 +888,11 @@ tr:hover td { background: #FFF7FB; }
   gap: 10px; flex-wrap: wrap; margin-bottom: 8px;
 }
 .reading-tools-bar .rt-hint {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: .8rem; color: var(--muted); white-space: normal;
+  display: flex; align-items: flex-start; gap: 6px;
+  flex: 1 1 240px;
+  font-size: .8rem; color: var(--muted);
 }
-.reading-tools-bar .rt-hint .icon { width: 14px; height: 14px; }
+.reading-tools-bar .rt-hint .icon { width: 14px; height: 14px; flex: none; margin-top: 2px; }
 .rt-clear {
   border: 1px solid var(--border); background: #fff; color: var(--muted);
   border-radius: 999px; padding: 3px 12px; font-size: .78rem; cursor: pointer;
@@ -823,6 +910,14 @@ tr:hover td { background: #FFF7FB; }
 }
 .rt-inline { cursor: text; }
 
+/* Cho phép bôi chọn để tô sáng; tắt bong bóng "Copy / Look Up" mặc định của
+   iOS để nó không che nút Highlight của mình (vẫn chọn chữ được bình thường). */
+.reading-passage-text, .rt-inline {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: none;
+}
+
 /* Highlight/note toolbar above the question column */
 .questions-tools {
   display: flex; align-items: center; justify-content: space-between;
@@ -830,10 +925,15 @@ tr:hover td { background: #FFF7FB; }
   padding-bottom: 8px; border-bottom: 1px dashed var(--border);
 }
 .questions-tools .rt-hint {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: flex; align-items: flex-start; gap: 6px;
+  flex: 1 1 240px;
   font-size: .78rem; color: var(--muted);
 }
-.questions-tools .rt-hint .icon { width: 14px; height: 14px; }
+.questions-tools .rt-hint .icon { width: 14px; height: 14px; flex: none; margin-top: 2px; }
+
+/* The hint sentence flows as normal text — never break inside "highlight" /
+   "note" the way the passage pane's overflow-wrap:anywhere would force. */
+.rt-hint > span { overflow-wrap: normal; word-break: normal; }
 
 /* ---------- Student notebook ---------- */
 .note-fab {
@@ -928,6 +1028,10 @@ tr:hover td { background: #FFF7FB; }
   white-space: nowrap;
 }
 .rt-popup button:hover { background: rgba(255,255,255,.15); }
+@media (pointer: coarse) {
+  .rt-popup { padding: 5px; gap: 5px; }
+  .rt-popup button { font-size: .9rem; padding: 9px 13px; min-height: 40px; }
+}
 .rt-popup .rt-swatch {
   width: 12px; height: 12px; border-radius: 3px; background: #FFE08A; display: inline-block;
 }
@@ -961,6 +1065,10 @@ tr:hover td { background: #FFF7FB; }
 .rt-note-editor textarea {
   width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
   font: inherit; resize: vertical;
+}
+/* 16px keeps iOS Safari from zooming the page when the note field is focused. */
+@media (pointer: coarse) {
+  .rt-note-editor textarea { font-size: 16px; }
 }
 .rt-note-editor-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .rt-note-tonotebook {
@@ -1271,6 +1379,60 @@ tr:hover td { background: #FFF7FB; }
 .questions-card-head h4 { margin: 0; font-size: .94rem; }
 .questions-card-head .head-sub { font-size: .76rem; color: var(--muted); margin-top: 1px; }
 .questions-card-body { padding: 14px 18px 18px; }
+/* Note layout + Illustration/Shared bank giờ sống chung trong khung
+   Questions (không tách riêng ra ngoài) — thêm viền ngăn cách nhẹ + khoảng
+   cách với bảng câu hỏi bên dưới cho rõ ràng. */
+.note-editor-inline { margin-bottom: 16px; }
+.note-blocks-wrap { display: flex; flex-direction: column; gap: 14px; }
+.note-block-frame {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--bg);
+}
+.note-block-frame-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.note-block-frame-title { font-weight: 700; font-size: .82rem; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
+.questions-media-row {
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed var(--border);
+}
+
+/* Lưới chọn dạng bài khi bấm "+ Add Question" — thay cho việc tạo câu rỗng
+   rồi tự chọn 6 cơ chế nền trong dropdown Type. */
+.format-pick-panel {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.format-pick-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  font-size: .85rem; font-weight: 700; color: var(--ink);
+  border-bottom: 1px solid var(--border);
+}
+.format-pick-grid {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 14px;
+}
+.format-pick-btn {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: .82rem;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.format-pick-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
 
 .question-grid-cols {
   display: grid;
@@ -1559,6 +1721,35 @@ tr:hover td { background: #FFF7FB; }
 }
 .subject-toggle button.active { background: var(--blue); color: #fff; }
 .subject-toggle button:not(:last-child) { border-right: 1px solid var(--border); }
+
+/* Same skill tabs, but as separate pills with breathing room between them —
+   used where each tab also carries a "done" badge, which reads as cramped
+   when the buttons are flush segments (submissions review). */
+.subject-toggle.skill-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+}
+.subject-toggle.skill-tabs button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 16px;
+}
+.subject-toggle.skill-tabs button.active { border-color: var(--blue); }
+.subject-toggle .cat-done {
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.subject-toggle .cat-done .icon { width: 9px; height: 9px; stroke-width: 3; }
+.subject-toggle button.active .cat-done { background: #fff; color: var(--blue); }
 
 .match-options-box {
   border: 1px dashed var(--border);
@@ -2214,6 +2405,35 @@ tr:hover td { background: #FFF7FB; }
 .pill-muted::before { display: none; }
 .pill-info { background: var(--blue-light); color: var(--blue); border-color: #BEE1F6; }
 
+/* ---------- Question Review (per-skill auto-graded results) ---------- */
+.qr-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border);
+  background: #fff; color: var(--muted); font-size: .82rem; font-weight: 600; cursor: pointer;
+}
+.qr-chip .icon { width: 14px; height: 14px; }
+.qr-chip .count { background: var(--bg); border-radius: 999px; padding: 1px 7px; font-size: .74rem; }
+.qr-chip.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.qr-chip.active .count { background: rgba(255, 255, 255, .25); color: #fff; }
+
+.answer-pill {
+  display: inline-block; padding: 3px 11px; border-radius: 999px; font-size: .82rem; font-weight: 600;
+  background: var(--bg); color: var(--ink); white-space: nowrap;
+}
+.answer-pill.correct { background: var(--teal-light); color: var(--teal); }
+.answer-pill.wrong { background: #FFE0E2; color: var(--red); }
+.answer-pill.blank { background: var(--border); color: var(--muted); font-style: italic; }
+
+.qr-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 14px; }
+.qr-pagination button {
+  min-width: 30px; height: 30px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--border);
+  background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: .82rem;
+}
+.qr-pagination button .icon { width: 14px; height: 14px; }
+.qr-pagination button.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.qr-pagination button:disabled { opacity: .4; cursor: not-allowed; }
+
 /* ---------- Builder page header (icon + title + Preview button) ---------- */
 .builder-toolbar {
   display: flex;
@@ -2576,8 +2796,8 @@ tr:hover td { background: #FFF7FB; }
 .rubric-result table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .84rem; }
 .rubric-result td { border: 1px solid var(--border); padding: 7px 9px; vertical-align: top; }
 .rubric-result td.b { width: 44px; text-align: center; font-weight: 800; color: var(--navy); }
-.rubric-result td .crit { font-weight: 700; color: var(--ink); }
-.rubric-result td .note { color: var(--muted); margin-top: 2px; }
+.rubric-result td .crit { font-weight: 700; color: var(--blue); }
+.rubric-result td .note { color: var(--ink); margin-top: 2px; }
 
 /* ---------- Student lessons (Phase 3) ---------- */
 .lesson-text {
@@ -3244,6 +3464,21 @@ tr:hover td { background: #FFF7FB; }
 .btn.btn-danger-solid { background: var(--red); color: #fff; }
 .btn.btn-danger-solid:hover { background: #C24E68; }
 
+/* "Có gì mới" — popup 1 lần sau mỗi bản cập nhật */
+.changelog-modal { max-width: 480px; animation: ui-pop-in .16s ease; }
+.changelog-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 22px 22px 4px;
+}
+.changelog-head .icon { width: 1.2rem; height: 1.2rem; color: var(--brand, #E85D8A); }
+.changelog-head h3 { margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--ink); }
+.changelog-body { padding: 10px 22px 4px; overflow-y: auto; }
+.changelog-entry + .changelog-entry { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.changelog-date { font-size: .78rem; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
+.changelog-body ul { margin: 0; padding-left: 20px; }
+.changelog-body li { margin-bottom: 8px; line-height: 1.6; color: var(--ink); }
+.changelog-body li:last-child { margin-bottom: 0; }
+
 /* Toasts */
 .ui-toast-wrap {
   position: fixed; top: 16px; right: 16px; z-index: 200;
@@ -3368,8 +3603,10 @@ tr:hover td { background: #FFF7FB; }
 }
 
 .ea-toolbar {
-  position: absolute;
-  z-index: 30;
+  /* Portal ra <body> (xem EssayAnnotator.js) nên định vị theo viewport,
+     không phải theo .essay-annot cha nữa. */
+  position: fixed;
+  z-index: 1000;
   width: 260px;
   background: var(--card);
   border: 1px solid var(--border);
@@ -3425,6 +3662,18 @@ tr:hover td { background: #FFF7FB; }
   overflow-wrap: anywhere;
 }
 .prompt-instructions p:last-child { margin-bottom: 0; }
+
+/* Ô viết bài Writing — từ khi tách 2 cột (đề trái, viết phải), ô chỉ còn nửa
+   bề ngang trang nên `rows` không đủ cao nữa (chữ xuống dòng sớm hơn). Ép
+   chiều cao tối thiểu rộng rãi để gõ cả bài luận không phải cuộn liên tục;
+   vẫn kéo giãn thêm được (resize dọc). */
+.essay-input {
+  min-height: 420px;
+  resize: vertical;
+}
+@media (max-width: 860px) {
+  .essay-input { min-height: 320px; }
+}
 
 /* Chấm Speaking */
 .speaking-review { margin-bottom: 14px; }
@@ -3565,31 +3814,13 @@ tr:hover td { background: #FFF7FB; }
   border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; font-size: .85rem; font-family: inherit;
 }
 
-/* "Sửa nhanh" — ô nhập song song với bản tô màu (EssayAnnotator), tự áp màu
-   sau khi ngừng gõ ~400ms, không cần nút Apply/chuyển tab. Đặt cạnh nhau
-   (2 cột) để dễ nhìn qua lại; xuống 1 cột trên màn hẹp. */
-.ea-cols { display: flex; gap: 14px; align-items: stretch; }
-.ea-cols > .essay-annot,
-.ea-cols > .ea-quickedit-wrap { flex: 1 1 0; min-width: 0; }
-.ea-cols > .essay-annot { max-height: 420px; overflow-y: auto; }
-.ea-cols .ea-quickedit { height: 100%; min-height: 420px; }
-@media (max-width: 760px) {
-  .ea-cols { flex-direction: column; }
-  .ea-cols > .essay-annot { max-height: 320px; }
-  .ea-cols .ea-quickedit { min-height: 220px; }
-}
-
-.ea-quickedit-wrap { display: flex; flex-direction: column; }
-.ea-quickedit-label {
-  display: flex; align-items: center; gap: 5px;
-  font-size: .78rem; color: var(--muted); font-weight: 600; margin-bottom: 4px;
-}
-.ea-quickedit-label .icon { width: .85rem; height: .85rem; }
-.ea-quickedit {
-  width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
-  font-family: inherit; font-size: .9rem; line-height: 1.6; resize: vertical;
-}
-.ea-quickedit:focus { border-color: var(--pink); box-shadow: 0 0 0 2px var(--pink-light); outline: none; }
+/* EssayAnnotator's single annotated-essay box (no more side-by-side "quick
+   edit" mirror — teachers found looking back and forth between two panels
+   confusing; editing now happens directly on this box, see the component).
+   No max-height/overflow here: the edit toolbar (.ea-toolbar) is an absolutely
+   positioned child that can open anywhere in the text, including near the
+   bottom — a scrolling ancestor would clip it instead of letting it show in
+   full, so the box just grows with the essay and the page scrolls instead. */
 
 /* "Theory file" box — external theory link editor (components/teacher/TheoryResource.js) */
 .theory-resource-box {

@@ -3,10 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { postNote } from "@/lib/client/useNotes";
 import { api } from "@/lib/client/api";
+import { readSession } from "@/lib/client/session";
 
 /* Reusable "select text -> highlight + note" engine, shared by the reading
    passage tool and the question column. Marks are stored per text block in
    localStorage. Extracted from the original ReadingPassage.js. */
+
+function isCoarsePointer() {
+  return typeof window !== "undefined" && window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+}
 
 export function hashStr(s) {
   let h = 0;
@@ -32,28 +37,49 @@ function mergeMark(marks, start, end, note) {
   return [...rest, { id: hashStr(s + "-" + e + "-" + Math.random()), start: s, end: e, note: notes.join(" · ") }];
 }
 
+// localStorage is shared by every tab/login on the same browser (vd máy tính
+// dùng chung trong lớp) — phải gắn studentId vào key, nếu không highlight của
+// học sinh này sẽ "nhảy" sang màn hình học sinh khác đăng nhập cùng máy.
+function scopedKey(lsKey) {
+  const session = readSession("student");
+  const studentId = (session && session.payload && session.payload.studentId) || "anon";
+  return `hl:${studentId}:${lsKey}`;
+}
+
 // localStorage-backed marks for one text block, addressed by an explicit key.
 export function useHighlightStore(lsKey) {
   const [marks, setMarks] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const key = scopedKey(lsKey);
 
   useEffect(() => {
     let next = [];
     try {
-      const raw = localStorage.getItem(lsKey);
+      let raw = localStorage.getItem(key);
+      // Migrate one-time from the old, unscoped key (data written before the
+      // per-student fix) — claim it for whoever opens it first, then delete
+      // it so it stops leaking to the next student who opens this same item.
+      if (!raw) {
+        const legacy = localStorage.getItem(lsKey);
+        if (legacy) {
+          raw = legacy;
+          localStorage.setItem(key, legacy);
+          localStorage.removeItem(lsKey);
+        }
+      }
       if (raw) next = JSON.parse(raw);
     } catch {}
     setMarks(Array.isArray(next) ? next : []);
     setLoaded(true);
-  }, [lsKey]);
+  }, [key, lsKey]);
 
   useEffect(() => {
     if (!loaded) return;
     try {
-      if (marks.length) localStorage.setItem(lsKey, JSON.stringify(marks));
-      else localStorage.removeItem(lsKey);
+      if (marks.length) localStorage.setItem(key, JSON.stringify(marks));
+      else localStorage.removeItem(key);
     } catch {}
-  }, [marks, lsKey, loaded]);
+  }, [marks, key, loaded]);
 
   return { marks, setMarks };
 }
@@ -61,10 +87,12 @@ export function useHighlightStore(lsKey) {
 // Remove every question-highlight block belonging to one section.
 export function clearHighlights(prefix) {
   try {
+    const scopedPrefix = scopedKey(prefix);
     const doomed = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith(prefix)) doomed.push(k);
+      // Match both the new per-student key and any not-yet-migrated legacy key.
+      if (k && (k.startsWith(scopedPrefix) || k.startsWith(prefix))) doomed.push(k);
     }
     doomed.forEach((k) => localStorage.removeItem(k));
     return doomed.length;
@@ -92,6 +120,65 @@ export function HighlightMarksText({ text, marks, setMarks, inline = false, clas
     };
   }, []);
 
+  const readSelection = useCallback(() => {
+    const sel = typeof window !== "undefined" ? window.getSelection() : null;
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+    const range = sel.getRangeAt(0);
+    const root = ref.current;
+    if (!root || !root.contains(range.startContainer) || !root.contains(range.endContainer)) return null;
+    // Map a selection endpoint to a character offset in `passage`. Text-node
+    // endpoints add their offset to the nearest [data-start] ancestor; element
+    // endpoints (common on touch) treat `offset` as a child index and sum the
+    // text length of the preceding children.
+    const toGlobal = (node, offset) => {
+      let el = node.nodeType === 3 ? node.parentElement : node;
+      let hops = 0;
+      while (el && el !== root && (!el.getAttribute || el.getAttribute("data-start") == null) && hops < 5) {
+        el = el.parentElement;
+        hops++;
+      }
+      const base = el && el.getAttribute ? el.getAttribute("data-start") : null;
+      if (base == null) return null;
+      if (node.nodeType === 3) return Number(base) + offset;
+      let acc = Number(base);
+      for (let i = 0; i < offset && i < node.childNodes.length; i++) {
+        acc += (node.childNodes[i].textContent || "").length;
+      }
+      return acc;
+    };
+    const a = toGlobal(range.startContainer, range.startOffset);
+    const b = toGlobal(range.endContainer, range.endOffset);
+    if (a == null || b == null) return null;
+    const start = Math.min(a, b);
+    const end = Math.max(a, b);
+    if (end - start < 1) return null;
+    const rect = range.getBoundingClientRect();
+    return { start, end, rect };
+  }, [passage]);
+
+  const readSelectionRef = useRef(readSelection);
+  readSelectionRef.current = readSelection;
+
+  // Trên mobile (long-press để bôi chọn) KHÔNG có sự kiện `mouseup` khi thả
+  // tay, nên nút "Highlight" không bao giờ hiện. Nghe thêm `selectionchange`
+  // (debounce để đợi học sinh kéo xong) rồi mở popup ngay tại vùng đã chọn —
+  // cách này chạy cho cả chuột lẫn cảm ứng.
+  useEffect(() => {
+    let t;
+    const onSelChange = () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const s = readSelection();
+        if (s) setPopup({ x: s.rect.left + s.rect.width / 2, y: s.rect.top, start: s.start, end: s.end });
+      }, 400);
+    };
+    document.addEventListener("selectionchange", onSelChange);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("selectionchange", onSelChange);
+    };
+  }, [readSelection]);
+
   const segments = useMemo(() => {
     const t = passage;
     const sorted = [...marks].filter((m) => m.start < m.end).sort((a, b) => a.start - b.start);
@@ -110,32 +197,10 @@ export function HighlightMarksText({ text, marks, setMarks, inline = false, clas
     return segs;
   }, [passage, marks]);
 
-  const readSelection = useCallback(() => {
-    const sel = typeof window !== "undefined" ? window.getSelection() : null;
-    if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
-    const range = sel.getRangeAt(0);
-    const root = ref.current;
-    if (!root || !root.contains(range.startContainer) || !root.contains(range.endContainer)) return null;
-    const toGlobal = (node, offset) => {
-      const el = node.nodeType === 3 ? node.parentElement : node;
-      const base = el && el.getAttribute ? el.getAttribute("data-start") : null;
-      if (base == null) return null;
-      return Number(base) + offset;
-    };
-    const a = toGlobal(range.startContainer, range.startOffset);
-    const b = toGlobal(range.endContainer, range.endOffset);
-    if (a == null || b == null) return null;
-    const start = Math.min(a, b);
-    const end = Math.max(a, b);
-    if (end - start < 1) return null;
-    const rect = range.getBoundingClientRect();
-    return { start, end, rect };
-  }, []);
-
   function onMouseUp() {
     const s = readSelection();
     if (!s) return;
-    setPopup({ x: s.rect.left + s.rect.width / 2, y: s.rect.top, start: s.start, end: s.end });
+    setPopup({ x: s.rect.left + s.rect.width / 2, y: s.rect.top, bottom: s.rect.bottom, start: s.start, end: s.end });
   }
 
   function addHighlight(withNote) {
@@ -222,7 +287,11 @@ export function HighlightMarksText({ text, marks, setMarks, inline = false, clas
       {popup && (
         <div
           className="rt-popup"
-          style={{ position: "fixed", left: popup.x, top: popup.y - 8, transform: "translate(-50%, -100%)" }}
+          style={
+            popup.start != null && popup.bottom != null && isCoarsePointer()
+              ? { position: "fixed", left: popup.x, top: popup.bottom + 10, transform: "translate(-50%, 0)" }
+              : { position: "fixed", left: popup.x, top: popup.y - 8, transform: "translate(-50%, -100%)" }
+          }
           onMouseDown={(e) => e.preventDefault()}
         >
           {popup.start != null ? (

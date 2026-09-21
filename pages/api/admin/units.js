@@ -6,6 +6,7 @@ const { normalizeSections, validateSections } = require("../../../lib/testSectio
 const { sanitizeDoc } = require("../../../lib/tiptap/doc");
 const { sanitizeYouTube } = require("../../../lib/lessonImport");
 const { announceDeadlines } = require("../../../lib/notifications/deadlineAssign");
+const { regradeUnitSubmissions } = require("../../../lib/teacher/regrade");
 
 const S = (v) => String(v == null ? "" : v);
 
@@ -118,6 +119,15 @@ async function handler(req, res) {
     return res.status(200).json({ ok: true, rows });
   }
 
+  // Chấm lại toàn bộ bài đã nộp của Unit theo đáp án hiện tại — giáo viên bấm
+  // khi muốn chấm lại thủ công (vd sau khi tự sửa tay ngoài luồng lưu Unit).
+  if (req.method === "POST" && req.query.action === "regrade") {
+    const unit = await Unit.findById(id);
+    if (!unit) return res.status(404).json({ ok: false, error: "Unit not found" });
+    const regradedCount = await regradeUnitSubmissions(unit);
+    return res.status(200).json({ ok: true, regradedCount });
+  }
+
   if (req.method === "POST") {
     const { name } = req.body || {};
     const level = Number(req.body && req.body.level);
@@ -205,6 +215,11 @@ async function handler(req, res) {
       if (!["draft", "published"].includes(status)) {
         return res.status(400).json({ ok: false, error: "Invalid status" });
       }
+      // classIds rỗng = chưa giao cho lớp nào, không phải "giao cho tất cả" —
+      // publish mà không tick lớp thì không học sinh nào thấy Unit, chặn luôn.
+      if (status === "published" && !(unit.classIds || []).length) {
+        return res.status(400).json({ ok: false, error: "Select at least 1 class before publishing." });
+      }
       unit.status = status;
     }
 
@@ -270,6 +285,18 @@ async function handler(req, res) {
 
     await unit.save();
 
+    // Sửa đáp án/bài tập -> chấm lại toàn bộ bài học sinh đã nộp cho Unit này,
+    // để điểm không bị "đứng hình" theo đáp án cũ. Lỗi ở bước này KHÔNG được
+    // làm hỏng việc lưu Unit.
+    let regradedCount = 0;
+    if (categories != null) {
+      try {
+        regradedCount = await regradeUnitSubmissions(unit);
+      } catch (err) {
+        console.error("[regrade] failed:", err.message);
+      }
+    }
+
     // Hạn nộp mới/đổi -> tạo job gửi thông báo cho học sinh (chạy ngầm).
     // Lỗi ở bước này KHÔNG được làm hỏng việc lưu Unit.
     let deadlineJobIds = [];
@@ -285,7 +312,7 @@ async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ ok: true, unit, deadlineJobIds });
+    return res.status(200).json({ ok: true, unit, deadlineJobIds, regradedCount });
   }
 
   if (req.method === "DELETE") {

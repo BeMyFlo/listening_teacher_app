@@ -263,6 +263,11 @@ export default function UnitEditorPage() {
       setSaveErr("Please enter a Unit name.");
       return;
     }
+    if (status === "published" && !(unit.classIds || []).length) {
+      setActiveTab("settings");
+      setSaveErr("Chọn ít nhất 1 lớp trước khi Publish — không tick lớp nào thì không học sinh nào thấy Unit này.");
+      return;
+    }
     setSaveErr("");
     try {
       const res = await api.teacher.updateUnit(unit._id, toPayload(unit, status));
@@ -445,7 +450,7 @@ export default function UnitEditorPage() {
                         </label>
                       ))}
                     </div>
-                    <p className="settings-hint">(None checked = every student at Level {unit.level})</p>
+                    <p className="settings-hint">(Bắt buộc — không tick lớp nào thì không học sinh nào thấy Unit này)</p>
                   </>
                 )}
               </div>
@@ -519,12 +524,14 @@ export default function UnitEditorPage() {
             <GrammarTopicsEditor
               topics={cat.topics || []}
               media={media}
+              aiContext={{ unitId, level: unit.level, unitName: unit.name }}
               onChange={(next) => updateCat((c) => (c.topics = next))}
             />
           ) : catKey === "vocabulary" ? (
             <VocabGroupsEditor
               groups={cat.groups || []}
               media={media}
+              aiContext={{ unitId, level: unit.level, unitName: unit.name }}
               onChange={(next) => updateCat((c) => (c.groups = next))}
             />
           ) : subTab === "theory" ? (

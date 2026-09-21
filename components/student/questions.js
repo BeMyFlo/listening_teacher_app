@@ -5,6 +5,8 @@ import ReadingPassage from "@/components/student/ReadingPassage";
 import { parseNoteInline, parseNoteLayout } from "@/lib/noteLayout";
 import { NoteDoc } from "@/components/student/RichDoc";
 import HighlightText, { hashStr, clearHighlights } from "@/components/student/HighlightText";
+import ExamAudioPlayer from "@/components/student/ExamAudioPlayer";
+import { blankIdsFromDoc } from "@/lib/tiptap/doc";
 
 // Highlightable static text in the question column. `base` scopes it to the
 // current section; `slot` + a hash of the text keep the localStorage key stable
@@ -29,6 +31,17 @@ function docHasContent(doc) {
     n.type === "horizontalRule" ||
     (Array.isArray(n.content) && n.content.some(scan));
   return doc.content.some(scan);
+}
+
+// Question ids actually embedded as [[n]] blanks inside a section's Note
+// Completion content (WYSIWYG noteDoc, or legacy noteText string).
+function noteBlankIdSet(section) {
+  if (docHasContent(section.noteDoc)) return new Set(blankIdsFromDoc(section.noteDoc));
+  const ids = [];
+  const re = /\[\[(\d+)\]\]/g;
+  let m;
+  while ((m = re.exec(section.noteText || ""))) ids.push(Number(m[1]));
+  return new Set(ids);
 }
 
 // ---------- State câu trả lời ----------
@@ -84,12 +97,18 @@ export function answerLabel(field, value, section) {
 }
 
 // ---------- 1 câu hỏi (khớp .field-row của legacy) ----------
+// Câu "chọn N trong M" gộp nhiều số thứ tự liền nhau (vd id=21, idEnd=22) ->
+// hiện "21-22." thay vì chỉ số đầu.
+function fieldNum(field) {
+  return field.idEnd && field.idEnd > field.id ? `${field.id}-${field.idEnd}` : field.id;
+}
+
 export function QuestionField({ field, section, value, onChange, review, hlBase }) {
   const isChoice = field.type === "choice";
   const selectCount = Number(field.selectCount) || 1;
   const options = fieldOptions(field, section);
   const rowCls =
-    "field-row" + (review ? (review.correct ? " correct" : " wrong") : "");
+    "field-row" + (review ? (review.correct ? " correct" : review.partial ? " partial" : " wrong") : "");
 
   // "Correct answer" lưu ở DB là VALUE nội bộ của lựa chọn (VD "o3_2"), không
   // phải chữ học sinh đọc được — map qua option để hiện đúng nhãn.
@@ -109,7 +128,7 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
   if (isChoice) {
     return (
       <div className={rowCls} id={"row-" + field.id}>
-        <span className="num">{field.id}.</span>
+        <span className="num">{fieldNum(field)}.</span>
         <div style={{ flex: 1 }}>
           <div className="label" style={{ marginBottom: 6 }}>
             <HL base={hlBase} slot={field.id + ":label"} text={field.label} />
@@ -153,12 +172,15 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
           </div>
         </div>
         {review && (
-          <span className={"result-mark " + (review.correct ? "correct" : "wrong")}>
+          <span className={"result-mark " + (review.correct ? "correct" : review.partial ? "partial" : "wrong")}>
             <svg className="icon"><use href={review.correct ? "#icon-check" : "#icon-cross"} /></svg>
           </span>
         )}
         {review && !review.correct && (
-          <div className="correct-answer-note">Correct answer: {correctAnswerLabel}</div>
+          <div className="correct-answer-note">
+            {review.partial ? "Partially correct — full answer: " : "Correct answer: "}
+            {correctAnswerLabel}
+          </div>
         )}
         {review && review.explanation && (
           <div className="answer-explanation">{review.explanation}</div>
@@ -169,7 +191,7 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
 
   return (
     <div className={rowCls} id={"row-" + field.id}>
-      <span className="num">{field.id}.</span>
+      <span className="num">{fieldNum(field)}.</span>
       <span className="label">
         <HL base={hlBase} slot={field.id + ":label"} text={field.label} />
         {field.pre ? <>: <HL base={hlBase} slot={field.id + ":pre"} text={field.pre} /></> : ""}
@@ -219,7 +241,19 @@ function DiagramImage({ section, center }) {
 }
 
 // ---------- 1 section (khớp renderSectionBlock của legacy) ----------
-export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, onReplay, hlScope = "", noteSource = null }) {
+export function SectionBlock({
+  section,
+  secIdx,
+  skill,
+  answersApi,
+  reviewById,
+  onReplay,
+  hlScope = "",
+  noteSource = null,
+  examAudio = false,
+  audioPhase = "idle",
+  onAudioPhase,
+}) {
   const [replays, setReplays] = useState(0);
   const [hlNonce, setHlNonce] = useState(0);
   const isReading = skill === "reading";
@@ -233,7 +267,16 @@ export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, o
   // localStorage namespace for question-column highlights in this section.
   const hlBase = `qhl:${hlScope}:${skill}:${section.name || ""}:${secIdx}:`;
 
-  const fields = (section.fields || []).map((f) => (
+  // 1 section có thể trộn câu hỏi rời (MCQ/Matching/TFNG...) VÀ 1 khối Note
+  // Completion cùng lúc (vd Q1-7 Matching Headings + Q8-13 Table Completion
+  // trong cùng 1 passage). Chỉ những câu hỏi KHÔNG nằm trong noteDoc/noteText
+  // (không phải [[n]] nào cả) mới hiện ở danh sách rời — câu nào đã là 1 ô
+  // trống trong note thì chỉ hiện đúng 1 lần, bên trong khối note. Trước đây
+  // hễ có note là toàn bộ field rời bị bỏ qua hoàn toàn, làm mất câu hỏi.
+  const noteBlankIds = hasNote ? noteBlankIdSet(section) : new Set();
+  const standaloneFields = (section.fields || []).filter((f) => !noteBlankIds.has(Number(f.id)));
+
+  const fields = standaloneFields.map((f) => (
     <QuestionField
       key={f.id}
       field={f}
@@ -246,16 +289,19 @@ export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, o
   ));
 
   const body = hasNote ? (
-    <NoteCompletionBlock section={section} answersApi={answersApi} reviewById={reviewById} hlBase={hlBase} />
+    <>
+      {fields}
+      <NoteCompletionBlock section={section} answersApi={answersApi} reviewById={reviewById} hlBase={hlBase} />
+    </>
   ) : (
     fields
   );
 
   const questionsTools = (
-    <div className="questions-tools" key={hlNonce}>
+    <div className="questions-tools">
       <span className="rt-hint">
         <svg className="icon"><use href="#icon-edit" /></svg>
-        Select any text in the questions to <b>highlight</b> or add a <b>note</b>
+        <span>Select any text in the questions to <b>highlight</b> or add a <b>note</b></span>
       </span>
       <button
         type="button"
@@ -287,7 +333,7 @@ export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, o
         </div>
         <div className="questions-pane">
           {questionsTools}
-          <div key={hlNonce}>{body}</div>
+          <div key={"qbody-" + hlNonce}>{body}</div>
         </div>
       </div>
       </HlSourceContext.Provider>
@@ -298,23 +344,32 @@ export function SectionBlock({ section, secIdx, skill, answersApi, reviewById, o
     <HlSourceContext.Provider value={sectionSource}>
     <div style={{ marginBottom: 30 }}>
       <div className="section-title">{section.name}</div>
-      {section.audioUrl && (
-        <div className="player">
-          <svg className="icon"><use href="#icon-speaker" /></svg>
-          <audio
-            controls
+      {section.audioUrl &&
+        (examAudio ? (
+          <ExamAudioPlayer
             src={section.audioUrl}
-            onPlay={() => {
-              setReplays((n) => n + 1);
-              onReplay && onReplay();
-            }}
+            partLabel={section.name || `Part ${secIdx + 1}`}
+            phase={audioPhase}
+            onPhase={onAudioPhase}
+            warn={secIdx === 0}
           />
-          <span className="replay-count">Listened: {replays} times</span>
-        </div>
-      )}
+        ) : (
+          <div className="player">
+            <svg className="icon"><use href="#icon-speaker" /></svg>
+            <audio
+              controls
+              src={section.audioUrl}
+              onPlay={() => {
+                setReplays((n) => n + 1);
+                onReplay && onReplay();
+              }}
+            />
+            <span className="replay-count">Listened: {replays} times</span>
+          </div>
+        ))}
       {section.imageUrl && <DiagramImage section={section} center />}
       {questionsTools}
-      <div key={hlNonce}>{body}</div>
+      <div key={"qbody-" + hlNonce}>{body}</div>
     </div>
     </HlSourceContext.Provider>
   );
@@ -381,6 +436,7 @@ export function NoteCompletionBlock({ section, answersApi, reviewById, hlBase })
       <>
         <NoteDoc
           doc={section.noteDoc}
+          fieldsById={fieldsById}
           renderBlank={(id, key) => (
             <NoteBlankInput
               key={key}

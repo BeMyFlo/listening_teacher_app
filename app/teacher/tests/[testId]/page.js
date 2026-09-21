@@ -63,6 +63,10 @@ export default function TestBuilderPage() {
       setSaveErr("Opening time must be before closing time.");
       return;
     }
+    if (status === "published" && !(b.classIds || []).length) {
+      setSaveErr("Chọn ít nhất 1 lớp trước khi Publish — không tick lớp nào thì không học sinh nào thấy bài.");
+      return;
+    }
     setSaving(true);
     setSaveErr("");
     try {
@@ -123,7 +127,7 @@ export default function TestBuilderPage() {
         </div>
 
         <div className="form-row">
-          <label>Assign to classes (none checked = every student at Level {b.level})</label>
+          <label>Assign to classes (required — không tick lớp nào thì không học sinh nào thấy bài)</label>
           {classes.filter((c) => c.level === Number(b.level)).length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: ".85rem", margin: 0 }}>
               No classes at Level {b.level}.

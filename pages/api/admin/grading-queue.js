@@ -50,7 +50,7 @@ async function handler(req, res) {
       attemptNumber: s.attemptNumber || 1,
       href: isLesson
         ? `/teacher/lessons/${s.unitId}/submissions/${s.studentId}`
-        : `/teacher/submissions?open=${s._id}`,
+        : `/teacher/tests/${s.testId}/submissions/${s.studentId}?tab=${s.testSkill || ""}`,
     };
   });
 

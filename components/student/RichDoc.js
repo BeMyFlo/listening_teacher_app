@@ -89,51 +89,107 @@ export function TheoryDoc({ doc, renderText }) {
   return <div className="lesson-text">{doc.content.map((n, i) => theoryBlock(n, i, renderText))}</div>;
 }
 
+// Tìm id ô trống ĐẦU TIÊN trong 1 node (đệ quy vào content) — dùng để tra
+// formatLabel của khung qua field tương ứng, không cần lưu format riêng cho
+// từng khung.
+function firstBlankId(node) {
+  if (!node) return null;
+  if (node.type === "blank") return Number(node.attrs && node.attrs.id);
+  if (Array.isArray(node.content)) {
+    for (const c of node.content) {
+      const id = firstBlankId(c);
+      if (id != null) return id;
+    }
+  }
+  return null;
+}
+function firstBlankIdInNodes(nodes) {
+  for (const n of nodes || []) {
+    const id = firstBlankId(n);
+    if (id != null) return id;
+  }
+  return null;
+}
+
 // ---------- Note / Summary Completion ----------
 // renderBlank(id, key) -> element (the numbered input). Content before the
-// first horizontalRule is the instructions (outside the box).
-export function NoteDoc({ doc, renderBlank, renderText }) {
+// FIRST horizontalRule is the shared instructions (outside any box). Each
+// horizontalRule after that starts a new boxed block — lets one section carry
+// more than one instruction/word-limit group (e.g. Q31-35 "TWO WORDS ONLY",
+// Q36-40 "ONE WORD ONLY") instead of just a single instructions+box split.
+// `fieldsById` (optional) lets a khung whose questions were picked as "Flow-
+// chart Completion" render as connected boxes+arrows like the real exam,
+// instead of the plain bordered paragraph block used for every other
+// Completion format.
+export function NoteDoc({ doc, renderBlank, renderText, fieldsById }) {
   if (!doc || !Array.isArray(doc.content)) return null;
   const nodes = doc.content;
-  const dividerAt = nodes.findIndex((n) => n.type === "horizontalRule");
-  const intro = dividerAt >= 0 ? nodes.slice(0, dividerAt) : [];
-  const box = dividerAt >= 0 ? nodes.slice(dividerAt + 1) : nodes;
+
+  const segments = [[]];
+  nodes.forEach((n) => {
+    if (n.type === "horizontalRule") segments.push([]);
+    else segments[segments.length - 1].push(n);
+  });
+  const hasDivider = segments.length > 1;
+  const intro = hasDivider ? segments[0] : [];
+  const boxes = hasDivider ? segments.slice(1) : [segments[0]];
 
   const inl = (n, kb) => inlineChildren(n.content, renderBlank, renderText, kb);
 
-  const block = (node, i) => {
+  const block = (node, key) => {
     switch (node.type) {
       case "heading":
         return (node.attrs && node.attrs.level) >= 2 ? (
-          <h4 key={i} className="note-h2">
-            {inl(node, "b" + i + ":")}
+          <h4 key={key} className="note-h2">
+            {inl(node, "b" + key + ":")}
           </h4>
         ) : (
-          <h3 key={i} className="note-h1">
-            {inl(node, "b" + i + ":")}
+          <h3 key={key} className="note-h1">
+            {inl(node, "b" + key + ":")}
           </h3>
         );
       case "bulletList":
         return (
-          <ul key={i} className="note-ul">
+          <ul key={key} className="note-ul">
             {(node.content || []).map((li, k) => (
-              <li key={k}>{inl((li.content || [])[0] || {}, "b" + i + "-" + k + ":")}</li>
+              <li key={k}>{inl((li.content || [])[0] || {}, "b" + key + "-" + k + ":")}</li>
             ))}
           </ul>
         );
       case "paragraph":
       default: {
-        const kids = inl(node, "b" + i + ":");
+        const kids = inl(node, "b" + key + ":");
         const empty = !(node.content && node.content.length);
         return empty ? (
-          <div key={i} style={{ height: 8 }} />
+          <div key={key} style={{ height: 8 }} />
         ) : (
-          <p key={i} className="note-p">
+          <p key={key} className="note-p">
             {kids}
           </p>
         );
       }
     }
+  };
+
+  // Flow-chart box: mỗi paragraph (step) thành 1 khung riêng, nối bằng mũi
+  // tên xuống — heading/bulletList (nếu có, vd tiêu đề chart) vẫn hiện bình
+  // thường ở trên, không đóng khung.
+  const flowBlock = (node, key) => {
+    if (node.type === "heading" || node.type === "bulletList") return block(node, key);
+    const kids = inl(node, "b" + key + ":");
+    if (!(node.content && node.content.length)) return null;
+    return (
+      <div key={key} className="note-flow-step">
+        {kids}
+      </div>
+    );
+  };
+
+  const isFlowChartBox = (boxNodes) => {
+    if (!fieldsById) return false;
+    const id = firstBlankIdInNodes(boxNodes);
+    const f = id != null ? fieldsById[id] : null;
+    return !!(f && f.formatLabel === "Flow-chart Completion");
   };
 
   return (
@@ -143,7 +199,32 @@ export function NoteDoc({ doc, renderBlank, renderText }) {
           {inlineChildren(n.content, renderBlank, renderText, "intro" + i + ":")}
         </p>
       ))}
-      <div className="note-completion-box">{box.map((n, i) => block(n, i))}</div>
+      {boxes.map((boxNodes, bi) => {
+        if (isFlowChartBox(boxNodes)) {
+          const steps = boxNodes
+            .map((n, i) => ({ n, i, el: flowBlock(n, bi + "-" + i) }))
+            .filter((s) => s.el != null);
+          return (
+            <div key={bi} className="note-flow-chart">
+              {steps.map((s, si) => (
+                <Fragment key={s.i}>
+                  {s.el}
+                  {s.n.type !== "heading" && s.n.type !== "bulletList" && si < steps.length - 1 && (
+                    <div className="note-flow-arrow" aria-hidden="true">
+                      &#9660;
+                    </div>
+                  )}
+                </Fragment>
+              ))}
+            </div>
+          );
+        }
+        return (
+          <div key={bi} className="note-completion-box">
+            {boxNodes.map((n, i) => block(n, bi + "-" + i))}
+          </div>
+        );
+      })}
     </div>
   );
 }

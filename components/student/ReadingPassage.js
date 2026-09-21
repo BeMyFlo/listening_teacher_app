@@ -19,7 +19,7 @@ export default function ReadingPassage({ text, storageKey, noteSource = null }) 
       <div className="reading-tools-bar">
         <span className="rt-hint">
           <svg className="icon"><use href="#icon-edit" /></svg>
-          Select text in the passage to <b>highlight</b> or add a <b>note</b>
+          <span>Select text in the passage to <b>highlight</b> or add a <b>note</b></span>
         </span>
         {marks.length > 0 && (
           <button type="button" className="rt-clear" onClick={() => setMarks([])}>

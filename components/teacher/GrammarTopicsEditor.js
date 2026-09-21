@@ -3,6 +3,7 @@
 import { useState } from "react";
 import SectionsEditor from "./SectionsEditor";
 import LessonImport from "./LessonImport";
+import AiGrammarDialog from "./AiGrammarDialog";
 import { useDialog } from "@/components/ui/Dialog";
 
 function emptyTopic() {
@@ -21,10 +22,18 @@ const LESSON_FIELDS = [
   ["examples", "Examples"],
 ];
 
-export default function GrammarTopicsEditor({ topics, media, onChange }) {
+export default function GrammarTopicsEditor({ topics, media, onChange, aiContext }) {
   const dialog = useDialog();
-  const [importing, setImporting] = useState(false);
+  // null = đang đóng; -1 = nút Import chung ở trên; i = nút Import trong chủ đề i.
+  const [importTarget, setImportTarget] = useState(null);
+  const [aiOpen, setAiOpen] = useState(false);
   const [open, setOpen] = useState(0);
+
+  function addAiTopics(newTopics) {
+    onChange([...structuredClone(topics), ...newTopics]);
+    setOpen(topics.length);
+    dialog.toast(`Added ${newTopics.length} topic${newTopics.length === 1 ? "" : "s"} — review, then Save`);
+  }
 
   function patch(mut) {
     const draft = structuredClone(topics);
@@ -34,6 +43,35 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
 
   function applyImport(items) {
     const draft = structuredClone(topics);
+
+    // Import từ TRONG 1 chủ đề: chủ đề đầu trong file đổ thẳng vào chủ đề
+    // đang mở (nối thêm bài tập, giữ lý thuyết đã soạn nếu file không kèm),
+    // các chủ đề còn lại chèn ngay sau. Chủ đề tự tạo tay không có extId nên
+    // nút Import chung ở trên không bao giờ khớp vào nó.
+    if (importTarget != null && importTarget >= 0 && draft[importTarget]) {
+      const [first, ...rest] = items;
+      if (first) {
+        const t = draft[importTarget];
+        draft[importTarget] = {
+          ...t,
+          extId: t.extId || first.extId || "",
+          name: t.name || first.name || "",
+          lesson: first.lesson ? { ...t.lesson, ...first.lesson } : t.lesson,
+          exercises: [...(t.exercises || []), ...(first.exercises || [])],
+        };
+      }
+      rest.forEach((it, k) =>
+        draft.splice(importTarget + 1 + k, 0, {
+          extId: it.extId || "",
+          name: it.name || "",
+          lesson: { formula: "", whenToUse: "", commonMistakes: "", examples: "", videoUrl: "", ...(it.lesson || {}) },
+          exercises: it.exercises || [],
+        })
+      );
+      onChange(draft);
+      return;
+    }
+
     items.forEach((it) => {
       const idx = it.extId ? draft.findIndex((t) => t.extId && t.extId === it.extId) : -1;
       const topic = {
@@ -59,14 +97,24 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <h3 style={{ margin: 0 }}>Grammar topics ({topics.length})</h3>
-        <button
-          type="button"
-          className="btn secondary"
-          style={{ padding: "8px 14px", fontSize: ".85rem" }}
-          onClick={() => setImporting(true)}
-        >
-          <svg className="icon"><use href="#icon-upload" /></svg> Import from file
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setAiOpen(true)}
+          >
+            <svg className="icon"><use href="#icon-sparkles" /></svg> Create by AI
+          </button>
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setImportTarget(-1)}
+          >
+            <svg className="icon"><use href="#icon-upload" /></svg> Import from file
+          </button>
+        </div>
       </div>
 
       {topics.length === 0 && (
@@ -87,6 +135,15 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
                 value={t.name}
                 onChange={(e) => patch((d) => (d[i].name = e.target.value))}
               />
+              <button
+                type="button"
+                className="btn secondary"
+                style={{ padding: "5px 11px", fontSize: ".78rem", whiteSpace: "nowrap" }}
+                title="Import from a file into this topic"
+                onClick={() => setImportTarget(i)}
+              >
+                <svg className="icon"><use href="#icon-upload" /></svg> Import
+              </button>
               <button
                 type="button"
                 className="icon-btn"
@@ -155,12 +212,16 @@ export default function GrammarTopicsEditor({ topics, media, onChange }) {
         <svg className="icon"><use href="#icon-plus" /></svg> Add topic
       </button>
 
-      {importing && (
+      {aiOpen && (
+        <AiGrammarDialog context={aiContext} onAdd={addAiTopics} onClose={() => setAiOpen(false)} />
+      )}
+
+      {importTarget != null && (
         <LessonImport
           mode="grammar"
           existing={topics.flatMap((t) => t.exercises.flatMap((e) => e._sections || []))}
           onImport={applyImport}
-          onClose={() => setImporting(false)}
+          onClose={() => setImportTarget(null)}
         />
       )}
     </div>

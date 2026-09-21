@@ -180,7 +180,7 @@ function LessonsInner() {
           <input type="number" min="1" step="1" value={formLevel} onChange={(e) => setFormLevel(e.target.value)} />
         </div>
         <div className="form-row">
-          <label>Assign to classes (leave all unchecked = every student at this level)</label>
+          <label>Assign to classes (required for publishing — không tick lớp nào thì không học sinh nào thấy Unit này)</label>
           {classesAtLevel(Number(formLevel)).length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: ".85rem", margin: 0 }}>
               No classes at Level {formLevel} yet.
@@ -216,7 +216,7 @@ function LessonsInner() {
           <div style={{ display: "flex", gap: 10 }}>
             <select className="select-inline" value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
               <option value="all">All units</option>
-              <option value="__none__">Assigned to all students</option>
+              <option value="__none__">Not assigned to any class yet</option>
               {levelClasses.map((c) => (
                 <option key={c._id} value={String(c._id)}>
                   Class: {c.name}
