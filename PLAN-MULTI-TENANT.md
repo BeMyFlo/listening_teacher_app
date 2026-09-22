@@ -6,7 +6,7 @@
 > hay theo mô tả ở file PLAN khác — các file `PLAN-*.md` còn lại đều viết cho kiến
 > trúc single-tenant và đã lỗi thời ở điểm này.
 
-Ngày lập: 2026-09-22
+Ngày lập: 2026-09-22 · Soát lại số liệu: 2026-09-22 (xem Nhật ký mục 10)
 Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 
 ---
@@ -17,8 +17,8 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 
 | Phase | Tên | Trạng thái | Ghi chú |
 |---|---|---|---|
-| 0 | Lưới an toàn (backup, script kiểm kê, không đổi hành vi) | ☐ chưa làm | |
-| 1 | Thêm `Workspace` + `WorkspaceMember` + backfill dữ liệu cũ | ☐ chưa làm | |
+| 0 | Lưới an toàn (backup, script kiểm kê, không đổi hành vi) | ☑ xong | 2026-09-22 |
+| 1 | Thêm `Workspace` + `WorkspaceMember` + backfill dữ liệu cũ | ☑ xong | Chạy trên live 2026-09-22: 941 doc, còn thiếu 0 |
 | 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☐ chưa làm | |
 | 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ☐ chưa làm | |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☐ chưa làm | |
@@ -61,13 +61,24 @@ Không có phase nào "làm dở dang rồi deploy".
    không tin client; đồng thời tránh token cũ mang workspaceId đã lỗi thời khi
    membership đổi.
 
+4. **Ngân sách AI là của TOÀN PLATFORM, không chia theo workspace.** Admin đặt một
+   hạn mức chung (ví dụ 1 triệu đồng/tháng); mọi lượt gọi LLM của mọi giáo viên cộng
+   dồn vào cùng một con số, chạm trần là chặn tất cả. Vì vậy `AiSpend` giữ nguyên
+   `_id = "YYYY-MM"` và **không** thêm `workspaceId`.
+   Hệ quả phải biết trước: một workspace xài mạnh có thể tiêu hết quota của cả nhà.
+   Muốn chặn riêng từng workspace thì cần hạn mức theo workspace — để phase 9, cùng
+   với billing. Trước mắt `AiLog` có `workspaceId` nên admin vẫn xem được ai tiêu bao nhiêu.
+
 ---
 
 ## 1. (A) Kiến trúc hiện tại
 
 Stack: Next.js 14 (App Router cho UI + `pages/api` cho serverless) · MongoDB/Mongoose ·
 Cloudinary · Gemini · Nodemailer · Vercel + Vercel Cron.
-Quy mô: **17 model**, **37 route API**, **37 trang** (`app/**/page.js`).
+Quy mô: **20 model**, **41 route API**, **40 trang** (`app/**/page.js`).
+*(Audit gốc đếm 17/37/37; đợt tính năng AI bổ sung 3 model `AiLog`/`AiPrompt`/`AiSpend`,
+4 route `admin/ai-lesson`, `admin/test-submissions`, `sysadmin/ai-logs`, `changelog`,
+và 3 trang `admin/ai-logs`, `teacher/tests/[testId]/submissions[/[studentId]]`.)*
 
 ### 1.1 Auth & danh tính
 
@@ -133,6 +144,9 @@ User ──1:1──> Teacher ──classIds[]──> Class <──classId──
 **11 model đang hoàn toàn vô chủ**: `Class`, `Unit`, `Test`, `Audio`, `Image`, `Student`,
 `AttendanceSession`, `Submission`, `StudentNote`, `GradingJob`, `DeadlineEmailJob`.
 
+`AiLog` có `actorId`/`actorRole` (ai bấm nút) nhưng đó là **người gọi**, không phải
+**chủ sở hữu dữ liệu** — vẫn không lọc được theo workspace. Vẫn tính là vô chủ.
+
 ### B2 — Route giáo viên không lọc gì cả
 
 | Route | Vấn đề |
@@ -148,8 +162,10 @@ User ──1:1──> Teacher ──classIds[]──> Class <──classId──
 | `pages/api/admin/grading-jobs.js` | không lọc |
 | `pages/api/admin/submissions/ai-grade.js` | không kiểm tra submission có thuộc GV không |
 | `pages/api/admin/ai-settings.js` | ghi vào `AppSetting` singleton — GV này đổi model AI thì đổi cho CẢ HỆ THỐNG |
+| `pages/api/admin/test-submissions.js` | `Test.findById(req.query.testId)` trần — truyền testId bất kỳ là xem được toàn bộ bài thi + tên học sinh của GV khác |
+| `pages/api/admin/ai-lesson.js` | không ghi DB, nhưng tiêu ngân sách AI chung và ghi `AiLog` không kèm workspace |
 
-Tổng: **18 route dưới `pages/api/admin/`, chỉ 4 có scope.**
+Tổng: **20 route dưới `pages/api/admin/`, chỉ 4 có scope.**
 
 ### B3 — Leo thang đặc quyền: `pages/api/admin/teachers.js`
 
@@ -246,6 +262,9 @@ khái niệm "vào workspace nào".
 | `Ticket` | **Platform** | ⚠️ nên có, không bắt buộc | Ticket gửi cho Platform Admin. Thêm `workspaceId` chỉ để thống kê. |
 | `AuditLog` | **Platform** | ⚠️ nên có | Thêm `workspaceId` để admin lọc theo workspace |
 | `AppSetting` | **Platform** | ❌ | Cấu hình platform (model AI, safety). Phần workspace-level tách sang `Workspace.settings` khi cần. |
+| `AiLog` | **Platform** | ⚠️ nên có | Nhật ký gọi LLM. `context` chứa tên học sinh/bài → admin lọc theo workspace để không trộn dữ liệu khi đọc log. Không `required` (cron gọi LLM thì chưa chắc có workspace). TTL 30 ngày. |
+| `AiPrompt` | **Platform** | ❌ | Kho system prompt khử trùng lặp, `_id` = sha1 của nội dung. Thêm `workspaceId` sẽ **phá cơ chế dedupe** (cùng một prompt sẽ bị lưu nhiều bản). Prompt không chứa dữ liệu học sinh. |
+| `AiSpend` | **Platform** | ❌ | Ngân sách AI dùng chung toàn platform — quyết định 0.3.4. `_id` = "YYYY-MM", cộng dồn cho mọi workspace. |
 
 **Quy tắc denormalize:** `Submission`, `StudentNote`, `AttendanceSession` đều có thể suy
 ra workspace qua join. Vẫn ghi thẳng `workspaceId` lên document — vì mọi màn hình liệt kê
@@ -303,7 +322,17 @@ hiện tại chuyển thành "lớp chính" và enrollment là bảng phụ. Đ�
 
 ### 4.2 Thêm field vào model cũ
 
-`workspaceId: { type: ObjectId, ref: "Workspace", index: true }` vào 15 model ở bảng mục 3.
+`workspaceId: { type: ObjectId, ref: "Workspace", index: true }` vào **16 model** ở bảng mục 3.
+
+Trong đó **13 model bắt buộc** (Phase 4 đặt `required: true`): `Teacher`, `Student`, `Class`,
+`Unit`, `Test`, `Audio`, `Image`, `AttendanceSession`, `Submission`, `StudentNote`,
+`Notification`, `GradingJob`, `DeadlineEmailJob`.
+Và **3 model chỉ thêm field để lọc/thống kê**, **KHÔNG** đặt `required`: `Ticket`, `AuditLog`,
+`AiLog` — đây là doc tầng platform, có thể sinh ra khi chưa xác định được workspace
+(ví dụ log lần gọi LLM từ cron, hoặc audit hành động của admin). Ép `required` ở nhóm này
+là cách nhanh nhất để dính R9.
+
+`AiPrompt` và `AiSpend` **không** có `workspaceId` — xem quyết định 0.3.4 và bảng mục 3.
 
 **Phase 1–3: KHÔNG đặt `required: true`.** Field optional → dữ liệu cũ vẫn đọc được,
 code cũ vẫn chạy, deploy không gãy. Chỉ tới **Phase 4** mới siết `required` sau khi
@@ -321,6 +350,7 @@ Submission:        { workspaceId: 1, studentId: 1, submittedAt: -1 }
 Audio / Image:     { workspaceId: 1, uploadedAt: -1 }
 AttendanceSession: { workspaceId: 1, classId: 1, date: -1 }
 Notification:      { workspaceId: 1, createdAt: -1 }
+AiLog:             { workspaceId: 1, at: -1 }          ← chỉ để admin lọc; giữ nguyên TTL sẵn có
 ```
 
 ### 4.4 Quyết định về `username`
@@ -338,9 +368,10 @@ nói rõ "username này đã có người dùng trên hệ thống, hãy chọn 
 1. Tạo (hoặc tìm) workspace `slug: "ms-nhi"`, `name: "Ms Nhi English Academy"`,
    `ownerUserId` = User teacher đầu tiên theo `createdAt`.
 2. Tạo `WorkspaceMember` cho MỌI user role=teacher hiện có — role="owner" cho chủ,
-   "teacher" cho phần còn lại (giai đoạn quá độ: toàn bộ GV cũ nằm chung 1 workspace,
-   đúng như hiện trạng, không ai mất quyền). Xem Q3 ở mục 11.
-3. `updateMany({workspaceId: {$exists: false}}, {$set: {workspaceId: wsId}})` cho 15 collection.
+   "teacher" cho phần còn lại. **Thực tế đo 2026-09-22: live DB chỉ có 1 teacher
+   (`msnhi`)**, nên vòng lặp này chạy đúng 1 lần và người đó là owner. Vẫn viết dạng
+   vòng lặp để script chạy đúng cả trên DB dev (có thể có tài khoản test).
+3. `updateMany({workspaceId: {$exists: false}}, {$set: {workspaceId: wsId}})` cho 16 collection.
 4. In báo cáo: mỗi collection còn bao nhiêu doc thiếu `workspaceId` (phải = 0).
 5. Có cờ `--dry-run` in ra số lượng sẽ sửa mà không ghi.
 
@@ -365,7 +396,7 @@ Hai quy ước bắt buộc:
 
 ### 5.2 Bảng route cần sửa
 
-**Nhóm 1 — route giáo viên (18 route, `requireAuth` → `withTenant(requireAuth(...))`)**
+**Nhóm 1 — route giáo viên (20 route, `requireAuth` → `withTenant(requireAuth(...))`)**
 
 | Route | Việc phải làm |
 |---|---|
@@ -385,6 +416,8 @@ Hai quy ước bắt buộc:
 | `admin/dashboard.js` | thay scope inline bằng `tenantFilter` |
 | `admin/ai-settings.js` | **chuyển sang `sysadmin/`** (platform-level) |
 | `admin/teachers.js` | **chuyển sang `sysadmin/`** — lỗ hổng B3 |
+| `admin/test-submissions.js` | `assertOwned(Test)` trước khi dựng overview; lọc `Student`/`Submission` theo workspace |
+| `admin/ai-lesson.js` | `withTenant` để ghi `workspaceId` vào `AiLog`. Ngân sách vẫn dùng chung (0.3.4) — **không** tách quota theo workspace |
 
 **Nhóm 2 — route học sinh (7 route)**
 
@@ -403,6 +436,9 @@ Hai quy ước bắt buộc:
   dashboard/audit/storage/notifications để admin xem theo từng workspace.
 - `sysadmin/impersonate.js`: token trả về phải kèm workspace của giáo viên đó.
 - `tickets.js`: thêm `workspaceId` vào ticket để admin biết ticket từ workspace nào.
+- `sysadmin/ai-logs.js`: thêm bộ lọc workspace tuỳ chọn. Phần hiển thị ngân sách giữ
+  nguyên con số **toàn platform** — đúng theo 0.3.4, không chia theo workspace.
+- `changelog.js`: `// tenant-exempt: chỉ đọc hồ sơ của chính người đăng nhập.`
 
 **Nhóm 4 — cron**
 - `cron/deadline-scan.js`: lặp theo workspace (`for each active workspace → generate…`).
@@ -437,6 +473,8 @@ trong `pages/api/admin/` và `pages/api/student/`, báo lỗi nếu có `.find(`
 | `app/teacher/classes/page.js:76` | placeholder "e.g. IELTS 6.0 – Evening A" | placeholder trung tính |
 | `components/teacher/LessonImport.js:76,81` | tên file mẫu "IELTS_Grammar_BaiTap.xlsx" | giữ (đúng tên template thật) nhưng gắn theo program ở phase 8 |
 | `app/admin/*` | dashboard toàn cục | thêm cột/bộ lọc Workspace |
+| `app/admin/ai-logs/page.js` | log LLM toàn cục | thêm cột + bộ lọc Workspace; ô ngân sách giữ nguyên số toàn platform (0.3.4) |
+| `app/teacher/tests/[testId]/submissions/**` | không kiểm tra chủ sở hữu | GV mở test của workspace khác → trang 404 |
 
 Cần thêm 1 hook client `useWorkspace()` (đọc từ `/api/teacher/me`) và nhét workspace
 name/logo vào `components/Shell.js` — đây là điểm duy nhất mọi trang giáo viên đi qua.
@@ -471,17 +509,25 @@ name/logo vào `components/Shell.js` — đây là điểm duy nhất mọi tran
 **Mục tiêu:** có đường lùi trước khi động vào dữ liệu thật.
 
 **Việc làm**
-1. Commit `lib/teacherScope.js`, `lib/rateLimit.js`, `lib/validate.js` đang untracked
-   (đang lơ lửng ngoài git — rủi ro mất).
-2. `scripts/backup-db.js` — dump toàn bộ collection ra JSON có timestamp.
-   (Đã có `scripts/clone-db.js`, kiểm tra tái dùng được không trước khi viết mới.)
-3. `scripts/check-orphans.js` — đếm doc thiếu `workspaceId` theo từng collection.
-   Phase 0 chạy ra "tất cả đều thiếu" — đúng, đó là baseline.
-4. Ghi lại số liệu hiện trạng vào Nhật ký mục 10: bao nhiêu User/Teacher/Student/Class/
-   Unit/Test/Submission. Sau mỗi phase so lại con số này.
+1. ~~Commit `lib/teacherScope.js`, `lib/rateLimit.js`, `lib/validate.js` đang untracked.~~
+   **XONG** — cả 3 đã vào git, working tree sạch.
+2. ~~`scripts/backup-db.js` — dump toàn bộ collection ra JSON có timestamp.~~ **XONG.**
+   **Đã kiểm tra: `scripts/clone-db.js` KHÔNG tái dùng được** — nó clone DB→DB và xoá sạch
+   target trước khi ghi, không phải dump ra file. Viết mới, hoặc dùng thẳng `mongodump`.
+   Lưu ý: phải nhắm `MONGODB_URI_LIVE`; `npm run dev` đang trỏ DB dev (`scripts/use-db.js`),
+   dump nhầm DB dev là có backup rỗng mà tưởng đã an toàn.
+3. ~~`scripts/check-orphans.js` — đếm doc thiếu `workspaceId` theo từng collection.~~
+   **XONG.** Chạy trên live ra "tất cả đều thiếu" — đúng, đó là baseline (941 doc).
+4. ~~Ghi lại số liệu hiện trạng vào Nhật ký mục 10.~~ **XONG** — bảng số liệu ở mục 10,
+   mốc 2026-09-22. Sau mỗi phase so lại con số này.
+5. ~~Xoá collection rác `user` (số ít, 0 doc) trên live DB.~~ **XONG** — `--strict` pass sạch.
+6. ~~Chạy `node scripts/backup-db.js --live` lấy bản dump thật.~~ **XONG 2026-09-22.**
+   `backups/listening_app-live-20260922-144756/` — 18 collection · 965 doc · 3.3 MB.
 
 **App còn chạy không:** có, không sửa dòng code chạy nào.
-**Verify:** chạy được `node scripts/backup-db.js` ra file JSON đọc được.
+**Verify:** ~~chạy được `node scripts/backup-db.js` ra file JSON đọc được.~~ **ĐÃ VERIFY**
+trên DB dev: 22 collection / 52 doc, EJSON parse ngược lại giữ đúng kiểu `ObjectId` và
+`Date`, `_meta.json` có đủ index (kể cả `username_1` unique).
 **Rollback:** không cần.
 
 ---
@@ -491,14 +537,16 @@ name/logo vào `components/Shell.js` — đây là điểm duy nhất mọi tran
 **Mục tiêu:** mọi document hiện có đều thuộc về 1 workspace. **Chưa có code nào đọc nó.**
 
 **Việc làm**
-1. `lib/models/Workspace.js`, `lib/models/WorkspaceMember.js` (schema mục 4.1).
-2. Thêm `workspaceId` **optional** vào 15 model (mục 4.2).
-3. `scripts/migrate-workspace.js` (mục 4.5), chạy `--dry-run` trước.
-4. Chạy thật trên production DB. Kiểm tra `check-orphans.js` = 0 ở mọi collection.
+1. ~~`lib/models/Workspace.js`, `lib/models/WorkspaceMember.js` (schema mục 4.1).~~ **XONG.**
+2. ~~Thêm `workspaceId` **optional** vào 16 model (mục 4.2).~~ **XONG.**
+3. ~~`scripts/migrate-workspace.js` (mục 4.5).~~ **XONG.** Mặc định là dry-run, phải có
+   `--apply` mới ghi — theo đúng quy ước của `scripts/clone-db.js`.
+4. ~~Chạy thật trên live DB. Kiểm tra `check-orphans.js` = 0 ở mọi collection.~~
+   **XONG 2026-09-22** — 941 doc, còn thiếu 0. Xem Nhật ký mục 10.
 
 **App còn chạy không:** có. Field mới optional, không route nào đọc → hành vi y hệt.
 **Verify:**
-- `check-orphans.js` in ra 0 ở cả 15 collection;
+- `check-orphans.js` in ra 0 ở cả 13 collection bắt buộc;
 - đăng nhập bằng tài khoản GV thật + tài khoản HS thật, xem dashboard/lessons/tests
   vẫn đủ dữ liệu như trước (so với số liệu Phase 0).
 
@@ -564,8 +612,11 @@ Chạy xong **xoá sạch WS-B** khỏi DB thật.
 **Mục tiêu:** biến cô lập từ "quy ước" thành "ràng buộc DB".
 
 **Việc làm**
+0. **Chạy lại `migrate-workspace.js --live --apply` để quét phần trôi dạt.** Bắt buộc, không
+   phải tuỳ chọn — xem mục 8.1 ngay dưới. Script idempotent nên chạy lại vô hại.
 1. Chạy `check-orphans.js` — **phải = 0**, không thì dừng.
-2. `workspaceId: { required: true }` cho 15 model.
+2. `workspaceId: { required: true }` cho **13 model bắt buộc** (mục 4.2) — KHÔNG đặt cho
+   `Ticket`, `AuditLog`, `AiLog`.
 3. Thêm index mục 4.3.
 4. Gắn `check-tenant-scope.js` vào `npm run build`.
 5. Đảo mặc định `lib/teacherScope.js`: bỏ `{all: true}` khi `classIds` rỗng → trong
@@ -575,6 +626,32 @@ Chạy xong **xoá sạch WS-B** khỏi DB thật.
 **App còn chạy không:** có — với điều kiện bước 1 sạch.
 **Verify:** build pass; tạo mới mọi loại entity thành công; `check-orphans` = 0.
 **Rollback:** gỡ `required` (chỉ là schema, không đụng dữ liệu).
+
+---
+
+### 8.1 Trôi dạt giữa Phase 1 và Phase 3 — đọc trước khi lo lắng
+
+Phase 1 đóng dấu xong là `check-orphans` ra 0. Con số đó **không ổn định**: nó là ảnh chụp
+tại một thời điểm, không phải trạng thái được duy trì.
+
+Lý do: Phase 1 chỉ sửa dữ liệu CŨ. Việc gán `workspaceId` cho document MỚI là Phase 3. Giữa
+hai mốc đó app vẫn đang chạy và vẫn tạo document mới không có field — mỗi lần học sinh đăng
+nhập, nộp bài, ghi chú, mỗi lần cron gửi thông báo.
+
+Quan sát thực tế 2026-09-22: migration chạy xong lúc 07:58, tới 08:02 đã có 1 `auditlog` mới
+thiếu `workspaceId` — một học sinh đăng nhập. Lần đó rơi vào nhóm tuỳ chọn nên `--strict` vẫn
+pass; nếu em đó **nộp bài** thì document rơi vào `submissions`, thuộc nhóm bắt buộc, và
+`--strict` sẽ fail.
+
+Hệ quả cho cách làm việc:
+- **Đừng coi `check-orphans = 0` sau Phase 1 là đã xong vĩnh viễn.** Càng để lâu giữa Phase 1
+  và Phase 3, số document trôi dạt càng nhiều.
+- **Phase 4 phải chạy lại migration trước khi siết `required`** (bước 0 ở trên). Không làm thì
+  đúng rủi ro R9: doc mồ côi + `required: true` = app 500 khi lưu.
+- Trôi dạt **không** gây hại trong lúc chờ: Phase 2 chỉ lọc ở chiều ĐỌC của route giáo viên,
+  và document mới thiếu field chỉ đơn giản là không hiện ra ở màn hình giáo viên cho tới khi
+  được quét. Không mất dữ liệu, không lỗi.
+- Rút ngắn khoảng cách Phase 1 → Phase 3 là cách giảm trôi dạt rẻ nhất.
 
 ---
 
@@ -729,6 +806,144 @@ Cô lập dữ liệu là thứ duy nhất mà làm sai sẽ gây sự cố vớ
 - Lập file này. **Chưa sửa dòng code nào.**
 - Số liệu baseline: *(chưa đo — việc đầu tiên của Phase 0)*
 
+### 2026-09-22 — Soát lại số liệu + chốt 2 quyết định *(vẫn chưa sửa dòng code chạy nào)*
+
+**Đo baseline trên live DB `listening_app`** (chỉ đọc, qua `scripts/db-info.js`):
+
+| Collection | Doc | | Collection | Doc |
+|---|---|---|---|---|
+| users | 23 | | submissions | 476 |
+| teachers | **1** | | notifications | 354 |
+| students | 21 | | attendancesessions | 22 |
+| classes | 5 | | audios | 20 |
+| units | 6 | | studentnotes | 13 |
+| tests | 3 | | images | 3 |
+| tickets | 8 | | auditlogs | 8 |
+| appsettings | 1 | | gradingjobs / deadlineemailjobs | 0 / 0 |
+
+`users by role`: student 21 · admin 1 · **teacher 1**.
+
+**Q3 khép lại.** Chỉ có duy nhất tài khoản teacher `msnhi`. Phương án "chung 1 workspace"
+và "tách mỗi người 1 workspace" cho ra kết quả giống hệt nhau → script migration chỉ tạo
+đúng 1 workspace, không cần cờ lựa chọn. Bỏ luôn bước 2 phức tạp ở mục 4.5 (phân loại
+owner vs teacher cho GV cũ): chỉ có 1 người, người đó là owner.
+
+**Chốt ngân sách AI: dùng chung toàn platform** → quyết định 0.3.4. `AiSpend` và `AiPrompt`
+không có `workspaceId`; chỉ `AiLog` có, và chỉ để lọc khi đọc log.
+
+### 2026-09-22 — Phase 1: code xong, đã chạy thật trên DB dev
+
+**Đã thêm:** `lib/models/Workspace.js`, `lib/models/WorkspaceMember.js`,
+`scripts/migrate-workspace.js`. Thêm `workspaceId` optional vào đúng 16 model.
+
+Ghi chú thiết kế:
+- `migrate-workspace.js` duyệt theo **tên MODEL**, không phải tên collection. Tên
+  collection suy ra từ `Model.collection.name` nên script không thể lệch khỏi schema —
+  đây là cách rẻ nhất để không bao giờ sót collection.
+- "Thiếu workspaceId" định nghĩa là `$exists: false` **hoặc** `null`. Chỉ bắt `$exists`
+  là sót doc có field nhưng giá trị null, mà loại đó cũng không khớp filter ở Phase 2.
+- Mặc định dry-run, `--apply` mới ghi (quy ước của `clone-db.js`).
+- `Workspace.slugify()` bỏ dấu tiếng Việt vì slug đi vào đường dẫn Cloudinary ở Phase 7.
+
+**Chu trình đã chạy trên DB dev `msnhiapp_dev`:**
+
+| Bước | Kết quả |
+|---|---|
+| dry-run | 40 doc sẽ sửa — khớp `check-orphans --dev` |
+| `--apply` | tạo workspace `ms-nhi` + 1 member, gán 40 doc, còn thiếu **0** |
+| chạy lại `--apply` | thêm **0** member, sửa **0** doc → idempotent đạt |
+| `check-orphans --dev --strict` | 0/13 collection bắt buộc còn thiếu |
+
+**Dry-run trên live: 941 doc** — khớp đúng baseline đo bằng `check-orphans.js`. Hai script
+viết độc lập ra cùng một con số.
+
+**`check-orphans.js` lại bắt được chính mình:** sau khi migrate trên dev, nó cảnh báo
+`workspaces` và `workspacemembers` chưa phân loại. Đã thêm vào nhóm PLATFORM — `workspaces`
+chính nó là tenant, `workspacemembers` có `workspaceId` là khoá và đã `required` ở schema.
+
+### 2026-09-22 — Phase 1 CHẠY XONG TRÊN LIVE ☑
+
+`node scripts/migrate-workspace.js --live --apply`
+
+- Tạo workspace `ms-nhi` — `_id 6ab235caa6ad60d972a35f0a`, "Ms Nhi English Academy",
+  owner = user `msnhi`, status active, locale vi, tz Asia/Ho_Chi_Minh, subjects ["english"].
+- Tạo 1 `WorkspaceMember` role owner.
+- Đóng dấu `workspaceId` cho **941 document** trên 16 collection. Còn thiếu: **0**.
+
+**Ba lớp kiểm tra độc lập sau khi chạy:**
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `check-orphans.js --live` | 0 thiếu ở cả 16 collection, 0/13 nhóm bắt buộc |
+| Tất cả doc có trỏ về CÙNG một workspace không? | Có — `distinct("workspaceId")` trên 16 collection chỉ ra đúng **1** giá trị, và đúng bằng `_id` của workspace vừa tạo |
+| `ownerUserId` có trỏ tới user thật không? | Có — `msnhi`, role teacher |
+
+Lớp kiểm tra thứ hai là thứ hai script kia không làm: nếu migration lỡ gán hai workspaceId
+khác nhau thì `check-orphans` vẫn báo sạch (doc nào cũng "có" field), nhưng tới Phase 2
+bật lọc là một nửa dữ liệu biến mất. Đã xác nhận không xảy ra.
+
+**App không đổi hành vi:** field optional, chưa route nào đọc. Không deploy gì kèm theo.
+
+**Phase 0 khép lại:** collection rác `user` đã xoá, `check-orphans --live --strict` exit 0.
+
+**Quan sát ngay sau đó — trôi dạt bắt đầu luôn:** 08:02, tức 4 phút sau migration, đã có 1
+`auditlog` mới thiếu `workspaceId` (học sinh "Trung Hiếu" đăng nhập). Đây là hành vi ĐÚNG
+— gán field cho document mới là việc của Phase 3 — nhưng nó cho thấy con số 0 chỉ là ảnh
+chụp. Đã viết thành mục 8.1 và thêm bước 0 vào Phase 4.
+
+Tiện thể xác nhận được một điều: **app vẫn chạy bình thường sau khi sửa 941 document** —
+có học sinh thật đăng nhập thành công ngay sau đó.
+
+→ **Sẵn sàng cho Phase 2** (`lib/tenant.js` + áp bộ lọc cho mọi route ĐỌC).
+
+**Ba việc phát sinh từ đợt tính năng AI** (audit gốc chưa thấy vì code ra sau):
+- Số liệu thật: **20 model · 41 route · 40 trang** (audit gốc ghi 17/37/37). Đã sửa mục 1,
+  bảng mục 3, mục 4.2, mục 4.3, mục 5.2, mục 6.
+- `pages/api/admin/test-submissions.js` là **lỗ hở cùng loại B2 và chưa từng được liệt kê**:
+  `Test.findById(req.query.testId)` không kiểm tra gì. Đã thêm vào bảng B2 và bảng 5.2.
+- `ailogs` / `aiprompts` / `aispends` **chưa tồn tại trên live DB** (tính năng vừa merge,
+  Mongo tạo collection lười). Nghĩa là Phase 1 không phải backfill gì cho nhóm này —
+  chỉ thêm field vào schema `AiLog` là xong.
+
+**Việc dọn dẹp nhỏ:** live DB có collection `user` (số ít) rỗng 0 doc — rác, tên đúng là
+`users`. Xoá trước khi chạy migration cho đỡ nhầm.
+
+**Phase 0 — đã viết 2 script** (`scripts/check-orphans.js`, `scripts/backup-db.js`, dùng chung
+`scripts/dbTarget.js`). Ghi chú thiết kế:
+- Không script nào có DB mặc định — bắt buộc `--live` / `--dev` / URI. Vì `scripts/use-db.js`
+  ghi đè `MONGODB_URI` mỗi lần đổi, đọc biến đó ra là không biết đang trỏ đâu.
+- `backup-db.js` ghi **EJSON** chứ không phải `JSON.stringify`: JSON thường biến `ObjectId`
+  thành chuỗi, dump vẫn đọc được nhưng restore vào là sai toàn bộ tham chiếu — tức là có
+  backup mà không dùng được. Lưu cả index (thiếu index unique khi restore = trùng username).
+- `backups/` đã thêm vào `.gitignore` — dump chứa tên/email/bài làm học sinh thật.
+- `check-orphans.js` **cảnh báo collection chưa phân loại**, không chỉ đếm. Đây mới là phần
+  chống được kịch bản hỏng của Phase 1 (quên một collection → Phase 2 bật lọc → doc biến mất
+  im lặng).
+
+**Baseline thiếu `workspaceId` (live, 2026-09-22): 941 document**, 11/13 collection bắt buộc.
+`deadlineemailjobs` và `gradingjobs` đang rỗng nên đã = 0 sẵn. `ailogs` chưa tồn tại.
+
+**Đã có bản dump live:** `backups/listening_app-live-20260922-144756/` — 18 collection,
+**965 document**, 3.3 MB (nặng nhất: `submissions` 2.0 MB, `units` 865 KB, `notifications`
+253 KB). Kiểm tra lại bản dump: parse ngược đủ 965 doc, số lượng từng collection khớp
+`_meta.json`, `_id` giữ kiểu `ObjectId`, `submittedAt` giữ kiểu `Date`, index của `users`
+có đủ (`username_1`, `role_1`, `teacherId_1`, `studentId_1`), connection string trong
+`_meta.json` đã che credentials.
+
+Đối chiếu hai con số cho khớp: 965 tổng − 941 thiếu = 24 = `users` 23 + `appsettings` 1
++ `user` 0. Đúng bằng nhóm platform không cần `workspaceId` → không sót collection nào.
+
+**Hai thứ `check-orphans.js` phát hiện ngay lần chạy đầu:**
+- Live DB: collection rác `user` (số ít, 0 doc) — chưa phân loại, cần xoá.
+- Dev DB: `conversations` và `messages` — của tính năng chat lớp, đang nằm ở nhánh
+  `feature/class-chat` **chưa merge vào main**. Khi nhánh đó merge thì hai collection này
+  phải được phân loại vào bảng mục 3 (nhiều khả năng là Workspace-level, qua `Class`) và
+  thêm vào `REQUIRED` trong script. Chưa làm bây giờ vì code chưa có trên main.
+(Việc số ① "commit file untracked" đã xong — `lib/teacherScope.js`, `lib/rateLimit.js`,
+`lib/validate.js` đều đã vào git. Việc số ④ đo baseline: xong, chính là bảng trên.
+`scripts/clone-db.js` **không** tái dùng được cho backup — nó clone DB→DB và xoá sạch
+target trước khi ghi, không phải dump ra JSON.)
+
 ---
 
 ## 11. Câu hỏi còn treo (cần quyết trước khi tới phase tương ứng)
@@ -737,6 +952,7 @@ Cô lập dữ liệu là thứ duy nhất mà làm sai sẽ gây sự cố vớ
 |---|---|---|
 | Q1 | Tên + logo của **platform** là gì? ("Ms Nhi" sẽ chỉ còn là tên workspace) | 7 |
 | Q2 | Mở signup tự do hay phải có mã mời / admin duyệt? | 6 |
-| Q3 | Giáo viên hiện có (ngoài cô Nhi) — nằm chung workspace với cô, hay tách mỗi người một workspace? Quyết định này đổi logic script migration. | 1 |
+| ~~Q3~~ | ~~Giáo viên hiện có (ngoài cô Nhi) — nằm chung workspace hay tách riêng?~~ **ĐÃ TRẢ LỜI 2026-09-22: câu hỏi không còn tồn tại — live DB chỉ có đúng 1 tài khoản teacher (`msnhi`).** Script chỉ cần tạo 1 workspace. | ~~1~~ |
 | Q4 | TOEIC chưa có rubric chấm Writing/Speaking. Tạm dùng rubric IELTS, hay ẩn 2 kỹ năng đó với program TOEIC? | 8 |
 | Q5 | Có giới hạn số HS/dung lượng theo workspace ngay từ V1 không, hay để sau cùng với billing? | 6 |
+| Q6 | Ngân sách AI dùng chung toàn platform (0.3.4) — khi một workspace tiêu hết quota làm cả nhà bị chặn thì xử lý ra sao: admin nâng trần tay, hay cảnh báo sớm theo workspace? | 6 |
