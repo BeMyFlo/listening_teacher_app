@@ -19,7 +19,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 |---|---|---|---|
 | 0 | Lưới an toàn (backup, script kiểm kê, không đổi hành vi) | ☑ xong | 2026-09-22 |
 | 1 | Thêm `Workspace` + `WorkspaceMember` + backfill dữ liệu cũ | ☑ xong | Chạy trên live 2026-09-22: 941 doc, còn thiếu 0 |
-| 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☐ chưa làm | |
+| 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☐ chưa làm | **Có tài liệu thi hành riêng: [PLAN-PHASE2-TENANT-READ.md](PLAN-PHASE2-TENANT-READ.md)** |
 | 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ☐ chưa làm | |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☐ chưa làm | |
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☐ chưa làm | |
@@ -396,7 +396,10 @@ Hai quy ước bắt buộc:
 
 ### 5.2 Bảng route cần sửa
 
-**Nhóm 1 — route giáo viên (20 route, `requireAuth` → `withTenant(requireAuth(...))`)**
+**Nhóm 1 — route giáo viên (20 route, `requireAuth(handler)` → `requireAuth(withTenant(handler))`)**
+
+> Thứ tự bọc: `withTenant` nằm **bên trong** `requireAuth`, vì `requireAuth` mới là
+> lớp xác thực token và gán `req.auth` — thứ mà `withTenant` cần đọc.
 
 | Route | Việc phải làm |
 |---|---|
@@ -556,6 +559,14 @@ Code chưa phụ thuộc gì nên gỡ sạch được.
 ---
 
 ### Phase 2 — `lib/tenant.js` + áp cho mọi route ĐỌC *(2 ngày)*
+
+> **Phase này có tài liệu thi hành chi tiết riêng: [PLAN-PHASE2-TENANT-READ.md](PLAN-PHASE2-TENANT-READ.md)**
+> — mã nguồn đầy đủ của `lib/tenant.js`, bảng 26 route kèm số dòng đã đối chiếu
+> với code thật, quy trình nghiệm thu và checklist. Phần dưới đây là bản tóm tắt.
+>
+> **Đính chính so với mục 5.2:** thứ tự bọc middleware phải là
+> `requireAuth(withTenant(handler))`, **không** phải `withTenant(requireAuth(...))`.
+> `requireAuth` mới là lớp gán `req.auth`, nên `withTenant` phải nằm bên trong.
 
 **Mục tiêu:** bật cô lập ở chiều đọc. Vì Phase 1 đã gán mọi thứ vào **cùng một**
 workspace, bật lọc lên là **no-op** — đây chính là lý do tách phase như vậy.
