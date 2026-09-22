@@ -82,7 +82,13 @@ async function handler(req, res) {
       }
       if (role === "student") {
         if (!b.classId) return res.status(400).json({ ok: false, error: "Please select a class" });
-        const { user } = await users.createStudent(b);
+        // Route này là platform-level (requireRole("admin")), không có req.ws.
+        // Workspace của học sinh = workspace của lớp được chọn.
+        const cls = await Class.findById(b.classId).select("workspaceId").lean();
+        if (!cls || !cls.workspaceId) {
+          return res.status(400).json({ ok: false, error: "That class does not belong to a workspace yet" });
+        }
+        const { user } = await users.createStudent({ ...b, workspaceId: cls.workspaceId });
         return res.status(201).json({ ok: true, user: { _id: user._id, username: user.username } });
       }
       return res.status(400).json({ ok: false, error: "role must be admin, teacher or student" });

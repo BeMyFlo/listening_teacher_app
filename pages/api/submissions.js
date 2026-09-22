@@ -124,6 +124,7 @@ async function handler(req, res) {
     const { score, total, detail } = gradeSubmission(test.skills[skill], answers || {});
 
     const submission = await Submission.create({
+      workspaceId: req.ws.workspaceId,
       studentId: student._id,
       studentName: student.name,
       kind: "test",
@@ -185,6 +186,7 @@ async function handler(req, res) {
     const { score, total, detail } = gradeSubmission(exercise, answers || {});
     const { isLate, dueAt } = unitLateness(unit, student, categoryKey);
     const submission = await Submission.create({
+      workspaceId: req.ws.workspaceId,
       studentId: student._id,
       studentName: student.name,
       kind: "exercise",
@@ -240,6 +242,7 @@ async function handler(req, res) {
       if (!prompt) return res.status(404).json({ ok: false, error: "Prompt not found" });
 
       const submission = await Submission.create({
+        workspaceId: req.ws.workspaceId,
         studentId: student._id,
         studentName: student.name,
         kind,
@@ -331,6 +334,7 @@ async function handler(req, res) {
     const isLate = inheritLate ? inheritLate.isLate : computed.isLate;
     const dueAt = inheritLate ? inheritLate.dueAt : computed.dueAt;
     const submission = await Submission.create({
+      workspaceId: req.ws.workspaceId,
       studentId: student._id,
       studentName: student.name,
       kind,

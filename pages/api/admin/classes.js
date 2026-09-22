@@ -48,7 +48,7 @@ async function handler(req, res) {
     if (!Number.isInteger(level) || level < 1) {
       return res.status(400).json({ ok: false, error: "Please select a valid level" });
     }
-    const cls = await Class.create({ name, level });
+    const cls = await Class.create({ name, level, workspaceId: req.ws.workspaceId });
     return res.status(201).json({ ok: true, class: cls });
   }
 

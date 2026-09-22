@@ -71,6 +71,7 @@ async function handler(req, res) {
   }
 
   const job = await GradingJob.create({
+    workspaceId: req.ws.workspaceId,
     submissionId: id,
     kind: submission.kind,
     status: "pending",

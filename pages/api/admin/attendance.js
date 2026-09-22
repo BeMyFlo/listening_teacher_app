@@ -165,6 +165,7 @@ async function handler(req, res) {
 
     const roster = await rosterFor(req.ws, cid);
     const session = await AttendanceSession.create({
+      workspaceId: req.ws.workspaceId,
       classId: cid,
       number,
       date,

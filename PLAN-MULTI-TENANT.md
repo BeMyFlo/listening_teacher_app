@@ -19,8 +19,8 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 |---|---|---|---|
 | 0 | Lưới an toàn (backup, script kiểm kê, không đổi hành vi) | ☑ xong | 2026-09-22 |
 | 1 | Thêm `Workspace` + `WorkspaceMember` + backfill dữ liệu cũ | ☑ xong | Chạy trên live 2026-09-22: 941 doc, còn thiếu 0 |
-| 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ code xong, **CHƯA deploy được** | 26/26 route. 🔴 Phải deploy chung bước 1–2 Phase 3 — mục 8.1.1 |
-| 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ☐ chưa làm | |
+| 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ code xong, **deploy được cùng Phase 3 bước 1–2** | 26/26 route. Gói gỡ chặn (Phase 3 bước 1–2) đã xong 2026-09-22 — xem Nhật ký |
+| 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ◐ bước 1–2 xong (gói gỡ chặn), bước 3–5 chưa | 2026-09-22 (Sonnet, theo PLAN-PHASE3-STEP12-WRITE-STAMP.md) |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☐ chưa làm | |
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☐ chưa làm | |
 | 6 | Self-serve signup + onboarding + Workspace Settings | ☐ chưa làm | |
@@ -1108,6 +1108,62 @@ có đủ (`username_1`, `role_1`, `teacherId_1`, `studentId_1`), connection str
 `lib/validate.js` đều đã vào git. Việc số ④ đo baseline: xong, chính là bảng trên.
 `scripts/clone-db.js` **không** tái dùng được cho backup — nó clone DB→DB và xoá sạch
 target trước khi ghi, không phải dump ra JSON.)
+
+### 2026-09-22 — Phase 3 bước 1–2 XONG (thi hành theo PLAN-PHASE3-STEP12-WRITE-STAMP.md) ☑
+
+Thi hành bởi Sonnet. Đây là gói gỡ chặn deploy cho Phase 2 (mục 8.1.1). **Phase 2 + gói
+này giờ deploy được cùng một lần.**
+
+**Đã sửa 14 file:**
+- 8 route trong nhóm 1 chỗ `.create()`: `admin/classes.js`, `admin/units.js`,
+  `admin/tests.js`, `admin/audio.js`, `admin/images.js`, `admin/attendance.js`,
+  `admin/submissions/ai-grade.js`, `student/notes.js`.
+- `pages/api/submissions.js` — cả **4** chỗ `Submission.create()`.
+- `lib/users.js` — `createStudent` giờ **bắt buộc** `workspaceId` (throw nếu thiếu, không
+  tạo tài khoản chết); `createTeacher` nhận `workspaceId` **tuỳ chọn** (tạo teacher đúng
+  nghĩa cần Workspace + WorkspaceMember mới, đó là Phase 5, chưa làm ở gói này).
+- `admin/students.js`, `sysadmin/users.js` — 2 chỗ gọi `createStudent`. Route sysadmin là
+  platform-level (không có `req.ws`), workspace suy từ `Class` được chọn.
+- `lib/notifications/index.js` — `emit()` giờ tự suy `workspaceId` từ người nhận
+  (`Student`/`Teacher`) khi chỗ gọi không truyền vào, thay vì bắt cả 6 chỗ gọi tự nhớ.
+  Không throw khi không suy được (thông báo là việc phụ, chạy ngầm).
+- `lib/notifications/deadlineAssign.js` — `DeadlineEmailJob.create` lấy `workspaceId` từ
+  `unit` đang cầm sẵn.
+- `pages/api/student/notes.js` — 2 truy vấn ghi còn sót (`findOneAndUpdate`/`deleteOne`)
+  bọc `tenantFilter`.
+
+**Phát hiện ngoài phạm vi `.create()` — chỗ dễ bỏ sót nhất của cả gói:**
+`lib/notifications/index.js` tạo `Notification` bằng `findOneAndUpdate` + `upsert`, không
+`.create()`, nên không lộ ra khi grep. `Notification` thuộc nhóm bắt buộc và
+`pages/api/notifications.js` đã lọc theo workspace từ Phase 2 — nếu bỏ sót thì chuông của
+học sinh sẽ âm thầm ngừng hiện thông báo mới. Đã sửa theo đúng mục 3.1 của tài liệu thi hành.
+
+**Nghiệm thu — tái hiện lại đúng 3 thí nghiệm đã chứng minh Phase 2 hỏng, cộng 2 kịch bản
+mới, gọi thẳng handler trên DB dev (không dùng dev server):**
+
+| # | Kịch bản | Trước gói này | Sau (kết quả thật) |
+|---|---|---|---|
+| 1 | POST `/api/admin/classes` rồi GET danh sách | tạo xong không thấy, mở ra 404 | `201` → **có trong danh sách** → GET theo id **200** |
+| 2 | `admin/students.js` tạo học sinh mới rồi gọi 6 route học sinh | 403 tất cả | `201`, `workspaceId` đúng workspace của lớp → **cả 6 route 200** |
+| 3 | Tạo `Submission` với `workspaceId` rồi GET `/api/submissions` | không thấy bài vừa nộp | **thấy** (7 → 8 dòng, đúng bài vừa tạo) |
+| 4 | `notifications.emit({studentId,...})` rồi GET `/api/notifications` | (chưa kiểm tra ở Phase 2) | `emit()` tự suy đúng `workspaceId`, thông báo **hiện trong chuông** |
+| 5 | `sysadmin/users.js` POST role=student với `classId` hợp lệ | (chưa kiểm tra ở Phase 2) | `201`, học sinh gọi `/api/units` **200** |
+
+**Tĩnh:** `node --check` toàn bộ 14 file sạch. `check-tenant-scope.js --strict` — 0 vi phạm.
+
+**`check-orphans.js --dev --strict`:** `Nhóm bắt buộc còn thiếu: 0/13`, tổng thiếu toàn DB
+dev **0** (kể cả nhóm tuỳ chọn — dọn luôn 5 dòng `auditlog` sinh ra từ chính các lệnh test ở
+trên, dù `AuditLog` không bắt buộc). `--strict` vẫn exit 1 nhưng chỉ vì cảnh báo
+`conversations`/`messages` chưa phân loại — hai collection đó thuộc nhánh
+`feature/class-chat` chưa merge vào `main`, đã ghi nhận từ Phase 0, không thuộc phạm vi
+gói này.
+
+**Không lấn sang bước 3–5** của Phase 3 (kiểm tra tham chiếu chéo cùng workspace, bỏ chặn
+403 tạo lớp, cron lặp theo workspace, đảo fallback B7, sang sysadmin của teachers/ai-settings).
+Commit tách riêng khỏi phần đó, để revert độc lập được nếu cần.
+
+→ **Phase 2 + Phase 3 bước 1–2 sẵn sàng deploy cùng một lần.** Việc tiếp theo: Phase 3
+bước 3–5, sau đó Phase 4.
 
 ---
 

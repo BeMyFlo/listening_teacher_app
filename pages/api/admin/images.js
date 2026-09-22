@@ -31,7 +31,7 @@ async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Missing uploaded file information" });
     }
 
-    const image = await Image.create({ title, unit, cloudinaryUrl, cloudinaryPublicId });
+    const image = await Image.create({ title, unit, cloudinaryUrl, cloudinaryPublicId, workspaceId: req.ws.workspaceId });
     return res.status(201).json({ ok: true, image });
   }
 

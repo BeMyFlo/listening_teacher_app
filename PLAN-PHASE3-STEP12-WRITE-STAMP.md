@@ -6,7 +6,7 @@
 >
 > **Đọc hết mục 0 trước khi gõ dòng code đầu tiên.**
 
-Trạng thái: ☐ chưa bắt đầu · Ngày lập: 2026-09-22
+Trạng thái: ☑ XONG 2026-09-22 (thi hành bởi Sonnet) · Ngày lập: 2026-09-22 · Kết quả đầy đủ: PLAN-MULTI-TENANT.md mục 10
 Tiền đề: Phase 2 đã code xong (commit `2748237`), **chưa deploy**.
 
 ---
@@ -362,13 +362,13 @@ Cập nhật `PLAN-MULTI-TENANT.md`: bảng 0.1 đổi Phase 3 sang ◐ (bước
 
 ## 6. Checklist
 
-- [ ] 1. 12 chỗ `.create()` trong route (mục 1)
-- [ ] 2. Kiểm ngay kịch bản 1 — tạo lớp phải thấy lại
-- [ ] 3. `lib/users.js` + 2 chỗ gọi (mục 2)
-- [ ] 4. Kiểm ngay kịch bản 2 — học sinh mới không còn 403
-- [ ] 5. `lib/notifications/index.js` `emit()` + `deadlineAssign.js` (mục 3)
-- [ ] 6. `student/notes.js` 2 truy vấn (mục 4)
-- [ ] 7. Nghiệm thu 5.1 → 5.2 → 5.3, dọn dữ liệu test
+- [x] 1. 12 chỗ `.create()` trong route (mục 1)
+- [x] 2. Kiểm ngay kịch bản 1 — tạo lớp phải thấy lại
+- [x] 3. `lib/users.js` + 2 chỗ gọi (mục 2)
+- [x] 4. Kiểm ngay kịch bản 2 — học sinh mới không còn 403
+- [x] 5. `lib/notifications/index.js` `emit()` + `deadlineAssign.js` (mục 3)
+- [x] 6. `student/notes.js` 2 truy vấn (mục 4)
+- [x] 7. Nghiệm thu 5.1 → 5.2 → 5.3, dọn dữ liệu test
 - [ ] 8. Cập nhật plan, commit **một commit riêng**
 
 Bước 2 và 4 là chốt chặn: sai thì dừng, đừng làm tiếp.
@@ -380,3 +380,8 @@ Bước 2 và 4 là chốt chặn: sai thì dừng, đừng làm tiếp.
 | # | Câu hỏi | File/dòng | Trạng thái |
 |---|---|---|---|
 | | | | |
+
+Không gặp chỗ nào tài liệu không nói tới — mọi bước đều mapping thẳng theo mục 1–4, kể cả
+`sysadmin/users.js` (§2.3, `Class` đã import sẵn nên bỏ dòng `require` mẫu trong tài liệu)
+và `admin/attendance.js` (không nằm trong bảng bước 1A vì route đó không tạo document mới
+ở nhánh đã sửa — chỉ có 1 `.create()` cho `AttendanceSession`, đã liệt kê đúng ở mục 1).

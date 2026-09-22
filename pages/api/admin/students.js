@@ -71,6 +71,7 @@ async function handler(req, res) {
         password: (req.body && req.body.password) || "",
         email: (req.body && req.body.email) || "",
         classId: cls._id,
+        workspaceId: req.ws.workspaceId,
       });
       return res.status(201).json({
         ok: true,

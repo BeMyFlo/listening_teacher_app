@@ -130,6 +130,7 @@ async function handler(req, res) {
     if (schedule.error) return res.status(400).json({ ok: false, error: schedule.error });
 
     const test = await Test.create({
+      workspaceId: req.ws.workspaceId,
       title: String(title).trim(),
       unit: String(unit || "").trim(),
       level,

@@ -141,6 +141,7 @@ async function handler(req, res) {
     if (deadlines.error) return res.status(400).json({ ok: false, error: deadlines.error });
 
     const unit = await Unit.create({
+      workspaceId: req.ws.workspaceId,
       level,
       name: String(name).trim(),
       order: Number(req.body.order) || 0,

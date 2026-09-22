@@ -39,6 +39,7 @@ async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Note cannot be empty" });
     }
     const note = await StudentNote.create({
+      workspaceId: req.ws.workspaceId,
       studentId,
       body: S(body, 4000).trim(),
       quote: S(quote, 2000),
@@ -61,13 +62,13 @@ async function handler(req, res) {
     }
     if (req.body && typeof req.body.color === "string") patch.color = S(req.body.color, 20);
     if (req.body && typeof req.body.pinned === "boolean") patch.pinned = req.body.pinned;
-    const note = await StudentNote.findOneAndUpdate({ _id: id, studentId }, patch, { new: true }).lean();
+    const note = await StudentNote.findOneAndUpdate(tenantFilter(req.ws, { _id: id, studentId }), patch, { new: true }).lean();
     if (!note) return res.status(404).json({ ok: false, error: "Note not found" });
     return res.status(200).json({ ok: true, note });
   }
 
   if (req.method === "DELETE") {
-    const r = await StudentNote.deleteOne({ _id: id, studentId });
+    const r = await StudentNote.deleteOne(tenantFilter(req.ws, { _id: id, studentId }));
     if (!r.deletedCount) return res.status(404).json({ ok: false, error: "Note not found" });
     return res.status(200).json({ ok: true });
   }
