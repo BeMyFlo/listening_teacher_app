@@ -19,7 +19,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 |---|---|---|---|
 | 0 | Lưới an toàn (backup, script kiểm kê, không đổi hành vi) | ☑ xong | 2026-09-22 |
 | 1 | Thêm `Workspace` + `WorkspaceMember` + backfill dữ liệu cũ | ☑ xong | Chạy trên live 2026-09-22: 941 doc, còn thiếu 0 |
-| 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ xong | 2026-09-22 (Sonnet, theo PLAN-PHASE2-TENANT-READ.md), 26/26 route |
+| 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ code xong, **CHƯA deploy được** | 26/26 route. 🔴 Phải deploy chung bước 1–2 Phase 3 — mục 8.1.1 |
 | 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ☐ chưa làm | |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☐ chưa làm | |
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☐ chưa làm | |
@@ -44,6 +44,10 @@ dữ liệu                    cô lập hoàn toàn            English: IELTS/ 
 Nguyên tắc xuyên suốt: **app đang chạy thật, có học sinh thật đang dùng.**
 Mỗi phase phải deploy được độc lập và app vẫn hoạt động bình thường sau khi deploy.
 Không có phase nào "làm dở dang rồi deploy".
+
+**Một ngoại lệ duy nhất, phát hiện lúc thi hành:** Phase 2 (bật lọc khi ĐỌC) và bước 1–2 của
+Phase 3 (gán `workspaceId` khi GHI) **phải lên production cùng một lần**. Tách commit thì được,
+tách lần deploy thì app hỏng — lý do và bằng chứng ở mục 8.1.1.
 
 ### 0.3 Ba quyết định kiến trúc đã chốt
 
@@ -579,7 +583,10 @@ workspace, bật lọc lên là **no-op** — đây chính là lý do tách phas
    khác, vẫn còn ích cho phase 9 khi 1 workspace có nhiều GV). Chưa xoá.
 5. Viết `scripts/check-tenant-scope.js` (mục 5.3), chạy thủ công trước, chưa gắn CI.
 
-**App còn chạy không:** có — mọi dữ liệu cùng 1 workspace nên filter không loại gì.
+**App còn chạy không:** có với **dữ liệu đã có** — mọi document cũ cùng 1 workspace nên filter
+không loại gì. **KHÔNG** với dữ liệu tạo mới: sau khi deploy Phase 2, mọi thứ tạo mới đều thiếu
+`workspaceId` nên tự biến mất khỏi màn hình, và tài khoản tạo mới bị 403 toàn bộ. Vì vậy Phase 2
+**phải deploy cùng bước 1–2 của Phase 3** — xem mục 8.1.1.
 **Verify:**
 - Đếm số dòng trên từng màn hình GV trước/sau khi deploy — phải **bằng nhau**;
 - tạo 1 workspace thứ 2 + 1 GV test → đăng nhập, thấy **màn hình rỗng hoàn toàn**;
@@ -594,13 +601,29 @@ workspace, bật lọc lên là **no-op** — đây chính là lý do tách phas
 **Mục tiêu:** mọi thứ tạo mới đều tự gắn đúng workspace; không sửa được đồ của người khác.
 
 **Việc làm**
+
+> **Bước 1 và 2 là phần GỠ CHẶN DEPLOY cho Phase 2** (mục 8.1.1). Làm xong hai bước này là
+> deploy được Phase 2 + 3 cùng lúc, không cần chờ xong bước 3–5.
+
 1. Mọi POST: `workspaceId: req.ws.workspaceId` — **không bao giờ lấy từ body**.
+   13 chỗ `.create()`: `admin/classes.js`, `admin/units.js`, `admin/tests.js`, `admin/audio.js`,
+   `admin/images.js`, `admin/attendance.js`, `admin/submissions/ai-grade.js` (GradingJob),
+   `student/notes.js`, `submissions.js` (×4).
+   **Và `lib/users.js`** — `createStudent`/`createTeacher` hiện không gắn `workspaceId`, đây
+   chính là chỗ làm tài khoản tạo mới bị 403 toàn app.
 2. Mọi PUT/DELETE: `assertOwned()` trước khi sửa.
 3. Mọi tham chiếu chéo phải verify cùng workspace: `classIds` trong `units.js`/`tests.js`,
    `classId` trong `students.js`, `audioId`/`imageId` trong section, `unitId`/`testId`
    trong `submissions.js`.
 4. **Bỏ chặn 403 ở `admin/classes.js:40`** → GV tự tạo lớp trong workspace mình.
 5. Cron: `deadline-scan.js` lặp theo workspace; đảo fallback ở `notifications/teacher.js:15`.
+6. **Hai lỗi CÓ SẴN phát hiện khi soát Phase 2** (không do Phase 2 gây ra, sửa tiện tay):
+   - `admin/grading-jobs.js`: nhánh poll theo `submissionId` gọi
+     `findOneAndUpdate({_id: id, ...})` trong khi nhánh đó `id` là `undefined` → không bao giờ
+     giành được job. Sửa thành `{_id: job._id, status: "pending"}`.
+   - `admin/audio.js` + `admin/images.js`: `Test.exists({"sections.audioId": ...})` dò sai
+     đường dẫn schema (`Test` không có `sections` ở gốc, đúng phải là `skills.<skill>.sections`)
+     → chốt "đang dùng" chưa bao giờ chặn, xoá được media đang dùng trong mock test.
 
 **App còn chạy không:** có.
 **Verify (kịch bản 2 workspace — bắt buộc chạy đủ):**
@@ -640,7 +663,7 @@ Chạy xong **xoá sạch WS-B** khỏi DB thật.
 
 ---
 
-### 8.1 Trôi dạt giữa Phase 1 và Phase 3 — đọc trước khi lo lắng
+### 8.1 Trôi dạt giữa Phase 1 và Phase 3 — VÀ VÌ SAO PHASE 2 KHÔNG ĐƯỢC DEPLOY MỘT MÌNH
 
 Phase 1 đóng dấu xong là `check-orphans` ra 0. Con số đó **không ổn định**: nó là ảnh chụp
 tại một thời điểm, không phải trạng thái được duy trì.
@@ -659,10 +682,67 @@ Hệ quả cho cách làm việc:
   và Phase 3, số document trôi dạt càng nhiều.
 - **Phase 4 phải chạy lại migration trước khi siết `required`** (bước 0 ở trên). Không làm thì
   đúng rủi ro R9: doc mồ côi + `required: true` = app 500 khi lưu.
-- Trôi dạt **không** gây hại trong lúc chờ: Phase 2 chỉ lọc ở chiều ĐỌC của route giáo viên,
-  và document mới thiếu field chỉ đơn giản là không hiện ra ở màn hình giáo viên cho tới khi
-  được quét. Không mất dữ liệu, không lỗi.
+- 🔴 **PHASE 2 VÀ PHASE 3 PHẢI DEPLOY CÙNG MỘT LẦN.** Tách commit thì được (và nên), nhưng
+  **không được đẩy Phase 2 lên production một mình.** Xem 8.1.1 ngay dưới.
 - Rút ngắn khoảng cách Phase 1 → Phase 3 là cách giảm trôi dạt rẻ nhất.
+
+### 8.1.1 Đính chính — bản trước của mục này viết SAI
+
+> Bản viết ngày 2026-09-22 khẳng định: *"Trôi dạt **không** gây hại trong lúc chờ: Phase 2 chỉ
+> lọc ở chiều ĐỌC của route giáo viên, và document mới thiếu field chỉ đơn giản là không hiện
+> ra ở màn hình giáo viên cho tới khi được quét. Không mất dữ liệu, không lỗi."*
+
+Câu đó **sai**, và sai ở ba điểm. Nó chỉ suy luận về 941 document CŨ (đều đã có `workspaceId`
+sau Phase 1), quên mất document **mới tạo sau khi Phase 2 lên**. Phase 2 bật lọc ở chiều ĐỌC,
+nhưng Phase 3 mới là chỗ gán `workspaceId` khi GHI — nên giữa hai mốc đó, **mọi thứ tạo mới
+đều vô hình với chính bộ lọc vừa bật.**
+
+Ba hậu quả, đã tái hiện bằng cách gọi thẳng handler trên DB dev (2026-09-22):
+
+**① Giáo viên tạo gì cũng biến mất ngay lập tức.**
+```
+classes BEFORE create: 3
+POST /api/admin/classes -> 201 created
+classes AFTER create : 3          <- vẫn 3, lớp vừa tạo không có trong danh sách
+GET  /api/admin/classes?id=<vừa tạo> -> 404 "Class not found"
+```
+13 chỗ `.create()` trong các route Phase 2 đã bọc đều không gắn `workspaceId`: `Class`, `Unit`,
+`Test`, `Audio`, `Image`, `AttendanceSession`, `Submission`, `StudentNote`, `GradingJob`.
+
+**② Tài khoản tạo mới bị khoá khỏi toàn bộ app** — đây là chỗ câu "không lỗi" sai nặng nhất:
+```
+student created. workspaceId = UNDEFINED
+/api/units  /api/tests  /api/notifications
+/api/submissions  /api/student/dashboard  /api/student/notes
+  -> tất cả 403 "This account is not in a workspace"
+```
+`lib/users.js` không hề có chữ `workspaceId`, nên `createStudent` sinh ra hồ sơ không workspace
+→ `currentWorkspace()` trả null → `withTenant` trả **403**. Đăng nhập được, nhưng mọi màn hình
+403. Giáo viên tạo mới cũng vậy (chưa có `WorkspaceMember` — việc đó ở Phase 5).
+
+**③ Học sinh cũ nộp bài thì bài biến mất khỏi danh sách của chính em.**
+```
+submissions visible BEFORE: 7
+submission created, workspaceId = UNDEFINED
+submissions visible AFTER : 7     <- em không thấy bài mình vừa nộp
+```
+Đây là hậu quả tệ nhất vì nó chạm thẳng 21 học sinh thật: nộp xong nhìn như mất bài.
+
+**Điểm sai thứ hai của câu cũ:** "chỉ lọc ở chiều ĐỌC **của route giáo viên**" — không đúng.
+Phase 2 lọc cả **6 route học sinh** (`units`, `tests`, `submissions`, `notifications`,
+`student/dashboard`, `student/notes`), nên học sinh chịu ảnh hưởng ngang giáo viên.
+
+**Điểm sai thứ ba:** "không hiện ra… cho tới khi được quét" nghe như một độ trễ hiển thị.
+Thực tế là 404 khi mở, và 403 khi đăng nhập bằng tài khoản mới — tức là **lỗi cứng**, không
+phải chậm hiện.
+
+**Cách xử lý:** làm **bước 1 và 2 của Phase 3** (gán `workspaceId` ở 13 chỗ `.create()` +
+`lib/users.js`) rồi deploy chung một lần với Phase 2. Không cần chờ xong cả Phase 3.
+
+**Bài học về cách viết plan:** câu sai đó ra đời vì suy luận về *dữ liệu đang có* mà không
+suy luận về *dữ liệu sắp sinh ra*. Mỗi lần plan khẳng định "phase này không đổi hành vi",
+phải kiểm cả hai vế: dữ liệu cũ đọc có đúng không, **và** dữ liệu mới tạo ra có còn đọc được
+không.
 
 ---
 
@@ -964,7 +1044,22 @@ DB dev thật qua Mongoose) — cùng đường code y hệt production, không 
 harness. Trước khi deploy thật cần: đếm số dòng trên live cho `msnhi` trước/sau theo đúng
 bảng mục 5.2 của tài liệu thi hành (chỉ mới verify bằng DB dev ở đây).
 
-→ **Sẵn sàng cho Phase 3** (áp `workspaceId` cho mọi route GHI + luồng học sinh).
+**🔴 Phase 2 CHƯA ĐƯỢC DEPLOY MỘT MÌNH.** Soát lại code sau khi thi hành phát hiện: Phase 2
+bật lọc khi ĐỌC, nhưng `workspaceId` khi GHI mãi Phase 3 mới gán — nên sau khi deploy Phase 2,
+mọi thứ TẠO MỚI đều tự biến mất, và tài khoản tạo mới bị 403 toàn bộ app. Ba hậu quả đã tái
+hiện được trên DB dev, chi tiết + bằng chứng ở **mục 8.1.1**. Mục 8.1 bản cũ khẳng định trôi
+dạt "không gây hại, không lỗi" — đã đính chính, câu đó sai.
+
+Hai lỗi CÓ SẴN (không do Phase 2) phát hiện luôn trong lượt soát:
+- `admin/grading-jobs.js`: nhánh poll theo `submissionId` dùng `findOneAndUpdate({_id: id})`
+  trong khi `id` là `undefined` → code cũ crash 500 (`publicJob(null)`), code mới trả 404.
+  Vẫn sai, sửa đúng là `{_id: job._id}`.
+- `admin/audio.js` + `admin/images.js`: `Test.exists({"sections.audioId": ...})` — schema `Test`
+  không có path `sections` ở gốc (thật ra là `skills.<skill>.sections`), nên chốt "đang dùng"
+  CHƯA BAO GIỜ chạy → xoá được audio/ảnh đang dùng trong mock test.
+
+→ **Việc tiếp theo: Phase 3 bước 1–2** (gán `workspaceId` ở 13 chỗ `.create()` + `lib/users.js`),
+rồi deploy Phase 2 + Phase 3 cùng một lần.
 
 **Ba việc phát sinh từ đợt tính năng AI** (audit gốc chưa thấy vì code ra sau):
 - Số liệu thật: **20 model · 41 route · 40 trang** (audit gốc ghi 17/37/37). Đã sửa mục 1,
