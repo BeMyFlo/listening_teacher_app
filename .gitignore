@@ -7,3 +7,9 @@ node_modules/
 *.log
 .vercel
 .env*
+
+# Bản dump DB từ scripts/backup-db.js — chứa dữ liệu học sinh thật.
+backups/
+# Cả bản nén của nó: `backups/` không bắt được backups.zip.
+backups*.zip
+*.dump
