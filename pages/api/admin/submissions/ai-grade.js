@@ -3,6 +3,7 @@
 
 const { connectDB } = require("../../../../lib/db");
 const { requireAuth } = require("../../../../lib/auth");
+const { withTenant, tenantFilter } = require("../../../../lib/tenant");
 const Submission = require("../../../../lib/models/Submission");
 const GradingJob = require("../../../../lib/models/GradingJob");
 const { isEnabled, DEFAULT_MODEL } = require("../../../../lib/gemini");
@@ -24,7 +25,7 @@ async function handler(req, res) {
   const { id } = req.query;
   let submission;
   try {
-    submission = await Submission.findById(id)
+    submission = await Submission.findOne(tenantFilter(req.ws, { _id: id }))
       .select("kind essayText audioUrl studentId studentName attemptNumber unitId testId promptId")
       .lean();
   } catch (err) {
@@ -61,10 +62,10 @@ async function handler(req, res) {
   }
 
   // Dùng lại job pending/running gần nhất (chống double-click).
-  const existing = await GradingJob.findOne({
+  const existing = await GradingJob.findOne(tenantFilter(req.ws, {
     submissionId: id,
     status: { $in: ["pending", "running"] },
-  }).sort({ createdAt: -1 });
+  })).sort({ createdAt: -1 });
   if (existing) {
     return res.status(202).json({ ok: true, jobId: existing._id, status: existing.status });
   }
@@ -79,6 +80,6 @@ async function handler(req, res) {
   return res.status(202).json({ ok: true, jobId: job._id, status: "pending" });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;

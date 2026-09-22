@@ -5,6 +5,7 @@
 
 const { connectDB } = require("../../../lib/db");
 const { requireStudent } = require("../../../lib/auth");
+const { withTenant, tenantFilter } = require("../../../lib/tenant");
 const Student = require("../../../lib/models/Student");
 const Class = require("../../../lib/models/Class");
 const Unit = require("../../../lib/models/Unit");
@@ -41,8 +42,8 @@ async function handler(req, res) {
   const classFilter = { classIds: cls._id };
 
   const [units, classmates] = await Promise.all([
-    Unit.find({ status: "published", level: cls.level, ...classFilter }).lean(),
-    Student.find({ classId: cls._id }).select("name").lean(),
+    Unit.find(tenantFilter(req.ws, { status: "published", level: cls.level, ...classFilter })).lean(),
+    Student.find(tenantFilter(req.ws, { classId: cls._id })).select("name").lean(),
   ]);
 
   const classmateIds = classmates.map((s) => s._id);
@@ -51,7 +52,7 @@ async function handler(req, res) {
   // trần thay vì kéo nguyên collection của cả lớp về rồi mới sort trong JS.
   // Trần này thừa sức cho một lớp bình thường (40 học sinh × ~125 đầu bài);
   // lớp nào vượt qua thì phần rất cũ sẽ không tính vào điểm xếp hạng.
-  const submissions = await Submission.find({ studentId: { $in: classmateIds } })
+  const submissions = await Submission.find(tenantFilter(req.ws, { studentId: { $in: classmateIds } }))
     .select(
       "studentId kind score total manualScore gradingStatus exerciseId promptId testId testSkill unitId isLate submittedAt"
     )
@@ -72,6 +73,6 @@ async function handler(req, res) {
   });
 }
 
-module.exports = requireStudent(handler);
+module.exports = requireStudent(withTenant(handler));
 
 module.exports.default = module.exports;

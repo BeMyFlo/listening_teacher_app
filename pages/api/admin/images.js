@@ -1,5 +1,6 @@
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
 const { deleteImageFile } = require("../../../lib/cloudinary");
 const Image = require("../../../lib/models/Image");
 const Test = require("../../../lib/models/Test");
@@ -9,7 +10,7 @@ async function handler(req, res) {
 
   if (req.method === "GET") {
     // Có trần để trang thư viện không tải nguyên collection khi file nhiều dần.
-    const rows = await Image.find().sort({ uploadedAt: -1 }).limit(500).lean();
+    const rows = await Image.find(tenantFilter(req.ws)).sort({ uploadedAt: -1 }).limit(500).lean();
     return res.status(200).json({ ok: true, rows });
   }
 
@@ -36,15 +37,7 @@ async function handler(req, res) {
 
   if (req.method === "PUT" || req.method === "DELETE") {
     const { id } = req.query;
-    let image;
-    try {
-      image = await Image.findById(id);
-    } catch (err) {
-      return res.status(404).json({ ok: false, error: "Image not found" });
-    }
-    if (!image) {
-      return res.status(404).json({ ok: false, error: "Image not found" });
-    }
+    const image = await assertOwned(req.ws, Image, id, { message: "Image not found" });
 
     if (req.method === "PUT") {
       const title = req.body && req.body.title;
@@ -55,7 +48,7 @@ async function handler(req, res) {
       return res.status(200).json({ ok: true, image });
     }
 
-    const inUse = await Test.exists({ "sections.imageId": image._id });
+    const inUse = await Test.exists(tenantFilter(req.ws, { "sections.imageId": image._id }));
     if (inUse) {
       return res.status(409).json({
         ok: false,
@@ -75,6 +68,6 @@ async function handler(req, res) {
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;

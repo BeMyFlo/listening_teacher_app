@@ -1,3 +1,5 @@
+// tenant-exempt: lỗ hổng B3 (PLAN-MULTI-TENANT.md) — route này chuyển sang
+// sysadmin/ ở Phase 5, cố ý CHƯA lọc theo workspace ở Phase 2.
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
 const Teacher = require("../../../lib/models/Teacher");

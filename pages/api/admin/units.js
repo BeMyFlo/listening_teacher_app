@@ -1,5 +1,6 @@
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
 const Unit = require("../../../lib/models/Unit");
 const Class = require("../../../lib/models/Class");
 const { normalizeSections, validateSections } = require("../../../lib/testSections");
@@ -115,15 +116,14 @@ async function handler(req, res) {
   const { id } = req.query;
 
   if (req.method === "GET" && !id) {
-    const rows = await Unit.find().sort({ level: 1, order: 1 }).lean();
+    const rows = await Unit.find(tenantFilter(req.ws)).sort({ level: 1, order: 1 }).lean();
     return res.status(200).json({ ok: true, rows });
   }
 
   // Chấm lại toàn bộ bài đã nộp của Unit theo đáp án hiện tại — giáo viên bấm
   // khi muốn chấm lại thủ công (vd sau khi tự sửa tay ngoài luồng lưu Unit).
   if (req.method === "POST" && req.query.action === "regrade") {
-    const unit = await Unit.findById(id);
-    if (!unit) return res.status(404).json({ ok: false, error: "Unit not found" });
+    const unit = await assertOwned(req.ws, Unit, id, { message: "Unit not found" });
     const regradedCount = await regradeUnitSubmissions(unit);
     return res.status(200).json({ ok: true, regradedCount });
   }
@@ -153,15 +153,7 @@ async function handler(req, res) {
     return res.status(201).json({ ok: true, unit });
   }
 
-  let unit;
-  try {
-    unit = await Unit.findById(id);
-  } catch (err) {
-    return res.status(404).json({ ok: false, error: "Unit not found" });
-  }
-  if (!unit) {
-    return res.status(404).json({ ok: false, error: "Unit not found" });
-  }
+  const unit = await assertOwned(req.ws, Unit, id, { message: "Unit not found" });
 
   if (req.method === "GET") {
     return res.status(200).json({ ok: true, unit });
@@ -324,6 +316,6 @@ async function handler(req, res) {
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;

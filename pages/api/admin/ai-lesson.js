@@ -5,6 +5,7 @@
 // bấm thêm vào bài rồi Save như bình thường.
 
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant } = require("../../../lib/tenant");
 const { connectDB } = require("../../../lib/db");
 const { generateJSON, isEnabled } = require("../../../lib/gemini");
 const { getGradingModels } = require("../../../lib/grading/aiModels");
@@ -127,6 +128,6 @@ async function handler(req, res) {
   });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 module.exports.default = module.exports;
 module.exports.config = { maxDuration: 60 };

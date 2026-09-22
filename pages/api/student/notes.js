@@ -1,5 +1,6 @@
 const { connectDB } = require("../../../lib/db");
 const { requireStudent } = require("../../../lib/auth");
+const { withTenant, tenantFilter } = require("../../../lib/tenant");
 const StudentNote = require("../../../lib/models/StudentNote");
 
 const S = (v, max) => String(v == null ? "" : v).slice(0, max || 4000);
@@ -28,7 +29,7 @@ async function handler(req, res) {
     const q = { studentId };
     if (/^[a-f0-9]{24}$/i.test(String(req.query.unitId || ""))) q["source.unitId"] = req.query.unitId;
     if (/^[a-f0-9]{24}$/i.test(String(req.query.testId || ""))) q["source.testId"] = req.query.testId;
-    const notes = await StudentNote.find(q).sort({ pinned: -1, updatedAt: -1 }).limit(500).lean();
+    const notes = await StudentNote.find(tenantFilter(req.ws, q)).sort({ pinned: -1, updatedAt: -1 }).limit(500).lean();
     return res.status(200).json({ ok: true, notes });
   }
 
@@ -75,5 +76,5 @@ async function handler(req, res) {
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
-module.exports = requireStudent(handler);
+module.exports = requireStudent(withTenant(handler));
 module.exports.default = module.exports;

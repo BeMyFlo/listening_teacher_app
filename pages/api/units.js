@@ -1,5 +1,6 @@
 const { connectDB } = require("../../lib/db");
 const { requireStudent } = require("../../lib/auth");
+const { withTenant, tenantFilter } = require("../../lib/tenant");
 const Student = require("../../lib/models/Student");
 const Unit = require("../../lib/models/Unit");
 const Class = require("../../lib/models/Class");
@@ -159,7 +160,7 @@ async function handler(req, res) {
   if (id) {
     let unit;
     try {
-      unit = await Unit.findOne({ _id: id, status: "published", level, ...classFilter })
+      unit = await Unit.findOne(tenantFilter(req.ws, { _id: id, status: "published", level, ...classFilter }))
         .populate("categories.theory.audioId", "cloudinaryUrl")
         .populate("categories.theory.imageId", "cloudinaryUrl")
         .populate("categories.exercises.sections.audioId", "cloudinaryUrl")
@@ -178,7 +179,7 @@ async function handler(req, res) {
     return res.status(200).json({ ok: true, unit: toPublicUnit(unit, cls) });
   }
 
-  const units = await Unit.find({ status: "published", level, ...classFilter })
+  const units = await Unit.find(tenantFilter(req.ws, { status: "published", level, ...classFilter }))
     .sort({ level: 1, order: 1 })
     .lean();
 
@@ -219,6 +220,6 @@ async function handler(req, res) {
   return res.status(200).json({ ok: true, rows });
 }
 
-module.exports = requireStudent(handler);
+module.exports = requireStudent(withTenant(handler));
 
 module.exports.default = module.exports;

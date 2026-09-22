@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
 const Student = require("../../../lib/models/Student");
 const Submission = require("../../../lib/models/Submission");
 const Class = require("../../../lib/models/Class");
@@ -18,9 +19,12 @@ async function handler(req, res) {
 
   if (req.method === "GET") {
     const [students, counts, classes] = await Promise.all([
-      Student.find(classWhere).sort({ createdAt: -1 }).lean(),
-      Submission.aggregate([{ $group: { _id: "$studentId", count: { $sum: 1 } } }]),
-      Class.find(classIdWhere).lean(),
+      Student.find(tenantFilter(req.ws, classWhere)).sort({ createdAt: -1 }).lean(),
+      Submission.aggregate([
+        { $match: tenantFilter(req.ws) },
+        { $group: { _id: "$studentId", count: { $sum: 1 } } },
+      ]),
+      Class.find(tenantFilter(req.ws, classIdWhere)).lean(),
     ]);
 
     const countByStudent = {};
@@ -79,15 +83,7 @@ async function handler(req, res) {
 
   if (req.method === "PUT" || req.method === "DELETE") {
     const { id } = req.query;
-    let student;
-    try {
-      student = await Student.findById(id);
-    } catch (err) {
-      return res.status(404).json({ ok: false, error: "Student not found" });
-    }
-    if (!student) {
-      return res.status(404).json({ ok: false, error: "Student not found" });
-    }
+    const student = await assertOwned(req.ws, Student, id, { message: "Student not found" });
     // Không cho sửa/xoá học sinh ngoài phạm vi lớp của mình.
     if (!canAccessClass(scope, student.classId)) {
       return res.status(403).json({ ok: false, error: "That student is not in your assigned classes" });
@@ -154,6 +150,6 @@ async function handler(req, res) {
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;

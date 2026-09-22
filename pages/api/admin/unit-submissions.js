@@ -1,5 +1,6 @@
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
 const Unit = require("../../../lib/models/Unit");
 const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
@@ -20,19 +21,13 @@ async function handler(req, res) {
   await connectDB();
   const { unitId, studentId } = req.query;
 
-  let unit;
-  try {
-    unit = await Unit.findById(unitId).lean();
-  } catch (err) {
-    return res.status(404).json({ ok: false, error: "Unit not found" });
-  }
-  if (!unit) return res.status(404).json({ ok: false, error: "Unit not found" });
+  const unit = await assertOwned(req.ws, Unit, unitId, { lean: true, message: "Unit not found" });
 
   // Which classes / students belong to this unit.
   const assignedClassIds = (unit.classIds || []).map(S);
   const scope = assignedClassIds.length ? "classes" : "level";
 
-  const classesAtLevel = await Class.find({ level: unit.level }).sort({ name: 1 }).lean();
+  const classesAtLevel = await Class.find(tenantFilter(req.ws, { level: unit.level })).sort({ name: 1 }).lean();
   const relevantClasses = scope === "classes"
     ? classesAtLevel.filter((c) => assignedClassIds.includes(S(c._id)))
     : classesAtLevel;
@@ -40,11 +35,11 @@ async function handler(req, res) {
   classesAtLevel.forEach((c) => (classById[S(c._id)] = c));
 
   const relevantClassIds = relevantClasses.map((c) => c._id);
-  const students = await Student.find({ classId: { $in: relevantClassIds } })
+  const students = await Student.find(tenantFilter(req.ws, { classId: { $in: relevantClassIds } }))
     .sort({ name: 1 })
     .lean();
 
-  const submissions = await Submission.find({ unitId: unit._id })
+  const submissions = await Submission.find(tenantFilter(req.ws, { unitId: unit._id }))
     .sort({ submittedAt: -1 })
     .lean();
 
@@ -104,6 +99,6 @@ async function handler(req, res) {
   });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;

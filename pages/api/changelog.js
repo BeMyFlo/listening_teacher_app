@@ -1,3 +1,4 @@
+// tenant-exempt: chỉ đọc hồ sơ của chính người đăng nhập.
 const { connectDB } = require("../../lib/db");
 const { requireAnyRole } = require("../../lib/auth");
 const Teacher = require("../../lib/models/Teacher");

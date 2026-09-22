@@ -8,6 +8,7 @@
 
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant, tenantFilter } = require("../../../lib/tenant");
 const DeadlineEmailJob = require("../../../lib/models/DeadlineEmailJob");
 const { runDeadlineEmailJob } = require("../../../lib/notifications/deadlineAssign");
 
@@ -41,10 +42,10 @@ async function handler(req, res) {
 
   let jobs;
   try {
-    jobs = await DeadlineEmailJob.find({
+    jobs = await DeadlineEmailJob.find(tenantFilter(req.ws, {
       unitId,
       createdAt: { $gte: new Date(Date.now() - RECENT_MS) },
-    })
+    }))
       .sort({ createdAt: -1 })
       .lean();
   } catch (err) {
@@ -66,17 +67,17 @@ async function handler(req, res) {
     }
   }
 
-  const fresh = await DeadlineEmailJob.find({
+  const fresh = await DeadlineEmailJob.find(tenantFilter(req.ws, {
     unitId,
     createdAt: { $gte: new Date(Date.now() - RECENT_MS) },
-  })
+  }))
     .sort({ createdAt: -1 })
     .lean();
 
   return res.status(200).json({ ok: true, jobs: fresh.map(publicJob) });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;
 module.exports.config = { maxDuration: 60 };

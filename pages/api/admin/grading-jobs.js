@@ -4,15 +4,16 @@
 
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
 const GradingJob = require("../../../lib/models/GradingJob");
 const { runAiGrade } = require("../../../lib/grading/runAiGrade");
 const Submission = require("../../../lib/models/Submission");
 
 // Lưu draft AI vào submission dưới dạng nháp — học sinh CHƯA thấy (gradingStatus
 // "ai_draft"). Chỉ ghi khi bài chưa được chấm để không đè bản của giáo viên.
-async function persistDraft(submissionId, draft) {
-  const s = await Submission.findById(submissionId);
-  if (!s || s.gradingStatus === "graded") return;
+async function persistDraft(ws, submissionId, draft) {
+  const s = await assertOwned(ws, Submission, submissionId, { message: "Submission not found" });
+  if (s.gradingStatus === "graded") return;
   if (Array.isArray(draft.criteria)) {
     s.criteria = draft.criteria.map((c) => ({ key: c.key, band: c.band != null ? Number(c.band) : null, comment: String(c.comment || "") }));
   }
@@ -54,18 +55,13 @@ async function handler(req, res) {
 
   let job;
   if (id) {
-    try {
-      job = await GradingJob.findById(id);
-    } catch (err) {
-      return res.status(404).json({ ok: false, error: "Job not found" });
-    }
-    if (!job) return res.status(404).json({ ok: false, error: "Job not found" });
+    job = await assertOwned(req.ws, GradingJob, id, { message: "Job not found" });
   } else if (submissionId) {
     // Job gần đây nhất của bài này (bỏ qua job cũ hơn 30 phút).
-    job = await GradingJob.findOne({
+    job = await GradingJob.findOne(tenantFilter(req.ws, {
       submissionId,
       createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) },
-    }).sort({ createdAt: -1 });
+    })).sort({ createdAt: -1 });
     if (!job) return res.status(200).json({ ok: true, status: "none" });
   } else {
     return res.status(400).json({ ok: false, error: "id or submissionId required" });
@@ -89,7 +85,7 @@ async function handler(req, res) {
   );
   if (!claimed) {
     // request khác đã giành -> trả trạng thái hiện tại
-    const fresh = await GradingJob.findById(id).lean();
+    const fresh = await assertOwned(req.ws, GradingJob, id, { lean: true, message: "Job not found" });
     return res.status(200).json({ ok: true, ...publicJob(fresh) });
   }
 
@@ -101,7 +97,7 @@ async function handler(req, res) {
     claimed.finishedAt = new Date();
     await claimed.save();
     try {
-      await persistDraft(claimed.submissionId, draft);
+      await persistDraft(req.ws, claimed.submissionId, draft);
     } catch (e) {
       console.error("[ai-grade] could not persist draft:", e.message);
     }
@@ -115,7 +111,7 @@ async function handler(req, res) {
   return res.status(200).json({ ok: true, ...publicJob(claimed) });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 // Cho phép hàm chạy tới 60s (giới hạn Hobby) để kịp gọi Gemini.
 module.exports.config = { maxDuration: 60 };

@@ -1,5 +1,6 @@
 const { connectDB } = require("../../lib/db");
 const { requireStudent } = require("../../lib/auth");
+const { withTenant, tenantFilter } = require("../../lib/tenant");
 const Student = require("../../lib/models/Student");
 const Test = require("../../lib/models/Test");
 const Class = require("../../lib/models/Class");
@@ -114,7 +115,7 @@ async function handler(req, res) {
   if (id) {
     let test;
     try {
-      test = await Test.findOne({ _id: id, status: "published", level, ...classFilter });
+      test = await Test.findOne(tenantFilter(req.ws, { _id: id, status: "published", level, ...classFilter }));
     } catch (err) {
       return res.status(404).json({ ok: false, error: "Mock test not found" });
     }
@@ -137,7 +138,7 @@ async function handler(req, res) {
     return res.status(200).json({ ok: true, locked: false, test: toPublicTest(test) });
   }
 
-  const tests = await Test.find({ status: "published", level, ...classFilter }).sort({ createdAt: -1 }).lean();
+  const tests = await Test.find(tenantFilter(req.ws, { status: "published", level, ...classFilter })).sort({ createdAt: -1 }).lean();
 
   const skillMeta = (skill, key) => {
     skill = skill || {};
@@ -167,6 +168,6 @@ async function handler(req, res) {
   return res.status(200).json({ ok: true, rows });
 }
 
-module.exports = requireStudent(handler);
+module.exports = requireStudent(withTenant(handler));
 
 module.exports.default = module.exports;

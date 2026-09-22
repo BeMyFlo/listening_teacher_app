@@ -1,5 +1,6 @@
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
 const { deleteAudioFile } = require("../../../lib/cloudinary");
 const Audio = require("../../../lib/models/Audio");
 const Test = require("../../../lib/models/Test");
@@ -9,7 +10,7 @@ async function handler(req, res) {
 
   if (req.method === "GET") {
     // Có trần để trang thư viện không tải nguyên collection khi file nhiều dần.
-    const rows = await Audio.find().sort({ uploadedAt: -1 }).limit(500).lean();
+    const rows = await Audio.find(tenantFilter(req.ws)).sort({ uploadedAt: -1 }).limit(500).lean();
     return res.status(200).json({ ok: true, rows });
   }
 
@@ -36,15 +37,7 @@ async function handler(req, res) {
 
   if (req.method === "PUT" || req.method === "DELETE") {
     const { id } = req.query;
-    let audio;
-    try {
-      audio = await Audio.findById(id);
-    } catch (err) {
-      return res.status(404).json({ ok: false, error: "Audio track not found" });
-    }
-    if (!audio) {
-      return res.status(404).json({ ok: false, error: "Audio track not found" });
-    }
+    const audio = await assertOwned(req.ws, Audio, id, { message: "Audio track not found" });
 
     if (req.method === "PUT") {
       const title = req.body && req.body.title;
@@ -55,7 +48,7 @@ async function handler(req, res) {
       return res.status(200).json({ ok: true, audio });
     }
 
-    const inUse = await Test.exists({ "sections.audioId": audio._id });
+    const inUse = await Test.exists(tenantFilter(req.ws, { "sections.audioId": audio._id }));
     if (inUse) {
       return res.status(409).json({
         ok: false,
@@ -75,6 +68,6 @@ async function handler(req, res) {
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;

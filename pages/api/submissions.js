@@ -1,5 +1,6 @@
 const { connectDB } = require("../../lib/db");
 const { requireStudent } = require("../../lib/auth");
+const { withTenant, tenantFilter } = require("../../lib/tenant");
 const Test = require("../../lib/models/Test");
 const Unit = require("../../lib/models/Unit");
 const Student = require("../../lib/models/Student");
@@ -55,7 +56,7 @@ async function handler(req, res) {
       return res.status(401).json({ ok: false, error: "Account no longer exists, please sign in again" });
     }
     // Students may only ever see their own submissions.
-    const rows = await Submission.find({ studentId: student._id }).sort({ submittedAt: -1 }).limit(100).lean();
+    const rows = await Submission.find(tenantFilter(req.ws, { studentId: student._id })).sort({ submittedAt: -1 }).limit(100).lean();
     return res.status(200).json({ ok: true, rows });
   }
 
@@ -360,6 +361,6 @@ async function handler(req, res) {
   return res.status(400).json({ ok: false, error: "Invalid submission type" });
 }
 
-module.exports = requireStudent(handler);
+module.exports = requireStudent(withTenant(handler));
 
 module.exports.default = module.exports;

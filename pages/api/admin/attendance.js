@@ -9,6 +9,7 @@
 
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
 const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const AttendanceSession = require("../../../lib/models/AttendanceSession");
@@ -46,19 +47,19 @@ function hwTally(records) {
 
 // Trạng thái bài tập về nhà tự suy cho từng học sinh của buổi `session`.
 // -> Map<studentIdStr, "done"|"partial"|"missing"|"none">
-async function autoHomeworkMap(session, roster) {
-  const prevSession = await AttendanceSession.findOne({
+async function autoHomeworkMap(ws, session, roster) {
+  const prevSession = await AttendanceSession.findOne(tenantFilter(ws, {
     classId: session.classId,
     number: { $lt: session.number },
-  })
+  }))
     .sort({ number: -1 })
     .select("date number")
     .lean();
 
-  const units = await Unit.find({
+  const units = await Unit.find(tenantFilter(ws, {
     status: "published",
     "deadlines.classId": session.classId,
-  })
+  }))
     .select("name categories deadlines skillLocks")
     .lean();
 
@@ -66,11 +67,11 @@ async function autoHomeworkMap(session, roster) {
   const rosterIds = roster.map((s) => s._id);
   const subs =
     unitIds.length && rosterIds.length
-      ? await Submission.find({
+      ? await Submission.find(tenantFilter(ws, {
           studentId: { $in: rosterIds },
           unitId: { $in: unitIds },
           kind: { $in: ["exercise", "writing", "speaking"] },
-        })
+        }))
           .select("studentId unitId categoryKey exerciseId promptId kind submittedAt")
           .lean()
       : [];
@@ -92,8 +93,8 @@ async function autoHomeworkMap(session, roster) {
   });
 }
 
-async function rosterFor(classId) {
-  return Student.find({ classId }).sort({ name: 1 }).select("name username").lean();
+async function rosterFor(ws, classId) {
+  return Student.find(tenantFilter(ws, { classId })).sort({ name: 1 }).select("name username").lean();
 }
 
 // Trộn roster hiện tại với record đã lưu: giữ trạng thái đã điểm danh, học sinh
@@ -129,18 +130,12 @@ async function handler(req, res) {
 
   // ----- danh sách buổi của 1 lớp -----
   if (req.method === "GET" && classId) {
-    let cls;
-    try {
-      cls = await Class.findById(classId).lean();
-    } catch {
-      return res.status(404).json({ ok: false, error: "Class not found" });
-    }
-    if (!cls) return res.status(404).json({ ok: false, error: "Class not found" });
+    const cls = await assertOwned(req.ws, Class, classId, { lean: true, message: "Class not found" });
     if (!canAccessClass(scope, cls._id)) return denyClass();
 
     const [sessions, rosterCount] = await Promise.all([
-      AttendanceSession.find({ classId }).sort({ number: -1 }).lean(),
-      Student.countDocuments({ classId }),
+      AttendanceSession.find(tenantFilter(req.ws, { classId })).sort({ number: -1 }).lean(),
+      Student.countDocuments(tenantFilter(req.ws, { classId })),
     ]);
 
     const rows = sessions.map((s) => ({
@@ -159,22 +154,16 @@ async function handler(req, res) {
   // ----- tạo buổi -----
   if (req.method === "POST") {
     const cid = String((req.body && req.body.classId) || "");
-    let cls;
-    try {
-      cls = await Class.findById(cid).lean();
-    } catch {
-      return res.status(404).json({ ok: false, error: "Class not found" });
-    }
-    if (!cls) return res.status(404).json({ ok: false, error: "Class not found" });
+    const cls = await assertOwned(req.ws, Class, cid, { lean: true, message: "Class not found" });
     if (!canAccessClass(scope, cls._id)) return denyClass();
 
     let date = String((req.body && req.body.date) || "").trim() || todayStr();
     if (!DATE_RE.test(date)) return res.status(400).json({ ok: false, error: "Invalid date" });
 
-    const last = await AttendanceSession.findOne({ classId: cid }).sort({ number: -1 }).select("number").lean();
+    const last = await AttendanceSession.findOne(tenantFilter(req.ws, { classId: cid })).sort({ number: -1 }).select("number").lean();
     const number = (last ? last.number : 0) + 1;
 
-    const roster = await rosterFor(cid);
+    const roster = await rosterFor(req.ws, cid);
     const session = await AttendanceSession.create({
       classId: cid,
       number,
@@ -187,21 +176,15 @@ async function handler(req, res) {
   }
 
   // ----- 1 buổi cụ thể -----
-  let session;
-  try {
-    session = await AttendanceSession.findById(id);
-  } catch {
-    return res.status(404).json({ ok: false, error: "Session not found" });
-  }
-  if (!session) return res.status(404).json({ ok: false, error: "Session not found" });
+  const session = await assertOwned(req.ws, AttendanceSession, id, { message: "Session not found" });
   if (!canAccessClass(scope, session.classId)) return denyClass();
 
   if (req.method === "GET") {
     const [cls, roster] = await Promise.all([
-      Class.findById(session.classId).lean(),
-      rosterFor(session.classId),
+      Class.findOne(tenantFilter(req.ws, { _id: session.classId })).lean(),
+      rosterFor(req.ws, session.classId),
     ]);
-    const autoHw = await autoHomeworkMap(session, roster);
+    const autoHw = await autoHomeworkMap(req.ws, session, roster);
     const merged = mergeRoster(roster, session.records, autoHw);
     return res.status(200).json({
       ok: true,
@@ -229,7 +212,7 @@ async function handler(req, res) {
     if (note != null) session.note = String(note).trim();
     if (records != null) {
       if (!Array.isArray(records)) return res.status(400).json({ ok: false, error: "Invalid records" });
-      const rosterIds = new Set((await rosterFor(session.classId)).map((s) => String(s._id)));
+      const rosterIds = new Set((await rosterFor(req.ws, session.classId)).map((s) => String(s._id)));
       session.records = records
         .filter((r) => r && rosterIds.has(String(r.studentId)))
         .map((r) => ({
@@ -254,6 +237,6 @@ async function handler(req, res) {
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;

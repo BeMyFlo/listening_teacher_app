@@ -1,5 +1,6 @@
 const { connectDB } = require("../../lib/db");
 const { requireStudent } = require("../../lib/auth");
+const { withTenant, tenantFilter } = require("../../lib/tenant");
 const Student = require("../../lib/models/Student");
 const Notification = require("../../lib/models/Notification");
 const { generateDeadlineNotifications } = require("../../lib/notifications/generate");
@@ -37,14 +38,14 @@ async function handler(req, res) {
       console.error("[notifications] generate failed:", err.message);
     }
 
-    const rows = await Notification.find({ studentId: student._id })
+    const rows = await Notification.find(tenantFilter(req.ws, { studentId: student._id }))
       .sort({ createdAt: -1 })
       .limit(LIMIT)
       .lean();
-    const unreadCount = await Notification.countDocuments({
+    const unreadCount = await Notification.countDocuments(tenantFilter(req.ws, {
       studentId: student._id,
       "deliveries.inapp.readAt": null,
-    });
+    }));
     return res.status(200).json({ ok: true, rows: rows.map(toPublic), unreadCount });
   }
 
@@ -58,10 +59,10 @@ async function handler(req, res) {
       filter._id = { $in: ids };
     }
     await Notification.updateMany(filter, { $set: { "deliveries.inapp.readAt": new Date() } });
-    const unreadCount = await Notification.countDocuments({
+    const unreadCount = await Notification.countDocuments(tenantFilter(req.ws, {
       studentId: student._id,
       "deliveries.inapp.readAt": null,
-    });
+    }));
     return res.status(200).json({ ok: true, unreadCount });
   }
 
@@ -69,6 +70,6 @@ async function handler(req, res) {
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
-module.exports = requireStudent(handler);
+module.exports = requireStudent(withTenant(handler));
 
 module.exports.default = module.exports;

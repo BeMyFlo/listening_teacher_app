@@ -1,5 +1,6 @@
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
 const Submission = require("../../../lib/models/Submission");
 const Test = require("../../../lib/models/Test");
 const { rebuildDetail } = require("../../../lib/grade");
@@ -15,10 +16,10 @@ const LIST_LIMIT = 500;
 
 // Bài nộp không lưu classId, nên phạm vi lớp phải quy về danh sách studentId.
 // Trả null nghĩa là không giới hạn.
-async function scopedStudentIds(auth) {
+async function scopedStudentIds(ws, auth) {
   const scope = await teacherScope(auth);
   if (scope.all) return null;
-  const students = await Student.find({ classId: { $in: scope.classIds } }).select("_id").lean();
+  const students = await Student.find(tenantFilter(ws, { classId: { $in: scope.classIds } })).select("_id").lean();
   return students.map((s) => s._id);
 }
 
@@ -33,7 +34,7 @@ async function handler(req, res) {
   const { id } = req.query;
 
   // Giáo viên chỉ thấy bài nộp của học sinh trong lớp mình (chưa gán -> tất cả).
-  const studentIds = await scopedStudentIds(req.auth);
+  const studentIds = await scopedStudentIds(req.ws, req.auth);
 
   if (req.method === "GET") {
     const { testId, name, kind, gradingStatus } = req.query;
@@ -59,7 +60,7 @@ async function handler(req, res) {
     }
 
     // Có trần để trang không tải nguyên collection khi dữ liệu lớn dần.
-    const rows = await Submission.find(filter).sort({ submittedAt: -1 }).limit(LIST_LIMIT).lean();
+    const rows = await Submission.find(tenantFilter(req.ws, filter)).sort({ submittedAt: -1 }).limit(LIST_LIMIT).lean();
 
     // Auto-graded mock tests (listening/reading) store answers as internal
     // option ids. Rebuild a readable per-question detail from the live test so
@@ -68,7 +69,7 @@ async function handler(req, res) {
     const testRows = rows.filter((r) => r.kind === "test" && r.testId && r.testSkill);
     if (testRows.length) {
       const testIds = [...new Set(testRows.map((r) => String(r.testId)))];
-      const tests = await Test.find({ _id: { $in: testIds } })
+      const tests = await Test.find(tenantFilter(req.ws, { _id: { $in: testIds } }))
         .select("skills")
         .lean();
       const byId = new Map(tests.map((t) => [String(t._id), t]));
@@ -85,15 +86,7 @@ async function handler(req, res) {
 
   // Manual grading for Writing/Speaking: PUT ?id=<submissionId>
   if (req.method === "PUT" && id) {
-    let submission;
-    try {
-      submission = await Submission.findById(id);
-    } catch (err) {
-      return res.status(404).json({ ok: false, error: "Submission not found" });
-    }
-    if (!submission) {
-      return res.status(404).json({ ok: false, error: "Submission not found" });
-    }
+    const submission = await assertOwned(req.ws, Submission, id, { message: "Submission not found" });
     // Không chấm bài của học sinh ngoài lớp mình phụ trách.
     if (studentIds && !studentIds.some((sid) => String(sid) === String(submission.studentId))) {
       return res.status(403).json({ ok: false, error: "That student is not in your assigned classes" });
@@ -222,6 +215,6 @@ async function handler(req, res) {
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;

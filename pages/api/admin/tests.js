@@ -1,5 +1,6 @@
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
 const Test = require("../../../lib/models/Test");
 const Class = require("../../../lib/models/Class");
 const { normalizeSections, validateSections, normalizePrompts, validatePrompts } = require("../../../lib/testSections");
@@ -106,7 +107,7 @@ async function handler(req, res) {
   const { id } = req.query;
 
   if (req.method === "GET" && !id) {
-    const rows = await populateSkillMedia(Test.find().sort({ updatedAt: -1 })).lean();
+    const rows = await populateSkillMedia(Test.find(tenantFilter(req.ws)).sort({ updatedAt: -1 })).lean();
     return res.status(200).json({ ok: true, rows });
   }
 
@@ -143,15 +144,7 @@ async function handler(req, res) {
   }
 
   // GET-with-id / PUT / DELETE all operate on a single test.
-  let test;
-  try {
-    test = await Test.findById(id);
-  } catch (err) {
-    return res.status(404).json({ ok: false, error: "Mock test not found" });
-  }
-  if (!test) {
-    return res.status(404).json({ ok: false, error: "Mock test not found" });
-  }
+  const test = await assertOwned(req.ws, Test, id, { message: "Mock test not found" });
 
   if (req.method === "GET") {
     await populateSkillMedia(test);
@@ -230,6 +223,6 @@ async function handler(req, res) {
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;

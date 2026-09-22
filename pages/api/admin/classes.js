@@ -1,5 +1,6 @@
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
 const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const Unit = require("../../../lib/models/Unit");
@@ -15,11 +16,11 @@ async function handler(req, res) {
 
   if (req.method === "GET" && !id) {
     const [classes, counts] = await Promise.all([
-      Class.find(scope.all ? {} : { _id: { $in: scope.classIds } })
+      Class.find(tenantFilter(req.ws, scope.all ? {} : { _id: { $in: scope.classIds } }))
         .sort({ level: 1, name: 1 })
         .lean(),
       Student.aggregate([
-        { $match: { classId: { $ne: null } } },
+        { $match: tenantFilter(req.ws, { classId: { $ne: null } }) },
         { $group: { _id: "$classId", count: { $sum: 1 } } },
       ]),
     ]);
@@ -51,19 +52,13 @@ async function handler(req, res) {
     return res.status(201).json({ ok: true, class: cls });
   }
 
-  let cls;
-  try {
-    cls = await Class.findById(id);
-  } catch (err) {
-    return res.status(404).json({ ok: false, error: "Class not found" });
-  }
-  if (!cls) return res.status(404).json({ ok: false, error: "Class not found" });
+  const cls = await assertOwned(req.ws, Class, id, { message: "Class not found" });
   if (!canAccessClass(scope, cls._id)) {
     return res.status(403).json({ ok: false, error: "That class is not in your assigned classes" });
   }
 
   if (req.method === "GET") {
-    const students = await Student.find({ classId: cls._id }).sort({ name: 1 }).lean();
+    const students = await Student.find(tenantFilter(req.ws, { classId: cls._id })).sort({ name: 1 }).lean();
     return res.status(200).json({
       ok: true,
       class: { _id: cls._id, name: cls.name, level: cls.level, createdAt: cls.createdAt },
@@ -101,6 +96,6 @@ async function handler(req, res) {
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;

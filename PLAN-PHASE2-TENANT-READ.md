@@ -6,7 +6,7 @@
 >
 > **Người thi hành đọc kỹ mục 0 trước khi gõ dòng code đầu tiên.**
 
-Trạng thái: ☐ chưa bắt đầu · Ngày lập: 2026-09-22
+Trạng thái: ☑ XONG 2026-09-22 (thi hành bởi Sonnet) · Ngày lập: 2026-09-22 · Kết quả đầy đủ: PLAN-MULTI-TENANT.md mục 10
 Tiền đề: Phase 1 đã xong trên live (941 doc có `workspaceId`, workspace `ms-nhi`).
 
 ---
@@ -556,4 +556,6 @@ Bước 4 là chốt chặn quan trọng: nếu 4 route xương sống đã sai 
 
 | # | Câu hỏi | File/dòng | Trạng thái |
 |---|---|---|---|
-| | | | |
+| 1 | `withTenant` gọi `currentWorkspace()` trước khi handler chạy `connectDB()` — query treo/timeout. Không phải chỗ "tài liệu không nói tới", mà là bug thật trong code mẫu của chính mục 1. Đã tự sửa: gọi `connectDB()` ngay đầu `withTenant`. | `lib/tenant.js` | ĐÃ SỬA |
+| 2 | `admin/submissions/ai-grade.js` không có trong bảng mục 3.1 dù tiêu đề ghi "20 route" (bảng chỉ liệt kê 19). Route này CÓ trong audit B2 gốc của PLAN-MULTI-TENANT.md với hướng dẫn rõ ràng ("assertOwned submission trước khi gọi AI") nên áp dụng luôn theo đúng tinh thần plan gốc, không phải đoán mò. | `admin/submissions/ai-grade.js` | ĐÃ SỬA — xem PLAN-MULTI-TENANT.md mục 10 |
+| 3 | `admin/deadline-jobs/run.js` không khớp khuôn `requireAuth(handler)` chuẩn — có 2 đường vào (cron secret / teacher token) và không có truy vấn Mongoose trực tiếp nào trong file (logic nằm ở `lib/notifications/deadlineAssign.js`, ngoài phạm vi phase này). Chỉ bọc `withTenant` cho nhánh teacher, giữ nguyên nhánh cron. | `admin/deadline-jobs/run.js` | Đã làm, cần bạn xác nhận lại hướng này đúng ý không |

@@ -12,6 +12,7 @@
 
 const { connectDB } = require("../../../../lib/db");
 const { requireTeacher } = require("../../../../lib/auth");
+const { withTenant } = require("../../../../lib/tenant");
 const {
   runDeadlineEmailJob,
   sweepDeadlineEmailJobs,
@@ -64,7 +65,7 @@ async function handler(req, res) {
 // mọi route khác, để dùng chung một chỗ verify JWT và vẫn ghi audit log.
 module.exports = async (req, res) => {
   if (isCronCall(req)) return handler(req, res);
-  return requireTeacher(handler)(req, res);
+  return requireTeacher(withTenant(handler))(req, res);
 };
 
 module.exports.default = module.exports;

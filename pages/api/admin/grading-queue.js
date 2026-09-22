@@ -2,6 +2,7 @@
 // kèm đường dẫn để bấm vào chấm thẳng.
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant, tenantFilter } = require("../../../lib/tenant");
 const Submission = require("../../../lib/models/Submission");
 const Unit = require("../../../lib/models/Unit");
 
@@ -21,16 +22,16 @@ async function handler(req, res) {
   }
   await connectDB();
 
-  const subs = await Submission.find({
+  const subs = await Submission.find(tenantFilter(req.ws, {
     kind: { $in: ["writing", "speaking"] },
     gradingStatus: { $ne: "graded" },
-  })
+  }))
     .sort({ submittedAt: -1 })
     .select("studentId studentName kind unitId promptId testId testTitle testSkill submittedAt isLate gradingStatus attemptNumber parentSubmissionId")
     .lean();
 
   const unitIds = [...new Set(subs.filter((s) => s.unitId).map((s) => String(s.unitId)))];
-  const units = await Unit.find({ _id: { $in: unitIds } }).select("name categories").lean();
+  const units = await Unit.find(tenantFilter(req.ws, { _id: { $in: unitIds } })).select("name categories").lean();
   const unitById = new Map(units.map((u) => [String(u._id), u]));
 
   const rows = subs.map((s) => {
@@ -67,6 +68,6 @@ async function handler(req, res) {
   });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;

@@ -1,6 +1,7 @@
 const { formidable } = require("formidable");
 const fs = require("fs");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant } = require("../../../lib/tenant");
 const {
   parseCsv,
   parseContentCsv,
@@ -126,7 +127,7 @@ async function handler(req, res) {
   return res.status(200).json({ ok: true, sections, warnings });
 }
 
-const handlerWithAuth = requireAuth(handler);
+const handlerWithAuth = requireAuth(withTenant(handler));
 module.exports = handlerWithAuth;
 module.exports.config = { api: { bodyParser: false } };
 module.exports.default = module.exports;

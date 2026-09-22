@@ -19,7 +19,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 |---|---|---|---|
 | 0 | Lưới an toàn (backup, script kiểm kê, không đổi hành vi) | ☑ xong | 2026-09-22 |
 | 1 | Thêm `Workspace` + `WorkspaceMember` + backfill dữ liệu cũ | ☑ xong | Chạy trên live 2026-09-22: 941 doc, còn thiếu 0 |
-| 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☐ chưa làm | **Có tài liệu thi hành riêng: [PLAN-PHASE2-TENANT-READ.md](PLAN-PHASE2-TENANT-READ.md)** |
+| 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ xong | 2026-09-22 (Sonnet, theo PLAN-PHASE2-TENANT-READ.md), 26/26 route |
 | 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ☐ chưa làm | |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☐ chưa làm | |
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☐ chưa làm | |
@@ -905,7 +905,66 @@ chụp. Đã viết thành mục 8.1 và thêm bước 0 vào Phase 4.
 Tiện thể xác nhận được một điều: **app vẫn chạy bình thường sau khi sửa 941 document** —
 có học sinh thật đăng nhập thành công ngay sau đó.
 
-→ **Sẵn sàng cho Phase 2** (`lib/tenant.js` + áp bộ lọc cho mọi route ĐỌC).
+### 2026-09-22 — Phase 2 CHẠY XONG (thi hành theo PLAN-PHASE2-TENANT-READ.md) ☑
+
+Thi hành bởi Sonnet, theo checklist mục 7 của tài liệu thi hành. Kết quả và lệch
+so với plan ghi dưới đây, chi tiết đầy đủ nằm trong PLAN-PHASE2-TENANT-READ.md.
+
+**Đã tạo:** `lib/tenant.js`, `pages/api/teacher/me.js`, `scripts/check-tenant-scope.js`.
+**Đã sửa 26 route** (20 giáo viên + 6 học sinh — số route giáo viên tăng từ 19 lên 20 khi
+phát hiện route bị sót, xem bên dưới) + `pages/api/changelog.js` (exempt comment).
+**KHÔNG đụng:** `admin/ai-settings.js`, `admin/teachers.js` (đúng như plan — Phase 5),
+`sysadmin/*`, `tickets.js`, `teacher/notifications.js`, `auth.js`, `cron/deadline-scan.js`.
+
+**Một bug thật trong chính `lib/tenant.js` của tài liệu thi hành:** `withTenant` gọi
+`currentWorkspace()` (đọc `WorkspaceMember`) TRƯỚC KHI handler được chạy — tức trước khi
+`connectDB()` (dòng đầu tiên của mọi handler) kịp thực thi. Query treo, timeout sau 10s.
+Sửa: gọi `connectDB()` ngay trong `withTenant`, trước `currentWorkspace()` — an toàn vì
+`connectDB()` cache trên `global`, gọi lại không tốn gì. Không phát hiện được nếu không
+verify bằng cách gọi handler thật (xem mục kiểm tra bên dưới) — chỉ `node --check` (cú
+pháp) sẽ KHÔNG bắt được lỗi này.
+
+**Route bị sót khỏi bảng 3.1 của tài liệu thi hành:** `admin/submissions/ai-grade.js`.
+Tài liệu ghi "20 route" nhưng bảng chỉ liệt kê 19. Route này có mặt trong audit B2 gốc
+của PLAN-MULTI-TENANT.md ("không kiểm tra submission có thuộc GV không", mục 5.2 gốc ghi
+rõ "assertOwned submission trước khi gọi AI") nhưng rơi mất khi tách sang tài liệu thi
+hành chi tiết. Phát hiện bằng `check-tenant-scope.js` (chạy strict, file có truy vấn
+Mongoose mà không có tenantFilter/assertOwned/req.ws). Đã sửa: `Submission.findOne`
++ `GradingJob.findOne` bọc `tenantFilter`; `GradingJob.create` giữ nguyên (chiều ghi,
+Phase 3).
+
+**`check-tenant-scope.js` tự bắt lỗi của chính nó:** regex ban đầu khớp cả `.find(` trên
+mảng thường (`failed.find(f => ...)` trong `ai-lesson.js`), báo vi phạm giả. Sửa: chỉ bắt
+lệnh gọi trên định danh PascalCase (đúng quy ước đặt tên Model trong `lib/models/`).
+`admin/teachers.js` được gắn `// tenant-exempt: ...` (route cố ý chưa lọc, chờ Phase 5) —
+đây KHÔNG phải sửa logic, chỉ là comment cho chính script kiểm tra mới viết trong phase
+này, không vi phạm "KHÔNG ĐỤNG VÀO" của tài liệu thi hành.
+
+**Kiểm tra đã chạy — không dùng dev server** (theo quy tắc "không tự khởi động dev server"):
+viết harness gọi thẳng route handler (mock `req`/`res`, JWT ký thật bằng `JWT_SECRET`, nối
+DB dev thật qua Mongoose) — cùng đường code y hệt production, không qua HTTP.
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `node --check` toàn bộ file đã sửa | Sạch |
+| `check-tenant-scope.js --strict` | 0 vi phạm (23 file có tenant filter, 2 exempt, 4 không truy vấn DB) |
+| 6 route xương sống (units/tests/classes/students list+detail) cho `msnhi` | 200, đúng số liệu dev DB (4 unit, 1 test, 3 lớp, 1 học sinh) |
+| dashboard, submissions, grading-queue, audio, images, unit-submissions, test-submissions, attendance, deadline-jobs cho `msnhi` | 200, đúng số liệu, không lệch dòng nào |
+| **Kịch bản 2 workspace** (tạo tay `ws-test` + `gvtest` trên DB dev, theo đúng cảnh báo mục 5.3 — KHÔNG dùng `migrate-workspace.js`) | |
+| — `gvtest` gọi units/tests/classes/students/grading-queue/audio | Tất cả `200`, **rows: 0** — rỗng hoàn toàn |
+| — `GET admin/units?id=<unit của ms-nhi>` | **404** `{"error":"Unit not found"}` |
+| — `GET admin/test-submissions?testId=<test của ms-nhi>` | **404** — lỗ B2 đã vá |
+| — `GET admin/classes?id=<class của ms-nhi>` | **404** |
+| — Không có response nào là 403 ở 3 kiểm tra trên | Đúng — đúng quy ước 404-not-403 mục 0.4 |
+| Membership của `msnhi` sau khi test | vẫn đúng **1** dòng (không bị đẩy nhầm sang ws-test) |
+| `msnhi` sau khi dọn `ws-test` | units/classes/students/tests — khớp lại đúng baseline ban đầu |
+| Dọn dẹp | Đã xoá `ws-test`, `gvtest` (Teacher+User+WorkspaceMember) khỏi DB dev |
+
+**App không đổi hành vi trên live** — Phase 2 chưa deploy, chỉ mới verify trên DB dev qua
+harness. Trước khi deploy thật cần: đếm số dòng trên live cho `msnhi` trước/sau theo đúng
+bảng mục 5.2 của tài liệu thi hành (chỉ mới verify bằng DB dev ở đây).
+
+→ **Sẵn sàng cho Phase 3** (áp `workspaceId` cho mọi route GHI + luồng học sinh).
 
 **Ba việc phát sinh từ đợt tính năng AI** (audit gốc chưa thấy vì code ra sau):
 - Số liệu thật: **20 model · 41 route · 40 trang** (audit gốc ghi 17/37/37). Đã sửa mục 1,

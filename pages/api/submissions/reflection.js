@@ -1,5 +1,6 @@
 const { connectDB } = require("../../../lib/db");
 const { requireStudent } = require("../../../lib/auth");
+const { withTenant, tenantFilter } = require("../../../lib/tenant");
 const Submission = require("../../../lib/models/Submission");
 const { getReflectionQuestions } = require("../../../lib/grading/reflection");
 
@@ -15,7 +16,7 @@ async function handler(req, res) {
   const { id } = req.query;
   let submission;
   try {
-    submission = await Submission.findOne({ _id: id, studentId: req.auth.studentId });
+    submission = await Submission.findOne(tenantFilter(req.ws, { _id: id, studentId: req.auth.studentId }));
   } catch (err) {
     return res.status(404).json({ ok: false, error: "Submission not found" });
   }
@@ -49,6 +50,6 @@ async function handler(req, res) {
   return res.status(200).json({ ok: true, reflectionLog: submission.reflectionLog, questions });
 }
 
-module.exports = requireStudent(handler);
+module.exports = requireStudent(withTenant(handler));
 
 module.exports.default = module.exports;
