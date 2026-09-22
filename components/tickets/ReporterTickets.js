@@ -35,10 +35,20 @@ export default function ReporterTickets({ role }) {
       setActive(null);
       return;
     }
+    // Chuyển nhanh giữa 2 phiếu: response về trễ của phiếu cũ không được đè
+    // lên phiếu đang mở.
+    let stale = false;
     api.tickets
       .get(role, openId)
-      .then((d) => setActive(d.ticket))
-      .catch((e) => setErr(e.message));
+      .then((d) => {
+        if (!stale) setActive(d.ticket);
+      })
+      .catch((e) => {
+        if (!stale) setErr(e.message);
+      });
+    return () => {
+      stale = true;
+    };
   }, [role, openId]);
 
   useEffect(() => {

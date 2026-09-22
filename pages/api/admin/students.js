@@ -6,15 +6,21 @@ const Submission = require("../../../lib/models/Submission");
 const Class = require("../../../lib/models/Class");
 const User = require("../../../lib/models/User");
 const users = require("../../../lib/users");
+const { teacherScope, scopeFilter, canAccessClass } = require("../../../lib/teacherScope");
 
 async function handler(req, res) {
   await connectDB();
 
+  // Giáo viên chỉ thấy học sinh trong lớp mình phụ trách (chưa gán lớp -> tất cả).
+  const scope = await teacherScope(req.auth);
+  const classWhere = scopeFilter(scope, "classId");
+  const classIdWhere = scope.all ? {} : { _id: { $in: scope.classIds } };
+
   if (req.method === "GET") {
     const [students, counts, classes] = await Promise.all([
-      Student.find().sort({ createdAt: -1 }).lean(),
+      Student.find(classWhere).sort({ createdAt: -1 }).lean(),
       Submission.aggregate([{ $group: { _id: "$studentId", count: { $sum: 1 } } }]),
-      Class.find().lean(),
+      Class.find(classIdWhere).lean(),
     ]);
 
     const countByStudent = {};
@@ -50,6 +56,9 @@ async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Class not found" });
     }
     if (!cls) return res.status(400).json({ ok: false, error: "Class not found" });
+    if (!canAccessClass(scope, cls._id)) {
+      return res.status(403).json({ ok: false, error: "That class is not in your assigned classes" });
+    }
 
     try {
       const { student } = await users.createStudent({
@@ -78,6 +87,10 @@ async function handler(req, res) {
     }
     if (!student) {
       return res.status(404).json({ ok: false, error: "Student not found" });
+    }
+    // Không cho sửa/xoá học sinh ngoài phạm vi lớp của mình.
+    if (!canAccessClass(scope, student.classId)) {
+      return res.status(403).json({ ok: false, error: "That student is not in your assigned classes" });
     }
 
     if (req.method === "PUT") {
@@ -114,6 +127,9 @@ async function handler(req, res) {
             return res.status(400).json({ ok: false, error: "Class not found" });
           }
           if (!cls) return res.status(400).json({ ok: false, error: "Class not found" });
+          if (!canAccessClass(scope, cls._id)) {
+            return res.status(403).json({ ok: false, error: "That class is not in your assigned classes" });
+          }
           student.classId = cls._id;
         }
       }

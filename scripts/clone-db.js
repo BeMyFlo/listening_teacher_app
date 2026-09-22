@@ -1,6 +1,8 @@
 // Sao chép toàn bộ database từ SOURCE -> TARGET (để test local với data thật).
-// KHÔNG bao giờ ghi ngược vào source. Chạy:
-//   node scripts/clone-db.js "<SOURCE_URI>" "<TARGET_URI>"
+// XOÁ SẠCH target trước khi ghi. KHÔNG bao giờ ghi ngược vào source. Chạy:
+//   node scripts/clone-db.js "<SOURCE_URI>" "<TARGET_URI>"            # dry-run
+//   node scripts/clone-db.js "<SOURCE_URI>" "<TARGET_URI>" --apply    # thật
+//   thêm --force nếu target không phải localhost
 // hoặc đặt env SOURCE_URI / TARGET_URI. TARGET_URI mặc định:
 //   mongodb://127.0.0.1:27017/listening_app
 const { MongoClient } = require("mongodb");
@@ -15,6 +17,31 @@ if (!SOURCE) {
 if (SOURCE === TARGET) {
   console.error("Source and target are the same — refusing.");
   process.exit(1);
+}
+
+// Script này XOÁ SẠCH mọi collection của TARGET trước khi ghi. Trước đây nó
+// chạy thẳng, nên gõ nhầm một biến môi trường là mất DB thật. Giờ:
+//   - TARGET không phải localhost  -> bắt buộc có cờ --force
+//   - mặc định là dry-run, phải có --apply mới thực sự ghi
+const APPLY = process.argv.includes("--apply");
+const FORCE = process.argv.includes("--force");
+const TARGET_IS_LOCAL = /(^|@|\/\/)(localhost|127\.0\.0\.1)(:|\/)/.test(TARGET);
+
+if (!TARGET_IS_LOCAL && !FORCE) {
+  console.error(
+    `REFUSING: target is not localhost —\n  ${TARGET}\n` +
+      "This script deletes every collection in the target first.\n" +
+      "Re-run with --force if you really mean to overwrite that database."
+  );
+  process.exit(1);
+}
+if (!APPLY) {
+  console.error(
+    `DRY RUN — nothing will be written.\n  source: ${SOURCE}\n  target: ${TARGET}\n` +
+      "Every collection in the target would be DELETED, then replaced.\n" +
+      "Re-run with --apply to actually do it."
+  );
+  process.exit(0);
 }
 
 function dbName(uri) {

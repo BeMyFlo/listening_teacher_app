@@ -4,14 +4,20 @@ const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const Unit = require("../../../lib/models/Unit");
 const Test = require("../../../lib/models/Test");
+const { teacherScope, canAccessClass } = require("../../../lib/teacherScope");
 
 async function handler(req, res) {
   await connectDB();
   const { id } = req.query;
 
+  // Giáo viên chỉ thao tác trên lớp mình phụ trách (chưa gán lớp -> tất cả).
+  const scope = await teacherScope(req.auth);
+
   if (req.method === "GET" && !id) {
     const [classes, counts] = await Promise.all([
-      Class.find().sort({ level: 1, name: 1 }).lean(),
+      Class.find(scope.all ? {} : { _id: { $in: scope.classIds } })
+        .sort({ level: 1, name: 1 })
+        .lean(),
       Student.aggregate([
         { $match: { classId: { $ne: null } } },
         { $group: { _id: "$classId", count: { $sum: 1 } } },
@@ -30,6 +36,11 @@ async function handler(req, res) {
   }
 
   if (req.method === "POST") {
+    // Giáo viên bị giới hạn lớp thì tạo lớp mới cũng vô nghĩa (tạo xong không
+    // thấy) — để admin làm việc đó rồi gán lớp.
+    if (!scope.all) {
+      return res.status(403).json({ ok: false, error: "Only an admin can create a new class" });
+    }
     const name = String((req.body && req.body.name) || "").trim();
     const level = Number(req.body && req.body.level);
     if (!name) return res.status(400).json({ ok: false, error: "Missing class name" });
@@ -47,6 +58,9 @@ async function handler(req, res) {
     return res.status(404).json({ ok: false, error: "Class not found" });
   }
   if (!cls) return res.status(404).json({ ok: false, error: "Class not found" });
+  if (!canAccessClass(scope, cls._id)) {
+    return res.status(403).json({ ok: false, error: "That class is not in your assigned classes" });
+  }
 
   if (req.method === "GET") {
     const students = await Student.find({ classId: cls._id }).sort({ name: 1 }).lean();

@@ -9,8 +9,11 @@ const Ticket = require("../../lib/models/Ticket");
 const Student = require("../../lib/models/Student");
 const Teacher = require("../../lib/models/Teacher");
 const { cleanImages, toPublic } = require("../../lib/tickets");
+const { asObjectId } = require("../../lib/validate");
 
 const LIMIT = 100;
+const MAX_TITLE = 140;
+const MAX_BODY = 4000;
 
 async function reporterFrom(auth) {
   if (auth.role === "student") {
@@ -36,7 +39,11 @@ async function handler(req, res) {
     return res.status(401).json({ ok: false, error: "Account no longer exists, please sign in again" });
   }
 
-  const id = req.query.id ? String(req.query.id) : null;
+  // id sai định dạng -> coi như không tồn tại, thay vì để CastError thành 500.
+  const id = req.query.id ? asObjectId(req.query.id) : null;
+  if (req.query.id && !id) {
+    return res.status(404).json({ ok: false, error: "Ticket not found" });
+  }
 
   if (req.method === "GET") {
     if (id) {
@@ -48,19 +55,26 @@ async function handler(req, res) {
       }
       return res.status(200).json({ ok: true, ticket: toPublic(t, { full: true }) });
     }
-    const rows = await Ticket.find(ownerFilter(rep)).sort({ updatedAt: -1 }).limit(LIMIT).lean();
-    const unreadCount = rows.filter((r) => r.reporterUnread).length;
+    const [rows, unreadCount] = await Promise.all([
+      Ticket.find(ownerFilter(rep)).sort({ updatedAt: -1 }).limit(LIMIT).lean(),
+      // Đếm trên toàn bộ phiếu, không chỉ trong LIMIT dòng đầu — badge chuông
+      // phải đúng kể cả khi một người có hơn 100 phiếu.
+      Ticket.countDocuments({ ...ownerFilter(rep), reporterUnread: true }),
+    ]);
     return res.status(200).json({ ok: true, rows: rows.map((r) => toPublic(r)), unreadCount });
   }
 
   if (req.method === "POST" && id) {
-    const body = String((req.body && req.body.body) || "").trim();
+    const body = String((req.body && req.body.body) || "").trim().slice(0, MAX_BODY);
     const images = cleanImages(req.body && req.body.images);
     if (!body && !images.length) {
       return res.status(400).json({ ok: false, error: "Message is empty" });
     }
     const t = await Ticket.findOne({ _id: id, ...ownerFilter(rep) });
     if (!t) return res.status(404).json({ ok: false, error: "Ticket not found" });
+    if (t.messages.length >= Ticket.MAX_MESSAGES) {
+      return res.status(400).json({ ok: false, error: "This ticket has too many replies — please open a new one" });
+    }
     t.messages.push({ authorRole: rep.role, authorName: rep.name, body, images });
     t.lastReplyRole = rep.role;
     t.adminUnread = true;
@@ -72,8 +86,8 @@ async function handler(req, res) {
 
   if (req.method === "POST") {
     const b = req.body || {};
-    const title = String(b.title || "").trim();
-    const desc = String(b.body || "").trim();
+    const title = String(b.title || "").trim().slice(0, MAX_TITLE);
+    const desc = String(b.body || "").trim().slice(0, MAX_BODY);
     const kind = Ticket.KINDS.includes(b.kind) ? b.kind : "bug";
     const images = cleanImages(b.images);
     if (title.length < 3) {

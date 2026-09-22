@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { setBadge } from "@/lib/client/shellBadges";
@@ -33,11 +33,21 @@ export default function SupportWidget({ role }) {
       .catch(() => {});
   }, [role, isReporter, href]);
 
+  // Đồng bộ lại mỗi lần đổi trang…
   useEffect(() => {
     sync();
-    const id = setInterval(sync, POLL_MS);
-    return () => clearInterval(id);
   }, [sync, pathname]);
+
+  // …nhưng interval thì giữ nguyên nhịp 60s, không bị huỷ/tạo lại theo route.
+  // syncRef để interval luôn gọi bản sync mới nhất mà không cần dựng lại.
+  const syncRef = useRef(sync);
+  useEffect(() => {
+    syncRef.current = sync;
+  }, [sync]);
+  useEffect(() => {
+    const id = setInterval(() => syncRef.current(), POLL_MS);
+    return () => clearInterval(id);
+  }, []);
 
   if (!isReporter) return null;
 

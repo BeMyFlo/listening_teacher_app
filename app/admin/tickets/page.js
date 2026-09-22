@@ -17,27 +17,60 @@ export default function AdminTicketsPage() {
   const [status, setStatus] = useState("");
   const [kind, setKind] = useState("");
   const [q, setQ] = useState("");
+  const [qDebounced, setQDebounced] = useState(""); // giá trị thật sự gửi lên API
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [sel, setSel] = useState(null); // ticket đầy đủ
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
   const threadRef = useRef(null);
+  const openingRef = useRef(null);
 
-  const load = useCallback(() => {
+  // Gõ tới đâu gọi API tới đó thì mỗi phím là một request; chờ 300ms im mới gửi.
+  useEffect(() => {
+    const t = setTimeout(() => setQDebounced(q), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  // `signal` để bỏ qua response của lần gọi cũ về sau lần gọi mới.
+  const load = useCallback((signal) => {
     api.admin
-      .tickets({ reporterRole: tab, ...(status ? { status } : {}), ...(kind ? { kind } : {}), ...(q ? { q } : {}) })
-      .then(setData)
-      .catch((e) => setErr(e.message));
-  }, [tab, status, kind, q]);
+      .tickets({
+        reporterRole: tab,
+        ...(status ? { status } : {}),
+        ...(kind ? { kind } : {}),
+        ...(qDebounced ? { q: qDebounced } : {}),
+      })
+      .then((d) => {
+        if (!signal || !signal.stale) setData(d);
+      })
+      .catch((e) => {
+        if (!signal || !signal.stale) setErr(e.message);
+      });
+  }, [tab, status, kind, qDebounced]);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    const signal = { stale: false };
+    load(signal);
+    return () => {
+      signal.stale = true;
+    };
+  }, [load]);
   useEffect(() => {
     if (sel && threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
   }, [sel]);
 
+  // Bấm nhanh 2 phiếu: chỉ nhận response của phiếu được bấm sau cùng.
   function openTicket(id) {
-    api.admin.getTicket(id).then((d) => setSel(d.ticket)).catch((e) => setErr(e.message));
+    openingRef.current = id;
+    api.admin
+      .getTicket(id)
+      .then((d) => {
+        if (openingRef.current === id) setSel(d.ticket);
+      })
+      .catch((e) => {
+        if (openingRef.current === id) setErr(e.message);
+      });
   }
 
   async function apply(patch) {

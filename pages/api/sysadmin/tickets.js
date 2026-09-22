@@ -7,12 +7,18 @@ const { requireRole } = require("../../../lib/auth");
 const Ticket = require("../../../lib/models/Ticket");
 const { emit } = require("../../../lib/notifications");
 const { STATUS_LABEL, cleanImages, toPublic } = require("../../../lib/tickets");
+const { asObjectId } = require("../../../lib/validate");
 
 const LIMIT = 100;
+const MAX_REPLY = 4000;
 
 async function handler(req, res) {
   await connectDB();
-  const id = req.query.id ? String(req.query.id) : null;
+  // id sai định dạng -> 404 thay vì CastError thành 500.
+  const id = req.query.id ? asObjectId(req.query.id) : null;
+  if (req.query.id && !id) {
+    return res.status(404).json({ ok: false, error: "Ticket not found" });
+  }
 
   if (req.method === "GET") {
     if (id) {
@@ -59,7 +65,7 @@ async function handler(req, res) {
     const t = await Ticket.findById(id);
     if (!t) return res.status(404).json({ ok: false, error: "Ticket not found" });
 
-    const reply = String(b.reply || "").trim();
+    const reply = String(b.reply || "").trim().slice(0, MAX_REPLY);
     const images = cleanImages(b.images);
     const nextStatus = Ticket.STATUSES.includes(b.status) ? b.status : null;
     const nextPriority = Ticket.PRIORITIES.includes(b.priority) ? b.priority : null;
@@ -71,7 +77,17 @@ async function handler(req, res) {
     const statusChanged = nextStatus && nextStatus !== t.status;
 
     if (reply || images.length) {
-      t.messages.push({ authorRole: "admin", authorName: b.adminName || "Support", body: reply, images });
+      if (t.messages.length >= Ticket.MAX_MESSAGES) {
+        return res.status(400).json({ ok: false, error: "This ticket has too many replies" });
+      }
+      // Tên người trả lời lấy từ token, không lấy từ body — body thì gọi API
+      // tay là đặt tên gì cũng được.
+      t.messages.push({
+        authorRole: "admin",
+        authorName: (req.auth && req.auth.name) || "Support",
+        body: reply,
+        images,
+      });
       t.lastReplyRole = "admin";
     }
     if (nextPriority) t.priority = nextPriority;

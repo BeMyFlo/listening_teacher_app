@@ -46,10 +46,17 @@ async function handler(req, res) {
   ]);
 
   const classmateIds = classmates.map((s) => s._id);
+  // Bảng xếp hạng cần bản nộp MỚI NHẤT của mỗi (học sinh, đầu bài), nên phải
+  // lấy nhiều bản ghi. Sắp xếp ở DB (có index studentId+submittedAt) và kẹp
+  // trần thay vì kéo nguyên collection của cả lớp về rồi mới sort trong JS.
+  // Trần này thừa sức cho một lớp bình thường (40 học sinh × ~125 đầu bài);
+  // lớp nào vượt qua thì phần rất cũ sẽ không tính vào điểm xếp hạng.
   const submissions = await Submission.find({ studentId: { $in: classmateIds } })
     .select(
       "studentId kind score total manualScore gradingStatus exerciseId promptId testId testSkill unitId isLate submittedAt"
     )
+    .sort({ submittedAt: -1 })
+    .limit(5000)
     .lean();
 
   const mySubs = submissions.filter((s) => String(s.studentId) === String(me._id));
