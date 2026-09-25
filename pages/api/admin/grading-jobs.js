@@ -78,14 +78,18 @@ async function handler(req, res) {
   }
 
   // Cố "giành" job (atomic) rồi chạy Gemini ngay trong request này.
+  // Dùng job._id (đã xác định ở trên, qua cả 2 nhánh id/submissionId) —
+  // KHÔNG dùng lại biến `id` gốc: ở nhánh submissionId nó luôn undefined,
+  // nên trước đây findOneAndUpdate không bao giờ khớp và job pending không
+  // bao giờ được giành để chạy AI (luôn rơi vào nhánh "đã bị giành").
   const claimed = await GradingJob.findOneAndUpdate(
-    { _id: id, status: "pending" },
+    { _id: job._id, status: "pending" },
     { $set: { status: "running", startedAt: new Date() } },
     { new: true }
   );
   if (!claimed) {
     // request khác đã giành -> trả trạng thái hiện tại
-    const fresh = await assertOwned(req.ws, GradingJob, id, { lean: true, message: "Job not found" });
+    const fresh = await assertOwned(req.ws, GradingJob, job._id, { lean: true, message: "Job not found" });
     return res.status(200).json({ ok: true, ...publicJob(fresh) });
   }
 

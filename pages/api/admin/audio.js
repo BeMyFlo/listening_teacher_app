@@ -4,6 +4,7 @@ const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant")
 const { deleteAudioFile } = require("../../../lib/cloudinary");
 const Audio = require("../../../lib/models/Audio");
 const Test = require("../../../lib/models/Test");
+const Unit = require("../../../lib/models/Unit");
 
 async function handler(req, res) {
   await connectDB();
@@ -48,11 +49,26 @@ async function handler(req, res) {
       return res.status(200).json({ ok: true, audio });
     }
 
-    const inUse = await Test.exists(tenantFilter(req.ws, { "sections.audioId": audio._id }));
-    if (inUse) {
+    // Trước đây chỉ dò `Test` với path "sections.audioId" — path đó không tồn
+    // tại trong schema thật (audioId nằm ở `skills.listening.sections.audioId`)
+    // và route còn bỏ sót hẳn `Unit` (lesson), nơi audio thực tế được dùng
+    // nhiều hơn cả mock test (theory + exercise + topic/group exercise).
+    // Chốt "đang dùng" trước đây vì vậy chưa từng chặn được lần xoá nào.
+    const [inTest, inUnit] = await Promise.all([
+      Test.exists(tenantFilter(req.ws, { "skills.listening.sections.audioId": audio._id })),
+      Unit.exists(tenantFilter(req.ws, {
+        $or: [
+          { "categories.theory.audioId": audio._id },
+          { "categories.exercises.sections.audioId": audio._id },
+          { "categories.topics.exercises.sections.audioId": audio._id },
+          { "categories.groups.exercises.sections.audioId": audio._id },
+        ],
+      })),
+    ]);
+    if (inTest || inUnit) {
       return res.status(409).json({
         ok: false,
-        error: "This audio track is currently used in a mock test and cannot be deleted."
+        error: `This audio track is currently used in ${inUnit ? "a lesson" : "a mock test"} and cannot be deleted.`,
       });
     }
     try {

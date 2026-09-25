@@ -4,6 +4,7 @@ const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant")
 const { deleteImageFile } = require("../../../lib/cloudinary");
 const Image = require("../../../lib/models/Image");
 const Test = require("../../../lib/models/Test");
+const Unit = require("../../../lib/models/Unit");
 
 async function handler(req, res) {
   await connectDB();
@@ -48,11 +49,33 @@ async function handler(req, res) {
       return res.status(200).json({ ok: true, image });
     }
 
-    const inUse = await Test.exists(tenantFilter(req.ws, { "sections.imageId": image._id }));
-    if (inUse) {
+    // Trước đây chỉ dò `Test` với path "sections.imageId" — path đó không tồn
+    // tại trong schema thật, và route còn bỏ sót hẳn `Unit` (lesson), nơi ảnh
+    // dùng nhiều hơn cả mock test (theory + exercise + prompt + topic/group
+    // exercise). Chốt "đang dùng" trước đây vì vậy chưa từng chặn lần xoá nào.
+    const [inTest, inUnit] = await Promise.all([
+      Test.exists(tenantFilter(req.ws, {
+        $or: [
+          { "skills.listening.sections.imageId": image._id },
+          { "skills.reading.sections.imageId": image._id },
+          { "skills.writing.prompts.imageId": image._id },
+          { "skills.speaking.prompts.imageId": image._id },
+        ],
+      })),
+      Unit.exists(tenantFilter(req.ws, {
+        $or: [
+          { "categories.theory.imageId": image._id },
+          { "categories.exercises.sections.imageId": image._id },
+          { "categories.prompts.imageId": image._id },
+          { "categories.topics.exercises.sections.imageId": image._id },
+          { "categories.groups.exercises.sections.imageId": image._id },
+        ],
+      })),
+    ]);
+    if (inTest || inUnit) {
       return res.status(409).json({
         ok: false,
-        error: "This image is currently used in a mock test and cannot be deleted."
+        error: `This image is currently used in ${inUnit ? "a lesson" : "a mock test"} and cannot be deleted.`,
       });
     }
     try {
