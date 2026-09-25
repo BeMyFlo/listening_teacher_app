@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/use-db.js dev && next dev",
     "dev:live": "node scripts/use-db.js live && next dev",
-    "build": "next build",
+    "build": "node scripts/check-tenant-scope.js --strict && next build",
     "start": "next start",
     "dev:vercel": "vercel dev",
     "dev:legacy": "node server.js",

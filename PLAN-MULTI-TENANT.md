@@ -20,8 +20,8 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 0 | Lưới an toàn (backup, script kiểm kê, không đổi hành vi) | ☑ xong | 2026-09-22 |
 | 1 | Thêm `Workspace` + `WorkspaceMember` + backfill dữ liệu cũ | ☑ xong | Chạy trên live 2026-09-22: 941 doc, còn thiếu 0 |
 | 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. 26/26 route. Deploy cùng Phase 3 bước 1–2 — xem Nhật ký |
-| 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ◐ bước 1–2–3–4–5–6 code xong, chưa deploy | 2026-09-25. Xem Nhật ký — bước 3 có 1 lỗ hổng ngoài dự tính, đã vá; bước 4–5 code bởi Haiku subagent, review dòng-theo-dòng + kiểm chứng dữ liệu thật |
-| 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☐ chưa làm | |
+| 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 1–2–3–4–5–6 đều deploy xong. Bước 3 có 1 lỗ hổng ngoài dự tính, đã vá; bước 4–5 code bởi Haiku subagent, review dòng-theo-dòng + OCR review sau khi push bắt thêm 1 lỗi (cron thiếu workspaceId), đã vá — xem Nhật ký |
+| 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ◐ code xong, chưa deploy | 2026-09-25. Xem Nhật ký |
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☐ chưa làm | |
 | 6 | Self-serve signup + onboarding + Workspace Settings | ☐ chưa làm | |
 | 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ☐ chưa làm | |
@@ -1403,6 +1403,65 @@ lại `node --check` + `check-tenant-scope --strict`. Commit riêng, push tiếp
 → **Việc tiếp theo: chạy lại `migrate-workspace --live --apply` + `check-orphans --live --strict`
 sau khi Vercel deploy xong (không bắt buộc cho bước 4–5 vì không thêm `.create()` mới, nhưng vẫn
 nên chạy 1 lần cho chắc sau khi có commit thứ 3), rồi Phase 4.**
+
+Đã chạy: `migrate-workspace --live --apply` (0 document mới cần gán), `check-orphans --live --strict`
+→ 0/13 nhóm bắt buộc thiếu. Vercel deploy Production đã Ready (xác nhận qua `vercel ls`).
+
+---
+
+### 2026-09-25 — Phase 4 bước 0–3 (siết `required: true` + index) code xong ☑
+
+**Bước 0–1** (chạy lại migration + xác nhận `check-orphans` = 0) — đã làm ở cuối mục trên, live sạch
+tuyệt đối trước khi bắt đầu siết `required`.
+
+**Bước 2 — `required: true` cho 13 model bắt buộc** (mục 4.2): `Teacher`, `Student`, `Class`, `Unit`,
+`Test`, `Audio`, `Image`, `AttendanceSession`, `Submission`, `StudentNote`, `Notification`,
+`GradingJob`, `DeadlineEmailJob`. KHÔNG đặt cho `Ticket`/`AuditLog`/`AiLog` (đúng quyết định 0.3.4 —
+đây là doc tầng platform, có thể sinh ra khi chưa xác định được workspace).
+
+Trước khi merge, đã kiểm tra thủ công **mọi `.create()` callsite** của 13 model (grep toàn repo) để
+chắc chắn `required: true` không làm gãy request nào đang chạy — tất cả đã truyền `workspaceId` từ
+Phase 3 bước 1–2. Phát hiện 1 đường bootstrap cũ tại `pages/api/auth.js:118`
+(`users.createTeacher({name:"Teacher", username, password})` — nhánh "bootstrap giáo viên đầu tiên
+qua `TEACHER_PASSWORD`") KHÔNG truyền `workspaceId`. Nhánh này chỉ mở khi `Teacher.countDocuments()
+=== 0` (chưa từng đạt được trên live vì đã có msnhi từ trước), và đây chính xác là kiểu "tài khoản
+chết" mà migration này muốn loại bỏ (giống lý do `pages/api/sysadmin/users.js` đã chặn tạo giáo viên
+mới — xem Nhật ký 2026-09-22). Quyết định: **không sửa**, để `required: true` tự chặn cứng nhánh này
+(ném `ValidationError`, route đã có `try/catch` trả về 400, không crash) — đúng hướng Phase 5 mới
+thiết kế lại flow tạo giáo viên có kèm Workspace.
+
+**Bước 3 — Index mục 4.3**, thêm compound index (và bỏ `index: true` đơn lẻ ở model có compound đè
+lên): `Class{workspaceId,level,name}`, `Unit{workspaceId,level,order}`, `Test{workspaceId,status,level}`,
+`Student{workspaceId,classId}`, `Submission{workspaceId,gradingStatus,submittedAt}` +
+`Submission{workspaceId,studentId,submittedAt}`, `Audio{workspaceId,uploadedAt}`,
+`Image{workspaceId,uploadedAt}`, `AttendanceSession{workspaceId,classId,date}`,
+`Notification{workspaceId,createdAt}`. 4 model còn lại (`Teacher`, `StudentNote`, `GradingJob`,
+`DeadlineEmailJob`) không có compound theo mục 4.3 nên giữ nguyên `index: true` đơn lẻ.
+
+**Bước 5 (đảo mặc định `teacherScope.js`) — QUYẾT ĐỊNH GIỮ NGUYÊN, KHÔNG LÀM.** Đọc lại mục 8.4 bước
+5 gốc ("bỏ `{all: true}` khi `classIds` rỗng") thì phát hiện xung đột trực tiếp với bug fix vừa merge
+ở Phase 3 bước 4: `pages/api/admin/classes.js` dùng đúng `scope.all` (dựa trên `Teacher.classIds`
+rỗng hay không trong DB) để quyết định có `$addToSet` lớp mới vào `classIds` hay không — giáo viên
+"toàn quyền" (raw rỗng) phải giữ nguyên rỗng, đã kiểm chứng bằng dữ liệu thật (Test B ở Nhật ký Phase
+3 bước 4–5). Nếu đổi `teacherScope()` sang liệt kê tường minh mọi lớp của workspace khi rỗng, `scope.all`
+sẽ luôn `false`, phá vỡ đúng bug fix đó. Mục tiêu thật của bước 5 ("ranh giới thật do `workspaceId`
+lo, không phải do cờ `all` toàn cục") **đã đạt được** — `check-tenant-scope.js --strict` xác nhận mọi
+route đều tự áp `tenantFilter(req.ws)` độc lập với `teacherScope`, nên `{all:true}` không bao giờ là
+lối thoát cross-workspace trong thực tế. Bỏ qua bước 5, ghi lại lý do ở đây để không ai lặp lại.
+
+**Bước 4 — gắn `check-tenant-scope.js --strict` vào `npm run build`**: `package.json` → `"build": "node
+scripts/check-tenant-scope.js --strict && next build"`.
+
+**Kiểm chứng:** `node --check` cả 13 model + `package.json` hợp lệ JSON; script tạm kết nối dev DB gọi
+`Model.init()` cho cả 13 model — build index thành công, không xung đột, đọc được document hiện có
+(không lỗi validate khi query — chỉ `required` chặn lúc GHI, không chặn đọc document cũ). Chạy lại
+`check-orphans --live --strict` lẫn `--dev --strict`: live sạch 0/13; dev cũng 0/13 (18 `auditlogs`
+thiếu — nhóm tuỳ chọn, không chặn — và cảnh báo "chưa phân loại `conversations`/`messages`" là dữ
+liệu thử nghiệm của nhánh `feature/class-chat` khác, không liên quan Phase 4, không có trên live).
+
+→ **Việc tiếp theo: review bằng `open-code-review` rồi mới push (đúng quy trình mới), deploy, chạy lại
+`migrate-workspace --live --apply` + `check-orphans --live --strict` sau deploy để chắc chắn không có
+document nào trôi dạt trong cửa sổ build trước khi `required` có hiệu lực, rồi Phase 5.**
 
 ---
 
