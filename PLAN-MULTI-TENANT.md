@@ -757,6 +757,10 @@ không.
    Trang `/teacher/ai-grading` giữ phần xem trạng thái + hàng đợi, bỏ phần chọn model
    (chuyển sang `/admin/system`).
 3. `sysadmin/users.js`: khi tạo teacher → **tự tạo Workspace + WorkspaceMember**.
+   ⚠️ **Chức năng tạo giáo viên đang bị CHẶN** (trả 400) kể từ gói gỡ chặn Phase 3 bước 1–2 —
+   vì nếu không chặn thì admin bấm tạo sẽ nhận `201` rồi giao ra một tài khoản 403 mọi màn
+   hình. Bước 3 này chính là chỗ **mở lại**: tạo Workspace + WorkspaceMember rồi bỏ khối
+   `return res.status(400)` trong nhánh `role === "teacher"`.
 4. `sysadmin/impersonate.js`: token trả về gắn workspace của GV đó.
 5. Trang `/admin/workspaces` (mới): danh sách workspace, số GV/HS/lớp, suspend/active.
 6. Thêm bộ lọc workspace cho `sysadmin/dashboard|audit|storage|notifications`.
@@ -1164,6 +1168,47 @@ Commit tách riêng khỏi phần đó, để revert độc lập được nếu
 
 → **Phase 2 + Phase 3 bước 1–2 sẵn sàng deploy cùng một lần.** Việc tiếp theo: Phase 3
 bước 3–5, sau đó Phase 4.
+
+### 2026-09-25 — Soát lại gói gỡ chặn + 2 sửa nhỏ
+
+Soát lại code của gói Phase 3 bước 1–2 bằng cách gọi handler thật trên DB dev. **Kết luận:
+code đúng** — cả 15 chỗ tạo document của 13 model bắt buộc đều gắn `workspaceId`, không sót.
+
+**Lỗ hổng trong phần tự nghiệm thu của lượt trước:** kịch bản 3 gọi `Submission.create()`
+thẳng ở tầng model với `workspaceId` truyền sẵn — tức là **không chạm vào đoạn code vừa sửa**.
+Đã kiểm lại bằng route thật: `POST /api/submissions` (cả nhánh exercise lẫn writing) gắn
+`workspaceId` đúng, và nhánh `emit(teacherId)` — lượt trước chỉ test nhánh studentId — cũng đúng.
+
+**Hai sửa nhỏ trong lượt này:**
+
+1. **Chặn tạo giáo viên chết** (`sysadmin/users.js`). Đo được: admin bấm tạo → `201` báo
+   thành công → tài khoản đó `403` ở `/api/admin/units`, `/classes`, `/dashboard`. Đây đúng
+   là "tài khoản chết" mà mục 0.5 của tài liệu thi hành cấm, nhưng tài liệu lại tự miễn trừ
+   cho teacher ("giữ nguyên, Phase 5") — mâu thuẫn với chính nguyên tắc của nó. Giờ trả `400`
+   kèm lời giải thích. Phase 5 bước 3 mở lại. **Không** đặt guard trong `lib/users.js` vì
+   `auth.js` còn dùng `createTeacher` cho đường bootstrap (chỉ chạy khi `Teacher.count === 0`).
+2. **Bỏ N+1 trong `emit()`**. `emit()` tự tra `Student`/`Teacher` mỗi lần gọi — đúng và an
+   toàn, nhưng 3 chỗ gọi đã cầm sẵn `workspaceId` mà không truyền: `deadlineAssign` (có
+   `job.workspaceId`, lặp qua CẢ LỚP — lớp 40 em = 40 query thừa mỗi job), `generate.js`
+   (có `student`, chạy mỗi lần học sinh mở chuông), `student.js` (có `submission`).
+   Đã truyền vào. Đường thoái lui giữ nguyên và **đã kiểm**: document cũ chưa có
+   `workspaceId` thì `emit()` vẫn tự tra ra đúng workspace như cũ.
+
+**Hai lỗi CÓ SẴN vẫn chưa sửa** (không do Phase 2/3 gây ra, đã ghi ở Nhật ký 22/9): nhánh
+poll theo `submissionId` của `grading-jobs.js` dùng `_id: undefined`; và chốt "media đang
+dùng" của `audio.js`/`images.js` dò sai đường dẫn schema. Để vào Phase 3 bước 6.
+
+**Trôi dạt trên live sau 3 ngày** (đo 25/9, chỉ đọc):
+
+| | 22/9 (4h sau migration) | 25/9 | |
+|---|---|---|---|
+| submissions | 481 / **5** thiếu | 493 / **17** | +12 bài mới, **12/12 đều thiếu** |
+| notifications | 357 / **3** | 371 / **17** | +14, **14/14 đều thiếu** |
+| Nhóm bắt buộc | **8** mồ côi | **34** | ~8–9 doc/ngày |
+
+100% document mới đang trôi dạt — đúng như mục 8.1 mô tả. **Chưa gây sự cố** vì live vẫn
+chạy code cũ (chưa có bộ lọc nào), nhưng xác nhận: phải chạy lại `migrate-workspace.js
+--live --apply` **sát giờ deploy**, không phải chạy trước rồi để đó.
 
 ---
 

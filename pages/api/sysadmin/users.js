@@ -77,8 +77,17 @@ async function handler(req, res) {
         return res.status(201).json({ ok: true, user: { _id: user._id, username: user.username } });
       }
       if (role === "teacher") {
-        const { user } = await users.createTeacher({ ...b, classIds: Array.isArray(b.classIds) ? b.classIds : [] });
-        return res.status(201).json({ ok: true, user: { _id: user._id, username: user.username } });
+        // Tạo giáo viên "đúng nghĩa" là phải tạo kèm Workspace + WorkspaceMember
+        // cho người đó — việc của Phase 5. Chưa có thì tài khoản sinh ra đăng
+        // nhập được nhưng 403 MỌI màn hình (lib/tenant.js -> withTenant).
+        // Chặn ở đây thay vì trả 201 rồi giao ra một tài khoản chết: cùng đúng
+        // nguyên tắc đã áp cho createStudent (PLAN-PHASE3-STEP12 mục 0.5).
+        return res.status(400).json({
+          ok: false,
+          error:
+            "Creating teacher accounts is temporarily disabled: a teacher needs their own workspace, " +
+            "which is not built yet. Ask a developer to create it manually for now.",
+        });
       }
       if (role === "student") {
         if (!b.classId) return res.status(400).json({ ok: false, error: "Please select a class" });
