@@ -20,7 +20,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 0 | Lưới an toàn (backup, script kiểm kê, không đổi hành vi) | ☑ xong | 2026-09-22 |
 | 1 | Thêm `Workspace` + `WorkspaceMember` + backfill dữ liệu cũ | ☑ xong | Chạy trên live 2026-09-22: 941 doc, còn thiếu 0 |
 | 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. 26/26 route. Deploy cùng Phase 3 bước 1–2 — xem Nhật ký |
-| 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ◐ bước 1–2 **ĐÃ LÊN LIVE**, bước 3–6 chưa | 2026-09-25. Bước 4 giờ có thêm ràng buộc bắt buộc — xem Phase 3 bước 4 |
+| 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ◐ bước 1–2–6 **ĐÃ LÊN LIVE**, bước 3–5 chưa | 2026-09-25. Bước 4 giờ có thêm ràng buộc bắt buộc — xem Phase 3 bước 4 |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☐ chưa làm | |
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☐ chưa làm | |
 | 6 | Self-serve signup + onboarding + Workspace Settings | ☐ chưa làm | |

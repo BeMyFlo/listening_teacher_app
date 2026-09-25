@@ -52,24 +52,36 @@ const MISSING = { $or: [{ workspaceId: { $exists: false } }, { workspaceId: null
 
   if (!APPLY) console.log("DRY RUN — không ghi gì. Thêm --apply để chạy thật.\n");
 
-  // --- 1. Chủ workspace ---------------------------------------------------
+  // --- 1. Danh sách giáo viên hiện có -------------------------------------
   const teachers = await User.find({ role: "teacher" }).sort({ createdAt: 1, _id: 1 }).lean();
   if (!teachers.length) {
     console.error("Không có User nào role=teacher — không biết ai là chủ workspace. Dừng.");
     process.exit(1);
   }
-  const owner = teachers[0];
-  console.log(`Chủ workspace: ${owner.username} (${owner.name || "không tên"})`);
+
+  // --- 2. Workspace ---------------------------------------------------------
+  let ws = await Workspace.findOne({ slug: WS_SLUG });
+
+  // Chủ workspace: nếu workspace ĐÃ tồn tại, dùng đúng `ownerUserId` đã lưu
+  // cố định trong document đó — nguồn sự thật duy nhất, KHÔNG tính lại theo
+  // "giáo viên cũ nhất hiện có". Tính lại mỗi lần chạy sẽ lệch nếu người tạo
+  // workspace ban đầu bị xoá sau đó: owner cục bộ đổi sang người khác nhưng
+  // `Workspace.ownerUserId` thì không, khiến `WorkspaceMember.role="owner"`
+  // gán nhầm người so với chính Workspace. Chỉ lần tạo đầu tiên (ws chưa có)
+  // mới cần chọn — lúc đó lấy giáo viên cũ nhất theo `createdAt`.
+  const ownerUserId = ws ? ws.ownerUserId : teachers[0]._id;
+  const ownerUser = teachers.find((t) => String(t._id) === String(ownerUserId));
+  console.log(
+    `Chủ workspace: ${ownerUser ? ownerUser.username + " (" + (ownerUser.name || "không tên") + ")" : ownerUserId + " (không còn trong bảng User)"}`
+  );
   if (teachers.length > 1) {
     console.log(`Còn ${teachers.length - 1} teacher khác -> vào cùng workspace với role "teacher".`);
   }
 
-  // --- 2. Workspace -------------------------------------------------------
-  let ws = await Workspace.findOne({ slug: WS_SLUG });
   if (ws) {
     console.log(`Workspace "${WS_SLUG}" đã có (${ws._id}) — dùng lại.`);
   } else if (APPLY) {
-    ws = await Workspace.create({ name: WS_NAME, slug: WS_SLUG, ownerUserId: owner._id });
+    ws = await Workspace.create({ name: WS_NAME, slug: WS_SLUG, ownerUserId });
     console.log(`Tạo workspace "${WS_NAME}" (${WS_SLUG}) -> ${ws._id}`);
   } else {
     console.log(`Sẽ tạo workspace "${WS_NAME}" (${WS_SLUG}).`);
@@ -82,7 +94,7 @@ const MISSING = { $or: [{ workspaceId: { $exists: false } }, { workspaceId: null
   let added = 0;
   let already = 0;
   for (const t of teachers) {
-    const role = String(t._id) === String(owner._id) ? "owner" : "teacher";
+    const role = String(t._id) === String(ownerUserId) ? "owner" : "teacher";
     const exists = ws && (await WorkspaceMember.findOne({ workspaceId: wsId, userId: t._id }).lean());
     if (exists) {
       already++;
