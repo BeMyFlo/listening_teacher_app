@@ -91,7 +91,7 @@ async function handler(req, res) {
 
     let test;
     try {
-      test = await Test.findOne({ _id: testId, status: "published" });
+      test = await Test.findOne(tenantFilter(req.ws, { _id: testId, status: "published" }));
     } catch (err) {
       return res.status(404).json({ ok: false, error: "Mock test not found" });
     }
@@ -157,7 +157,7 @@ async function handler(req, res) {
     if (!exerciseId) return res.status(404).json({ ok: false, error: "Exercise not found" });
     let unit;
     try {
-      unit = await Unit.findOne({ _id: unitId, status: "published", level: studentLevel });
+      unit = await Unit.findOne(tenantFilter(req.ws, { _id: unitId, status: "published", level: studentLevel }));
     } catch (err) {
       return res.status(404).json({ ok: false, error: "Lesson unit not found" });
     }
@@ -226,7 +226,7 @@ async function handler(req, res) {
     if (testId) {
       let test;
       try {
-        test = await Test.findOne({ _id: testId, status: "published" });
+        test = await Test.findOne(tenantFilter(req.ws, { _id: testId, status: "published" }));
       } catch (err) {
         return res.status(404).json({ ok: false, error: "Mock test not found" });
       }
@@ -269,7 +269,7 @@ async function handler(req, res) {
     // Prompt nằm trong Lesson Unit — luồng cũ, không đổi.
     let unit;
     try {
-      unit = await Unit.findOne({ _id: unitId, status: "published", level: studentLevel });
+      unit = await Unit.findOne(tenantFilter(req.ws, { _id: unitId, status: "published", level: studentLevel }));
     } catch (err) {
       return res.status(404).json({ ok: false, error: "Lesson unit not found" });
     }

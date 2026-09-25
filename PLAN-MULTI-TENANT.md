@@ -20,7 +20,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 0 | Lưới an toàn (backup, script kiểm kê, không đổi hành vi) | ☑ xong | 2026-09-22 |
 | 1 | Thêm `Workspace` + `WorkspaceMember` + backfill dữ liệu cũ | ☑ xong | Chạy trên live 2026-09-22: 941 doc, còn thiếu 0 |
 | 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. 26/26 route. Deploy cùng Phase 3 bước 1–2 — xem Nhật ký |
-| 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ◐ bước 1–2–6 **ĐÃ LÊN LIVE**, bước 3–5 chưa | 2026-09-25. Bước 4 giờ có thêm ràng buộc bắt buộc — xem Phase 3 bước 4 |
+| 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ◐ bước 1–2–3–6 code xong (bước 3 chưa deploy), bước 4–5 chưa | 2026-09-25. Xem Nhật ký — bước 3 có 1 lỗ hổng ngoài dự tính, đã vá |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☐ chưa làm | |
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☐ chưa làm | |
 | 6 | Self-serve signup + onboarding + Workspace Settings | ☐ chưa làm | |
@@ -1266,6 +1266,69 @@ sẽ tái diễn đúng bug này ngay khi bước 4 triển khai.
 
 → **Phase 2 + Phase 3 bước 1–2 đã LÊN LIVE, đang chạy ổn định.** Việc tiếp theo: Phase 3
 bước 3–6, sau đó Phase 4.
+
+### 2026-09-25 — Review bằng open-code-review (delegation mode) + Phase 3 bước 3 code xong
+
+**Review toàn bộ đợt multi-tenant** (`24ebfd7..1de2d0f`, 11 commit, 59 file) bằng
+`open-code-review` chạy ở chế độ delegation (OCR chỉ chọn file + rule, Claude tự đọc diff
+và review — không cần API key riêng). **Kết luận: không có bug nghiêm trọng, không rò rỉ
+cross-tenant, không có N+1 mới.** Tìm được 2 finding mức medium, đã vá và deploy
+(commit `a7f8a76`):
+- `lib/tenant.js` `assertOwned()` nuốt MỌI lỗi (kể cả mất kết nối DB) thành 404 — chỉ nên
+  nuốt `CastError` (id sai định dạng). Đã sửa + kiểm 3 kịch bản (id sai, id không tồn tại,
+  lỗi hạ tầng giả lập) đều đúng.
+- `scripts/migrate-workspace.js` tính lại "chủ workspace" (giáo viên cũ nhất) MỖI LẦN chạy
+  thay vì dùng `Workspace.ownerUserId` đã lưu cố định — lệch dữ liệu nếu người tạo ban đầu
+  bị xoá sau đó và script chạy lại. Chưa ảnh hưởng V1 (1 giáo viên), nhưng sẽ gây lệch khi
+  Phase 9 dùng `WorkspaceMember.role`. Đã sửa: `ownerUserId` chỉ tính mới khi workspace CHƯA
+  tồn tại, còn lại luôn đọc từ `ws.ownerUserId`.
+
+**Phase 3 bước 3 (kiểm tra tham chiếu chéo cùng workspace) — code xong, đã kiểm bằng dữ
+liệu thật, CHƯA deploy.** 5 điểm sửa:
+1. `lib/testSections.js`: `validateSections`/`validatePrompts` nhận thêm `ws`, bọc
+   `tenantFilter` khi kiểm `Audio.exists`/`Image.exists`.
+2. `admin/units.js`: `validateCategories(ws, categories)` — thread `ws` xuống
+   `validateSections`.
+3. `admin/tests.js`: `validateSkill`/`validateAllSkills` nhận thêm `ws`, thread xuống
+   `validateSections`/`validatePrompts`.
+4. `admin/students.js`: 2 chỗ `Class.findById(classId)` (tạo học sinh, đổi lớp) → đổi thành
+   `Class.findOne(tenantFilter(req.ws, {_id: classId}))`. Giữ nguyên status `400` (không đổi
+   thành `404` như `assertOwned`) vì đây là lỗi input-validation của route Student, không
+   phải route Class.
+5. `submissions.js` (route học sinh): 4 chỗ `Test.findOne`/`Unit.findOne` khi nộp bài
+   (test/exercise/writing/speaking) → bọc `tenantFilter`.
+
+**Lỗ hổng ngoài dự tính, phát hiện nhờ kiểm bằng dữ liệu thật (không phải chỉ đọc code):**
+kịch bản "giáo viên A gán `audioId` của workspace B vào Unit của mình" **vẫn PASS (200)**
+sau khi làm xong việc số 1–2 ở trên. Điều tra ra: `validateCategories` (units.js) từ trước
+tới giờ **chỉ verify `sections` bên trong `exercises`/`topics`/`groups`** — chưa từng verify
+`categories[].theory.audioId`, `categories[].theory.imageId`, hay
+`categories[].prompts[].imageId`. Route PUT gán thẳng các trường này từ body xuống DB,
+không qua bất kỳ hàm validate nào — đây là lỗ hổng **có sẵn từ trước cả dự án multi-tenant**
+(route chưa từng kiểm tra Audio/Image đó có tồn tại hay không cho `theory`/`prompts`, dù đã
+kiểm cho `sections`). Chỉ thread `ws` vào `validateSections`/`validatePrompts` là không đủ,
+vì các hàm đó **chưa từng được gọi** cho hai trường trên. Đã vá trực tiếp trong
+`validateCategories`: verify `theory.audioId`, `theory.imageId`, và mọi `prompts[].imageId`
+bằng `Audio.exists`/`Image.exists` + `tenantFilter`. `tests.js` không dính lỗi tương tự vì
+Test không có khái niệm `theory` riêng — mọi `audioId`/`imageId` của Test đều nằm trong
+`sections`/`prompts`, đã được `validateSections`/`validatePrompts` phủ đủ từ trước.
+
+**Kiểm chứng — gọi route thật trên DB dev, dựng workspace B tạm thời làm đối chứng:**
+
+| # | Kịch bản | Kết quả |
+|---|---|---|
+| 1 | Unit + `audioId`/`imageId` (theory) CÙNG workspace | `200` |
+| 2 | Unit + `audioId` (theory) KHÁC workspace | `400` "does not exist" |
+| 3 | Unit + `imageId` (theory) KHÁC workspace | `400` |
+| 4 | Unit + `imageId` (prompts) KHÁC workspace | `400` |
+| 5 | Tạo học sinh + `classId` CÙNG workspace | `201` |
+| 6 | Tạo học sinh + `classId` KHÁC workspace | `400` "Class not found" |
+| 7 | Sửa `classId` học sinh sang lớp KHÁC workspace | `400` |
+| 8 | Học sinh xem Test CÙNG workspace (route thật `/api/tests`) | `200` |
+
+Đã dọn sạch mọi workspace/audio/image/class/student/user probe khỏi DB dev sau khi test.
+
+→ **Việc tiếp theo: push + deploy Phase 3 bước 3, sau đó bước 4–5, rồi Phase 4.**
 
 ---
 

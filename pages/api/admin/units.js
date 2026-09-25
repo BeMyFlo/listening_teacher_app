@@ -3,6 +3,8 @@ const { requireAuth } = require("../../../lib/auth");
 const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
 const Unit = require("../../../lib/models/Unit");
 const Class = require("../../../lib/models/Class");
+const Audio = require("../../../lib/models/Audio");
+const Image = require("../../../lib/models/Image");
 const { normalizeSections, validateSections } = require("../../../lib/testSections");
 const { sanitizeDoc } = require("../../../lib/tiptap/doc");
 const { sanitizeYouTube } = require("../../../lib/lessonImport");
@@ -94,17 +96,37 @@ const CATEGORY_KEYS = Unit.CATEGORY_KEYS;
 // Validates a full client-sent categories array. Exercise sections reuse the
 // Test engine validation — listening/reading exercises keep media rules,
 // grammar/vocabulary exercises only need at least one question.
-async function validateCategories(categories) {
+async function validateCategories(ws, categories) {
   if (!Array.isArray(categories)) return "Invalid categories format";
   for (const cat of categories) {
     if (!CATEGORY_KEYS.includes(cat.key)) return "Invalid unit category: " + cat.key;
+
+    // audioId/imageId của theory + mỗi prompt KHÔNG đi qua validateSections
+    // (hàm đó chỉ verify sections trong exercises/topics/groups) — route PUT
+    // gán thẳng các trường này từ body xuống DB, nên phải verify riêng ở đây.
+    // Thiếu bước này thì giáo viên workspace A gán được audioId/imageId của
+    // workspace B vào bài học của mình (lỗ hổng cross-tenant thật, phát hiện
+    // khi kiểm chứng bằng dữ liệu thật ở Phase 3 bước 3 — không phải chỉ đọc
+    // code là thấy, vì bug nằm ở CHỖ THIẾU LỜI GỌI, không phải trong hàm nào).
+    if (cat.theory && cat.theory.audioId && !(await Audio.exists(tenantFilter(ws, { _id: cat.theory.audioId })))) {
+      return `${cat.key}: Selected audio track does not exist.`;
+    }
+    if (cat.theory && cat.theory.imageId && !(await Image.exists(tenantFilter(ws, { _id: cat.theory.imageId })))) {
+      return `${cat.key}: Selected image does not exist.`;
+    }
+    for (const p of cat.prompts || []) {
+      if (p.imageId && !(await Image.exists(tenantFilter(ws, { _id: p.imageId })))) {
+        return `${cat.key}: Selected image does not exist for a prompt.`;
+      }
+    }
+
     const exGroups = [
       ...(cat.exercises || []).map((ex) => ({ label: ex.title || "exercise", sections: ex.sections })),
       ...(cat.topics || []).flatMap((t) => (t.exercises || []).map((ex) => ({ label: `${t.name || "topic"} — ${ex.title || "exercise"}`, sections: ex.sections }))),
       ...(cat.groups || []).flatMap((g) => (g.exercises || []).map((ex) => ({ label: `${g.name || "group"} — ${ex.title || "exercise"}`, sections: ex.sections }))),
     ];
     for (const g of exGroups) {
-      const error = await validateSections(cat.key, normalizeSections(g.sections));
+      const error = await validateSections(ws, cat.key, normalizeSections(g.sections));
       if (error) return `${cat.key} — ${g.label}: ${error}`;
     }
   }
@@ -217,7 +239,7 @@ async function handler(req, res) {
     }
 
     if (categories != null) {
-      const error = await validateCategories(categories);
+      const error = await validateCategories(req.ws, categories);
       if (error) return res.status(400).json({ ok: false, error });
       // Client resends the whole categories array on every save. Keeping the
       // incoming _ids preserves exercise/prompt identities that submissions

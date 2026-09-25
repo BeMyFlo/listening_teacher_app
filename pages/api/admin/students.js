@@ -55,7 +55,7 @@ async function handler(req, res) {
     if (!classId) return res.status(400).json({ ok: false, error: "Please select a class" });
     let cls;
     try {
-      cls = await Class.findById(classId);
+      cls = await Class.findOne(tenantFilter(req.ws, { _id: classId }));
     } catch (err) {
       return res.status(400).json({ ok: false, error: "Class not found" });
     }
@@ -119,7 +119,7 @@ async function handler(req, res) {
         } else {
           let cls;
           try {
-            cls = await Class.findById(classId);
+            cls = await Class.findOne(tenantFilter(req.ws, { _id: classId }));
           } catch (err) {
             return res.status(400).json({ ok: false, error: "Class not found" });
           }
