@@ -20,7 +20,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 0 | Lưới an toàn (backup, script kiểm kê, không đổi hành vi) | ☑ xong | 2026-09-22 |
 | 1 | Thêm `Workspace` + `WorkspaceMember` + backfill dữ liệu cũ | ☑ xong | Chạy trên live 2026-09-22: 941 doc, còn thiếu 0 |
 | 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. 26/26 route. Deploy cùng Phase 3 bước 1–2 — xem Nhật ký |
-| 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ◐ bước 1–2–3–6 code xong (bước 3 chưa deploy), bước 4–5 chưa | 2026-09-25. Xem Nhật ký — bước 3 có 1 lỗ hổng ngoài dự tính, đã vá |
+| 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ◐ bước 1–2–3–4–5–6 code xong, chưa deploy | 2026-09-25. Xem Nhật ký — bước 3 có 1 lỗ hổng ngoài dự tính, đã vá; bước 4–5 code bởi Haiku subagent, review dòng-theo-dòng + kiểm chứng dữ liệu thật |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☐ chưa làm | |
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☐ chưa làm | |
 | 6 | Self-serve signup + onboarding + Workspace Settings | ☐ chưa làm | |
@@ -1329,6 +1329,58 @@ Test không có khái niệm `theory` riêng — mọi `audioId`/`imageId` của
 Đã dọn sạch mọi workspace/audio/image/class/student/user probe khỏi DB dev sau khi test.
 
 → **Việc tiếp theo: push + deploy Phase 3 bước 3, sau đó bước 4–5, rồi Phase 4.**
+
+---
+
+### 2026-09-25 — Phase 3 bước 4–5 XONG (đồng bộ `classIds` khi tạo lớp + cron/thông báo theo workspace) ☑
+
+**Bối cảnh:** thay vì tự code, việc này được giao cho một Claude subagent chạy model
+Haiku (rẻ token) trong một `git worktree` riêng, theo đúng tài liệu thi hành
+`PLAN-PHASE3-STEP45-CLASS-CRON.md` (chứa nguyên văn mã nguồn trước/sau cho 4 file, luật
+"không tự suy luận, dừng nếu không khớp"). Toàn bộ diff Haiku tạo ra đã được review dòng-theo-
+dòng, đối chiếu với plan, trước khi chấp nhận — không tin tưởng mù quáng.
+
+**4 file sửa (+32/-13 dòng):**
+
+1. `pages/api/admin/classes.js` — bỏ guard 403 "chỉ admin mới được tạo lớp"; giáo viên đang bị
+   `teacherScope` giới hạn (`classIds` không rỗng) tự tạo lớp mới thì lớp đó được `$addToSet`
+   thẳng vào `classIds` của chính họ (cùng request, không tách transaction riêng vì chỉ 2 lệnh
+   ghi tuần tự lên 2 document khác nhau). Giáo viên "toàn quyền" (`classIds` rỗng) thì bỏ qua —
+   rỗng vẫn có nghĩa là thấy hết, không cần đụng gì. Đây chính là fix gốc cho bug UI phát hiện
+   sớm hơn trong ngày (lớp mới tạo biến mất khỏi màn hình Classes của người tạo).
+2. `lib/notifications/teacher.js` — `recipientsForClass`/`notifyTeachersOfSubmission` nhận thêm
+   `ws`, lọc giáo viên nhận thông báo bằng `tenantFilter(ws)` thay vì quét toàn bộ collection
+   `Teacher` (lỗ hổng cross-tenant: trước đây học sinh workspace A nộp bài có thể báo nhầm giáo
+   viên workspace B nếu không ai khớp `classId`). `emit()` được truyền `workspaceId: ws.workspaceId`
+   để khỏi phải tự tra lại.
+3. `pages/api/submissions.js` — 2 chỗ gọi `notifyTeachersSafe({...})` thêm `ws: req.ws`.
+4. `lib/notifications/generate.js` — `generateDeadlineNotifications` bọc câu truy vấn `Unit.find`
+   bằng `tenantFilter({ workspaceId: student.workspaceId }, {...})` thay vì lọc trần theo
+   `level`/`deadlines.classId` — tránh hiện thông báo hạn nộp của Unit ở workspace khác nếu lỡ
+   trùng level/classId (về lý thuyết `classId` đã unique toàn hệ thống trước migration nên rủi ro
+   thấp, nhưng đây là phòng thủ đúng nguyên tắc tầng tenant).
+
+**Kiểm tra tĩnh (working tree chính, sau khi copy từ worktree Haiku):**
+`node --check` cả 4 file (pass) + `node scripts/check-tenant-scope.js --strict` (pass, "Không có
+file nào vi phạm") + grep xác nhận không còn callsite `recipientsForClass`/
+`notifyTeachersOfSubmission` nào bị bỏ sót ngoài 2 file đã sửa.
+
+**Kiểm chứng bằng dữ liệu thật trên dev DB** (gọi thẳng qua middleware thật
+`requireAuth(withTenant(handler))` với JWT ký thật bằng `signTeacherToken`, không mock —
+xem script tạm `scripts/_probe-phase3-step45-TMP.js`, đã xoá sau khi chạy):
+
+| # | Kịch bản | Kết quả |
+|---|----------|---------|
+| A | Giáo viên bị scope giới hạn (`classIds=[lớp cũ]`) gọi `POST /api/admin/classes` | `201`, `classIds` sau đó có cả lớp cũ lẫn lớp mới (`$addToSet` đúng) |
+| B | Giáo viên toàn quyền (`classIds=[]`) gọi `POST /api/admin/classes` | `201`, `classIds` vẫn `[]` sau đó |
+| C | `notifyTeachersOfSubmission` với `ws` giả lập workspace thật | `Notification` tạo ra có đúng `workspaceId` |
+| D | `generateDeadlineNotifications` chạy cho học sinh thật + kiểm tra `tenantFilter` với `workspaceId` giả (không tồn tại) trả về `0` document | Không lỗi, cách ly đúng theo workspace |
+
+Đã dọn sạch mọi class/notification probe khỏi DB dev sau khi test (xác nhận lại bằng đếm
+`countDocuments` cho tên/tiêu đề bắt đầu bằng `PROBE` → 0).
+
+→ **Việc tiếp theo: push + deploy Phase 3 bước 4–5, chạy lại `migrate-workspace --live --apply` +
+`check-orphans --live --strict` sau deploy để quét trôi dạt trong cửa sổ build, rồi Phase 4.**
 
 ---
 

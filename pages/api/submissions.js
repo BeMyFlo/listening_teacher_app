@@ -257,6 +257,7 @@ async function handler(req, res) {
         rubricVariant: resolveVariant(kind, prompt.writingTask)
       });
       await notifyTeachersSafe({
+        ws: req.ws,
         student,
         submission,
         unitOrTestName: submission.testTitle,
@@ -353,6 +354,7 @@ async function handler(req, res) {
     });
     if (isLate) await notifyLate(student, unit, submission, prompt.title);
     await notifyTeachersSafe({
+      ws: req.ws,
       student,
       submission,
       unitOrTestName: unit.name,
