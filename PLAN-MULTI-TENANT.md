@@ -1379,8 +1379,30 @@ xem script tạm `scripts/_probe-phase3-step45-TMP.js`, đã xoá sau khi chạy
 Đã dọn sạch mọi class/notification probe khỏi DB dev sau khi test (xác nhận lại bằng đếm
 `countDocuments` cho tên/tiêu đề bắt đầu bằng `PROBE` → 0).
 
-→ **Việc tiếp theo: push + deploy Phase 3 bước 4–5, chạy lại `migrate-workspace --live --apply` +
-`check-orphans --live --strict` sau deploy để quét trôi dạt trong cửa sổ build, rồi Phase 4.**
+**Đã push lên `origin/main` (commit `d7e28cb` + `0ca2b8e`).**
+
+**Review lại bằng `open-code-review` (delegation mode) NGAY SAU KHI PUSH** — đúng thói quen
+"không tin tưởng mù quáng code do model rẻ viết", kể cả khi đã tự review thủ công trước đó.
+Bắt được 1 lỗi thật ở `lib/notifications/generate.js`:
+
+> `generateDeadlineNotificationsForAll()` (đường cron quét toàn bộ học sinh) gọi
+> `Student.find({...}).select("_id classId name")` — **thiếu `workspaceId` trong projection.**
+> `tenantFilter` vừa thêm vào `Unit.find` bên trong `generateDeadlineNotifications(student)` dựa
+> vào `student.workspaceId`; Mongoose/MongoDB driver tự bỏ field có giá trị `undefined` khỏi câu
+> truy vấn, nên với MỌI học sinh đi qua đường cron, filter tenant coi như biến mất — y hệt như
+> trước khi vá. Không phải lỗ hổng MỚI (trước đó vốn cũng không lọc theo workspace ở đây), nhưng
+> "fix" vừa merge vô tác dụng đúng ở chỗ quan trọng nhất (cron chạy toàn platform, không phải
+> route `/api/notifications` theo từng học sinh — chỗ đó vẫn ổn vì `Student.findById()` không
+> giới hạn field).
+
+**Đã sửa:** thêm `workspaceId` vào `.select()` của `generateDeadlineNotificationsForAll()`.
+Kiểm chứng bằng dữ liệu thật trên dev DB (so sánh cùng 1 câu query trước/sau projection, học
+sinh thật trả về `workspaceId: undefined` trước sửa, giá trị `ObjectId` thật sau sửa). Đã chạy
+lại `node --check` + `check-tenant-scope --strict`. Commit riêng, push tiếp lên `origin/main`.
+
+→ **Việc tiếp theo: chạy lại `migrate-workspace --live --apply` + `check-orphans --live --strict`
+sau khi Vercel deploy xong (không bắt buộc cho bước 4–5 vì không thêm `.create()` mới, nhưng vẫn
+nên chạy 1 lần cho chắc sau khi có commit thứ 3), rồi Phase 4.**
 
 ---
 
