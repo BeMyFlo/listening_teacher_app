@@ -19,8 +19,8 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 |---|---|---|---|
 | 0 | Lưới an toàn (backup, script kiểm kê, không đổi hành vi) | ☑ xong | 2026-09-22 |
 | 1 | Thêm `Workspace` + `WorkspaceMember` + backfill dữ liệu cũ | ☑ xong | Chạy trên live 2026-09-22: 941 doc, còn thiếu 0 |
-| 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ code xong, **deploy được cùng Phase 3 bước 1–2** | 26/26 route. Gói gỡ chặn (Phase 3 bước 1–2) đã xong 2026-09-22 — xem Nhật ký |
-| 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ◐ bước 1–2 xong (gói gỡ chặn), bước 3–5 chưa | 2026-09-22 (Sonnet, theo PLAN-PHASE3-STEP12-WRITE-STAMP.md) |
+| 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. 26/26 route. Deploy cùng Phase 3 bước 1–2 — xem Nhật ký |
+| 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ◐ bước 1–2 **ĐÃ LÊN LIVE**, bước 3–6 chưa | 2026-09-25. Bước 4 giờ có thêm ràng buộc bắt buộc — xem Phase 3 bước 4 |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☐ chưa làm | |
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☐ chưa làm | |
 | 6 | Self-serve signup + onboarding + Workspace Settings | ☐ chưa làm | |
@@ -616,6 +616,14 @@ không loại gì. **KHÔNG** với dữ liệu tạo mới: sau khi deploy Phas
    `classId` trong `students.js`, `audioId`/`imageId` trong section, `unitId`/`testId`
    trong `submissions.js`.
 4. **Bỏ chặn 403 ở `admin/classes.js:40`** → GV tự tạo lớp trong workspace mình.
+   ⚠️ **Bắt buộc làm kèm, không được tách:** khi giáo viên đang bị `teacherScope` giới hạn
+   (`Teacher.classIds` không rỗng) tạo lớp mới, phải **tự động thêm `_id` lớp vừa tạo vào
+   `classIds` của chính họ** trong cùng transaction/request. Không làm thì lặp lại đúng bug
+   phát hiện 25/9: giáo viên tạo lớp mới xong tự làm mù chính mình, lớp đó tồn tại trong DB
+   nhưng biến mất khỏi màn hình Classes của người vừa tạo ra nó — vì `Class` không có field
+   sở hữu (B1, model hoàn toàn vô chủ) nên không có gì tự động đồng bộ. Bằng chứng thật:
+   3/5 lớp của `msnhi` (`LEVEL 5`, `THUỲ DƯƠNG`, `TRIAL`, tạo 29/8–11/9) đã rơi vào đúng tình
+   trạng này suốt gần 1 tháng trước khi bị phát hiện, chỉ vì lúc đó guard 403 chưa tồn tại.
 5. Cron: `deadline-scan.js` lặp theo workspace; đảo fallback ở `notifications/teacher.js:15`.
 6. **Hai lỗi CÓ SẴN phát hiện khi soát Phase 2** (không do Phase 2 gây ra, sửa tiện tay):
    - `admin/grading-jobs.js`: nhánh poll theo `submissionId` gọi
@@ -1209,6 +1217,55 @@ dùng" của `audio.js`/`images.js` dò sai đường dẫn schema. Để vào P
 100% document mới đang trôi dạt — đúng như mục 8.1 mô tả. **Chưa gây sự cố** vì live vẫn
 chạy code cũ (chưa có bộ lọc nào), nhưng xác nhận: phải chạy lại `migrate-workspace.js
 --live --apply` **sát giờ deploy**, không phải chạy trước rồi để đó.
+
+### 2026-09-25 — DEPLOY LÊN LIVE ☑ + phát hiện một bug cũ không liên quan multi-tenant
+
+**Chuỗi deploy thật đã chạy, theo đúng thứ tự bắt buộc:**
+
+1. `backup-db.js --live` — 1020 document, đã xác minh parse ngược được, kiểu `ObjectId`/`Date`
+   giữ nguyên.
+2. `migrate-workspace.js --live --apply` — quét 61 document trôi dạt (17 submissions +
+   17 notifications + 27 auditlogs), còn thiếu **0**.
+3. `check-orphans.js --live --strict` — exit 0, `0/13` nhóm bắt buộc thiếu. Kiểm độc lập
+   thêm: `distinct("workspaceId")` trên 15 collection chỉ ra đúng **1** giá trị — không có
+   workspace lạ nào lọt vào.
+4. Merge fast-forward `feature/multi-tenant-phase1` → `main` (`24ebfd7..b80ca94`, 62 file).
+   Vercel tự build từ push.
+5. Chạy lại `migrate-workspace.js --live --apply` NGAY SAU khi Vercel báo xong — hốt nốt
+   document sinh ra trong cửa sổ build. Kết quả: **0 document cần sửa** — không ai dùng app
+   lúc đó nên không trôi dạt gì thêm. Tín hiệu tốt: code mới đã tự gắn `workspaceId` khi tạo,
+   tốc độ trôi dạt về gần 0 ngay sau deploy (so với ~8–9 doc/ngày lúc trước khi deploy).
+
+**Kiểm UI thật phát hiện một thứ đáng ngờ — điều tra ra là bug CŨ, không liên quan Phase 2/3:**
+
+Đăng nhập `msnhi` chỉ thấy **2/5 lớp** trên trang Classes. Điều tra bằng dữ liệu (không đoán):
+
+- `Teacher.classIds` của msnhi = 2 ID cụ thể, không phải `[]`. Soát toàn bộ diff của mọi
+  commit multi-tenant (24ebfd7→b80ca94) — **không commit nào từng ghi vào field này**, chỉ đọc.
+- Đối chiếu thời gian tạo 5 lớp với 2 ID trong `classIds`:
+  ```
+  27/8  LEVEL 1, LEVEL 2         [THẤY] — 2 lớp cũ nhất, khớp classIds
+  29/8  LEVEL 5                  [ẨN]
+  04/9  THUỲ DƯƠNG               [ẨN]
+  11/9  TRIAL                    [ẨN]
+  ```
+- Gốc rễ: `Class` là model hoàn toàn vô chủ (B1 — không field `createdBy`/`teacherId`).
+  Route tạo lớp **không hề đồng bộ** `classIds` của người tạo khi lớp mới ra đời. 3 lớp tạo
+  sau ngày 27/8 rơi vào khoảng trống này suốt gần 1 tháng, tồn tại đúng trong DB nhưng vô
+  hình với chính người tạo ra chúng.
+- Vì sao không phát hiện sớm hơn: guard `403 Only an admin can create a new class`
+  (chặn giáo viên bị scope tạo lớp mới) chỉ được thêm ngày **22/9** (`d151f19`, đợt code
+  review) — 3 lớp kia đã tạo xong từ trước lúc guard đó tồn tại.
+
+**Đã fix ngay:** `Teacher.classIds` của msnhi → `[]` (rỗng = phụ trách tất cả). Xác minh lại
+bằng route thật trên live: `GET /api/admin/classes` trả đủ 5 lớp.
+
+**Đã ghi ràng buộc cho Phase 3 bước 4** (xem mục đó): khi bỏ guard 403 để giáo viên tự tạo
+lớp, **bắt buộc** làm kèm việc tự động thêm lớp mới vào `classIds` của người tạo — nếu không
+sẽ tái diễn đúng bug này ngay khi bước 4 triển khai.
+
+→ **Phase 2 + Phase 3 bước 1–2 đã LÊN LIVE, đang chạy ổn định.** Việc tiếp theo: Phase 3
+bước 3–6, sau đó Phase 4.
 
 ---
 
