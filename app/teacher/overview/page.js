@@ -94,6 +94,32 @@ function Empty({ icon, title, text }) {
   );
 }
 
+function Welcome({ onGo }) {
+  return (
+    <div className="card" id="overviewWelcome">
+      <Empty
+        icon="sparkles"
+        title="Welcome! Let's set up your workspace"
+        text="Nothing here yet. Start with one of these — you can do them in any order."
+      />
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+        <button type="button" className="btn" onClick={() => onGo("/teacher/classes")}>
+          <svg className="icon"><use href="#icon-plus" /></svg> Create Class
+        </button>
+        <button type="button" className="btn" onClick={() => onGo("/teacher/lessons")}>
+          <svg className="icon"><use href="#icon-plus" /></svg> Create Lesson
+        </button>
+        <button type="button" className="btn" onClick={() => onGo("/teacher/tests/new")}>
+          <svg className="icon"><use href="#icon-plus" /></svg> Import Questions
+        </button>
+        <button type="button" className="btn secondary" onClick={() => onGo("/teacher/onboarding")}>
+          Guided setup
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function OverviewPage() {
   const router = useRouter();
   const go = (p) => router.push(p);
@@ -117,6 +143,7 @@ export default function OverviewPage() {
   }, []);
 
   const s = (data && data.summary) || {};
+  const isEmpty = !!data && (s.totalClasses ?? 0) === 0 && (s.totalUnits ?? 0) === 0 && (s.totalTests ?? 0) === 0;
 
   return (
     <div className="tab-panel active">
@@ -158,7 +185,9 @@ export default function OverviewPage() {
       )}
       {!data && !err && <div className="notice info">Loading dashboard...</div>}
 
-      {data && (
+      {data && isEmpty && <Welcome onGo={go} />}
+
+      {data && !isEmpty && (
         <div id="overviewContent">
           <div className="dash-stats">
             <DashStat icon="student" value={s.totalClasses ?? 0} label="Total Classes" linkLabel="View classes" onClick={() => go("/teacher/classes")} />
