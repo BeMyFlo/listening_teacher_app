@@ -1551,10 +1551,28 @@ khác vẫn 200; activate → 200 lại; validate status/name/id; 3 bộ lọc c
 rác → 400; audit row của thao tác GV mang đúng `workspaceId`; AiLog lưu `workspaceId` (không gọi
 Gemini thật). Dọn sạch. OCR 16/16 file, không phát hiện mức trung bình trở lên.
 
-**Việc để lại:** (1) cron nhắc hạn vẫn gửi cho HS của workspace bị suspend; (2) `/admin/classes` vẫn
-là trang "Soon" và `api.admin.*Class` gọi `/api/sysadmin/classes` không tồn tại (code chết từ trước).
+**Việc để lại:** (1) cron nhắc hạn vẫn gửi cho HS của workspace bị suspend; (2) ~~`/admin/classes` là trang "Soon"~~ — đã xây, xem mục ngay dưới.
 
 → **Phase 5 xong. Tiếp theo: Phase 6 (self-serve signup + onboarding + Workspace Settings).**
+
+---
+
+### 2026-09-30 — Trang `/admin/classes` (thay trang "Soon") ☑
+
+Nguyên tắc chủ dự án chốt: lớp thuộc workspace và do giáo viên tạo/quản; admin platform chủ yếu
+XEM dữ liệu, chỉ tạo/sửa hộ khi giáo viên nhờ, và KHÔNG xoá lớp (xoá lớp gỡ học sinh khỏi lớp và gỡ
+Unit/Test đã gán — vẫn là việc của giáo viên).
+
+`sysadmin/classes.js` (GET danh sách + lọc workspace, GET chi tiết kèm học sinh, POST, PUT; không
+có DELETE) và trang `/admin/classes`. POST chọn workspace rõ ràng và `$addToSet` lớp mới vào
+`classIds` của giáo viên trong workspace đó NẾU họ đang bị giới hạn lớp (`classIds` không rỗng) —
+nếu không giáo viên nhờ tạo sẽ không thấy lớp đó (cùng lỗi đã vá ở Phase 3 bước 4). Giáo viên
+`classIds` rỗng giữ nguyên. Audit log của thao tác admin gắn đúng workspace qua `req.auditWorkspaceId`
+(route admin không có `req.ws`). Xoá code chết `api.admin.deleteClass`.
+
+Kiểm chứng probe dev DB 10 kịch bản (danh sách khớp số học sinh thật, lọc workspace, giáo viên bị
+403, tạo hộ cho GV toàn quyền và GV bị scope, validate, sửa, không có DELETE, audit đúng workspace,
+workspace thật không bị đụng). Dọn sạch.
 
 ---
 
