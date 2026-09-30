@@ -780,25 +780,33 @@ client cùng commit, không tách PR.
 
 ---
 
-### Phase 6 — Signup + Onboarding *(2 ngày)*
+### Phase 6 — Onboarding + Workspace Settings *(1 ngày, đã thu hẹp)*
 
-**Mục tiêu:** giáo viên mới tự vào được, không cần dev.
+> **QUYẾT ĐỊNH 2026-09-30 (chủ dự án): KHÔNG có tự đăng ký.** Giai đoạn này chỉ người đã ký hợp
+> đồng mới có tài khoản giáo viên, và CHỈ platform admin tạo được (`/admin/users`, đã có từ Phase
+> 5B). Không xây `pages/api/auth/signup.js`, `app/signup/page.js`, `ALLOW_SIGNUP`, rate limit đăng
+> ký. Hệ quả: rủi ro ngân sách AI dùng chung bị người lạ ăn mất (0.3.4) không còn ở giai đoạn này.
+> Mở signup là quyết định riêng ở giai đoạn sau, phải kèm giới hạn AI theo workspace.
+
+**Mục tiêu:** giáo viên mới do admin tạo, đăng nhập lần đầu là dùng được ngay, không lạc trước
+một workspace trống.
 
 **Việc làm**
-1. `pages/api/auth/signup.js` — tạo User(teacher) + Teacher + Workspace + Member trong
-   **một** thao tác. Bắt buộc có rate limit (tái dùng `lib/rateLimit.js`).
-   Cân nhắc: bật/tắt signup bằng env `ALLOW_SIGNUP` để kiểm soát lúc đầu.
-2. `app/signup/page.js`.
-3. `app/teacher/onboarding/page.js` — 3 bước: tên workspace → tạo lớp đầu → thêm/import HS.
-   Không ép hoàn thành; có nút bỏ qua.
-4. Dashboard rỗng: khi workspace chưa có gì, hiện empty state + 3 nút
+1. `app/teacher/onboarding/page.js` — 3 bước: tên workspace → tạo lớp đầu → thêm/import HS.
+   Không ép hoàn thành; có nút bỏ qua. Hiện cho giáo viên khi workspace còn trống.
+2. Dashboard rỗng: workspace chưa có gì thì hiện empty state + 3 nút
    `[Create Class] [Create Lesson] [Import Questions]` thay vì bảng trống.
-5. `app/teacher/settings/workspace/page.js` — đổi tên, logo, locale, timezone.
+3. `app/teacher/settings/workspace/page.js` — đổi tên, logo, locale, timezone (chủ yếu owner).
+   Logo/locale chỉ có ý nghĩa đầy đủ sau Phase 7 (gỡ branding cứng).
+
+**Kiểm tra bằng code (không phải việc mới):** xác nhận không có đường tạo giáo viên công khai —
+chỉ `sysadmin/users.js` (admin) và bootstrap `TEACHER_PASSWORD` (cần secret env + chỉ khi 0 giáo
+viên, không kích hoạt được trên live).
 
 **App còn chạy không:** có, hoàn toàn cộng thêm.
-**Verify:** đăng ký tài khoản mới từ trình duyệt ẩn danh → vào thẳng dashboard rỗng →
-tạo lớp → thêm HS → HS đăng nhập thấy đúng lớp. Dữ liệu Ms Nhi không hề thay đổi.
-**Rollback:** ẩn route signup.
+**Verify:** admin tạo giáo viên mới → giáo viên đăng nhập → thấy onboarding/dashboard rỗng → tạo
+lớp → thêm HS → HS đăng nhập thấy đúng lớp. Dữ liệu Ms Nhi không hề thay đổi.
+**Rollback:** ẩn trang onboarding.
 
 ---
 
