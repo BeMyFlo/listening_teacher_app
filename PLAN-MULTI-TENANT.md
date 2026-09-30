@@ -23,7 +23,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 1–2–3–4–5–6 đều deploy xong. Bước 3 có 1 lỗ hổng ngoài dự tính, đã vá; bước 4–5 code bởi Haiku subagent, review dòng-theo-dòng + OCR review sau khi push bắt thêm 1 lỗi (cron thiếu workspaceId), đã vá — xem Nhật ký |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 5 (teacherScope) cố ý bỏ qua — xem Nhật ký |
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☑ **XONG** (5A + 5B + 5C) | 2026-09-30. Code bởi Sonnet subagent, Opus thiết kế + review từng dòng — xem Nhật ký |
-| 6 | Self-serve signup + onboarding + Workspace Settings | ☐ chưa làm | |
+| 6 | Onboarding + Workspace Settings + tuỳ chỉnh màu theo workspace (KHÔNG có tự đăng ký) | ☐ chưa làm | Chốt 2026-09-30, xem Phase 6 + mục 6.1 |
 | 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ☐ chưa làm | |
 | 8 | Taxonomy Subject / Program / Skill (mở đường TOEIC, General, Toán…) | ☐ chưa làm | |
 | 9 | Tương lai: nhiều giáo viên / 1 workspace, enrollment nhiều lớp, Organization | ☐ chưa làm | không làm trong V1 |
@@ -780,7 +780,7 @@ client cùng commit, không tách PR.
 
 ---
 
-### Phase 6 — Onboarding + Workspace Settings *(1 ngày, đã thu hẹp)*
+### Phase 6 — Onboarding + Workspace Settings + Tuỳ chỉnh màu *(~2 ngày)*
 
 > **QUYẾT ĐỊNH 2026-09-30 (chủ dự án): KHÔNG có tự đăng ký.** Giai đoạn này chỉ người đã ký hợp
 > đồng mới có tài khoản giáo viên, và CHỈ platform admin tạo được (`/admin/users`, đã có từ Phase
@@ -799,6 +799,11 @@ một workspace trống.
 3. `app/teacher/settings/workspace/page.js` — đổi tên, logo, locale, timezone (chủ yếu owner).
    Logo/locale chỉ có ý nghĩa đầy đủ sau Phase 7 (gỡ branding cứng).
 
+4. **Tuỳ chỉnh màu theo workspace (chủ dự án chốt 2026-09-30):** mỗi giáo viên/trung tâm chỉnh được
+   màu app của workspace mình, mỗi người một phong cách. **Mặc định = đúng các màu hiện tại của web**
+   (workspace chưa chỉnh gì → không có gì ghi đè). Giáo viên có thể đổi từng màu chi tiết, có nút
+   Reset từng màu và Reset all. Chi tiết ở mục 6.1 bên dưới.
+
 **Kiểm tra bằng code (không phải việc mới):** xác nhận không có đường tạo giáo viên công khai —
 chỉ `sysadmin/users.js` (admin) và bootstrap `TEACHER_PASSWORD` (cần secret env + chỉ khi 0 giáo
 viên, không kích hoạt được trên live).
@@ -807,6 +812,42 @@ viên, không kích hoạt được trên live).
 **Verify:** admin tạo giáo viên mới → giáo viên đăng nhập → thấy onboarding/dashboard rỗng → tạo
 lớp → thêm HS → HS đăng nhập thấy đúng lớp. Dữ liệu Ms Nhi không hề thay đổi.
 **Rollback:** ẩn trang onboarding.
+
+---
+
+### 6.1 Tuỳ chỉnh màu theo workspace — thiết kế và rủi ro
+
+**Hiện trạng đã khảo sát (2026-09-30):** toàn bộ màu nằm ở ~25 biến CSS trong `:root` của
+`public/legacy/assets/style.css` (`--blue`, `--navy`, `--pink`, `--bg`, `--ink`, `--border`, `--card`...;
+stylesheet dùng biến rất nhiều). Không có dark mode. `Workspace.settings` (Mixed) đã có sẵn nên lưu
+theme KHÔNG cần đổi schema. Còn ~100 chỗ màu viết cứng trong CSS (`#fff` ×38, `#FFE0E2`, `#DFF7E9`...) và
+6 file JSX có hex cứng — những chỗ này sẽ KHÔNG đổi theo nếu chưa dọn.
+
+**Thiết kế**
+1. Lưu `Workspace.settings.theme = { "--blue": "#3D97D6", ... }`, CHỈ chứa màu đã đổi. Không có
+   key = dùng màu mặc định trong CSS.
+2. **Kiểm tra phía server là bắt buộc** (giá trị bị chèn thẳng vào CSS → nếu không kiểm sẽ chèn được CSS
+   độc hại): chỉ nhận tên biến nằm trong danh sách cho phép (hằng số dùng chung server + UI) và giá trị
+   đúng dạng `#RRGGBB`. Không nhận `url(...)`, `;`, `}`, `expression`, tên biến lạ.
+3. Áp theme: giáo viên VÀ học sinh của workspace nhận theme (học sinh thấy màu trung tâm mình) qua
+   một thẻ `<style>` ghi đè `:root`. Theme lấy theo workspace giải từ DB như `withTenant`, KHÔNG từ
+   token/body client.
+4. Trang `Settings → Appearance` (trong trang workspace settings): mỗi màu một dòng (ô chọn màu +
+   xem trước ngay), gom nhóm theo mục đích, tên dễ hiểu (Primary, Accent, Background, Text...)
+   thay vì tên biến. Reset từng màu + Reset all. **Chỉ owner** được sửa.
+5. Cảnh báo độ tương phản chữ/nền (WCAG) khi chọn màu khiến chữ khó đọc; Reset luôn dùng được.
+6. Trang đăng nhập chưa biết workspace → luôn dùng màu mặc định (theme theo đường dẫn workspace để sau).
+
+**Chia hai đợt**
+- **Đợt 1 (thuộc Phase 6):** hạ tầng (lưu, kiểm tra, áp theme, trang chỉnh) với ~10 màu chính.
+- **Đợt 2 (sau, có thể gộp Phase 7):** dọn ~100 màu viết cứng thành biến rồi mở rộng thêm màu chỉnh
+  được. Dễ vỡ giao diện nếu làm ẩu → làm riêng, kiểm bằng ảnh chụp trước/sau.
+
+**Ngoài phạm vi:** màu trong email gửi ra và màu logo (Phase 7). Dark mode không tồn tại → 1 bộ màu.
+**Verify:** workspace không đặt theme → giao diện y hệt hiện tại (dữ liệu/CSS Ms Nhi không đổi); đổi
+màu ở workspace A → học sinh A thấy, workspace B không; gửi giá trị độc hại (`red;}body{...`, `url(x)`,
+biến lạ) → 400; GV không phải owner sửa → 403.
+**Rollback:** xoá `settings.theme` (hoặc bỏ thẻ style) — giao diện về mặc định.
 
 ---
 
@@ -893,7 +934,7 @@ Nếu cần ra mắt sớm, thứ tự **không được đảo**:
 Phase 0 → 1 → 2 → 3 → 4    ← bắt buộc, đây là phần "cô lập dữ liệu". Dừng ở đây
                               vẫn là sản phẩm dùng được (admin tạo tài khoản GV tay).
 Phase 5                     ← bắt buộc trước khi có GV thứ 2 THẬT (lỗ hổng B3).
-Phase 6                     ← cần cho self-serve. Không có thì dev phải tạo tay.
+Phase 6                     ← onboarding + đổi màu/cài đặt workspace. Không có tự đăng ký (admin tạo GV).
 Phase 7                     ← cần khi bán cho người ngoài.
 Phase 8                     ← chỉ cần khi thật sự có khách hàng TOEIC/General.
 ```
@@ -1561,7 +1602,7 @@ Gemini thật). Dọn sạch. OCR 16/16 file, không phát hiện mức trung b�
 
 **Việc để lại:** (1) cron nhắc hạn vẫn gửi cho HS của workspace bị suspend; (2) ~~`/admin/classes` là trang "Soon"~~ — đã xây, xem mục ngay dưới.
 
-→ **Phase 5 xong. Tiếp theo: Phase 6 (self-serve signup + onboarding + Workspace Settings).**
+→ **Phase 5 xong. Tiếp theo: Phase 6 (onboarding + Workspace Settings + tuỳ chỉnh màu; không có tự đăng ký).**
 
 ---
 
