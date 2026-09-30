@@ -24,6 +24,10 @@ async function handler(req, res) {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
+  // Workspace demo công khai: tắt AI để người lạ không tiêu ngân sách AI dùng chung.
+  if (req.ws.demo) {
+    return res.status(403).json({ ok: false, error: "AI features are turned off in the demo workspace." });
+  }
   if (!isEnabled()) {
     return res.status(503).json({ ok: false, error: "AI is not configured (GEMINI_API_KEY missing)" });
   }
