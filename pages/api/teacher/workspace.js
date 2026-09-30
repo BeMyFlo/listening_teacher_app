@@ -5,6 +5,7 @@ const { requireAuth } = require("../../../lib/auth");
 const { withTenant } = require("../../../lib/tenant");
 const Workspace = require("../../../lib/models/Workspace");
 const { sanitizeTheme } = require("../../../lib/theme");
+const { isCloudinaryUrl } = require("../../../lib/validate");
 
 const LOCALES = ["vi", "en"];
 
@@ -20,7 +21,7 @@ function validTimezone(tz) {
 function view(ws, role) {
   const { theme } = sanitizeTheme(ws.settings && ws.settings.theme);
   return {
-    workspace: { _id: ws._id, name: ws.name, slug: ws.slug, locale: ws.locale, timezone: ws.timezone },
+    workspace: { _id: ws._id, name: ws.name, slug: ws.slug, logoUrl: ws.logoUrl || "", locale: ws.locale, timezone: ws.timezone },
     theme: theme || {},
     canEdit: role === "owner",
   };
@@ -39,7 +40,7 @@ async function handler(req, res) {
     if (req.ws.role !== "owner") {
       return res.status(403).json({ ok: false, error: "Only the workspace owner can change these settings" });
     }
-    const { name, locale, timezone, theme } = req.body || {};
+    const { name, locale, timezone, theme, logoUrl } = req.body || {};
 
     // Kiểm tra hết trước, rồi mới ghi.
     if (name != null) {
@@ -58,6 +59,13 @@ async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "Invalid time zone" });
       }
       ws.timezone = timezone;
+    }
+    if (logoUrl !== undefined) {
+      // Chỉ nhận ảnh đã upload lên Cloudinary của mình; "" = bỏ logo.
+      if (logoUrl !== "" && (!isCloudinaryUrl(logoUrl) || logoUrl.length > 500)) {
+        return res.status(400).json({ ok: false, error: "Logo must be an image uploaded through the app" });
+      }
+      ws.logoUrl = logoUrl;
     }
     if (theme !== undefined) {
       const r = sanitizeTheme(theme);

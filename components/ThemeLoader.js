@@ -3,9 +3,11 @@
 import { useEffect } from "react";
 import { request } from "@/lib/client/api";
 import { themeToCss } from "@/lib/theme";
+import { setBranding } from "@/lib/client/branding";
 
 const STYLE_ID = "ws-theme";
 const cacheKey = (role) => "wsTheme:" + role;
+const brandKey = (role) => "wsBranding:" + role;
 
 // Áp (hoặc gỡ, khi theme rỗng) CSS ghi đè màu của workspace. themeToCss tự
 // kiểm tra lại từng giá trị nên dữ liệu lạ (kể cả từ localStorage) không lọt vào CSS.
@@ -23,6 +25,15 @@ export function applyTheme(theme) {
     document.head.appendChild(el);
   }
   el.textContent = css;
+}
+
+export function cacheBranding(role, branding) {
+  try {
+    if (branding && branding.name) localStorage.setItem(brandKey(role), JSON.stringify(branding));
+    else localStorage.removeItem(brandKey(role));
+  } catch {
+    /* localStorage có thể bị chặn */
+  }
 }
 
 export function cacheTheme(role, theme) {
@@ -44,6 +55,8 @@ export default function ThemeLoader({ role }) {
     try {
       const cached = localStorage.getItem(cacheKey(role));
       if (cached) applyTheme(JSON.parse(cached));
+      const cachedBrand = localStorage.getItem(brandKey(role));
+      if (cachedBrand) setBranding(JSON.parse(cachedBrand));
     } catch {
       /* cache hỏng -> bỏ qua */
     }
@@ -52,6 +65,8 @@ export default function ThemeLoader({ role }) {
         if (cancelled) return;
         applyTheme(d.theme);
         cacheTheme(role, d.theme);
+        setBranding(d.branding);
+        cacheBranding(role, d.branding);
       })
       .catch(() => {
         /* workspace bị khoá hoặc lỗi mạng: giữ nguyên bản đang hiển thị */
@@ -59,6 +74,7 @@ export default function ThemeLoader({ role }) {
     return () => {
       cancelled = true;
       applyTheme(null);
+      setBranding(null);
     };
   }, [role]);
   return null;

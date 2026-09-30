@@ -1,4 +1,5 @@
-// Theme màu của workspace, cho giáo viên VÀ học sinh (client áp lên trang).
+// Theme màu + thương hiệu (tên, logo, slug) của workspace, cho giáo viên VÀ học
+// sinh. Client áp màu lên trang và hiện tên/logo ở thanh bên.
 const { connectDB } = require("../../../lib/db");
 const { requireAnyRole } = require("../../../lib/auth");
 const { withTenant } = require("../../../lib/tenant");
@@ -11,10 +12,14 @@ async function handler(req, res) {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
   await connectDB();
-  const ws = await Workspace.findById(req.ws.workspaceId).select("settings").lean();
+  const ws = await Workspace.findById(req.ws.workspaceId).select("name slug logoUrl settings").lean();
   // Kiểm tra lại lúc đọc: dù DB có gì thì client chỉ nhận màu hợp lệ.
   const { theme } = sanitizeTheme(ws && ws.settings && ws.settings.theme);
-  return res.status(200).json({ ok: true, theme: theme || {} });
+  return res.status(200).json({
+    ok: true,
+    theme: theme || {},
+    branding: { name: ws ? ws.name : "", slug: ws ? ws.slug : "", logoUrl: (ws && ws.logoUrl) || "" },
+  });
 }
 
 module.exports = requireAnyRole(["teacher", "student"])(withTenant(handler));

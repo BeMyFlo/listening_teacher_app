@@ -1,8 +1,9 @@
 import "./globals.css";
 import { IconSprite } from "@/components/Icon";
+import { PLATFORM_NAME } from "@/lib/platform";
 
 export const metadata = {
-  title: "Ms Nhi",
+  title: PLATFORM_NAME,
   description: "IELTS LMS",
 };
 

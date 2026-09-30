@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { storeLoginResult } from "@/lib/client/session";
 import { NAV } from "@/lib/nav";
+import { PLATFORM_NAME, PLATFORM_LOGO } from "@/lib/platform";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -88,7 +89,7 @@ export default function LoginPage() {
 
         <form className="login-card" onSubmit={onSubmit}>
           <div className="login-brand">
-            <img className="logo" src="/logo.svg" alt="Ms Nhi" />
+            <img className="logo" src={PLATFORM_LOGO} alt={PLATFORM_NAME} />
           </div>
           <p className="login-sub">Sign in to continue — role is detected automatically (Teacher / Student).</p>
 

@@ -23,8 +23,8 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 1–2–3–4–5–6 đều deploy xong. Bước 3 có 1 lỗ hổng ngoài dự tính, đã vá; bước 4–5 code bởi Haiku subagent, review dòng-theo-dòng + OCR review sau khi push bắt thêm 1 lỗi (cron thiếu workspaceId), đã vá — xem Nhật ký |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 5 (teacherScope) cố ý bỏ qua — xem Nhật ký |
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☑ **XONG** (5A + 5B + 5C) | 2026-09-30. Code bởi Sonnet subagent, Opus thiết kế + review từng dòng — xem Nhật ký |
-| 6 | Onboarding + Workspace Settings + tuỳ chỉnh màu theo workspace (KHÔNG có tự đăng ký) | ◐ code xong trên branch `phase-6-onboarding-theme`, CHƯA merge/deploy | 2026-09-30. Xem Nhật ký; đợt 2 (dọn màu cứng) chưa làm |
-| 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ☐ chưa làm | |
+| 6 | Onboarding + Workspace Settings + tuỳ chỉnh màu theo workspace (KHÔNG có tự đăng ký) | ☑ **XONG, đã merge vào `main`** (PR #9) | 2026-09-30. Đợt 2 (dọn 214 màu cứng) chưa làm |
+| 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ◐ code xong trên branch `phase-7-branding`, CHƯA merge/deploy | 2026-09-30. Xem Nhật ký — cần chạy 1 script sau khi deploy |
 | 8 | Taxonomy Subject / Program / Skill (mở đường TOEIC, General, Toán…) | ☐ chưa làm | |
 | 9 | Tương lai: nhiều giáo viên / 1 workspace, enrollment nhiều lớp, Organization | ☐ chưa làm | không làm trong V1 |
 
@@ -1670,6 +1670,60 @@ trên môi trường của mình: đổi màu → xem toàn app đổi, đăng n
 /login xem màu mặc định, workspace mới tạo xem thẻ chào + onboarding.
 
 **Rollback:** không merge branch; hoặc xoá `settings.theme` để về màu mặc định.
+
+---
+
+### 2026-09-30 — Phase 7 code xong trên branch `phase-7-branding` (chưa merge, chưa deploy) ◐
+
+Chủ dự án chưa trả lời câu Q1 (tên/logo nền tảng) và phương án email khi bảo triển khai → đã chọn mặc
+định dễ đổi, cần chủ dự án xác nhận/thay.
+
+**Đã làm**
+- **Nhận diện nền tảng** (`lib/platform.js`): tên lấy từ env `NEXT_PUBLIC_PLATFORM_NAME` (mặc định
+  "IELTS LMS"), logo `public/platform-logo.svg` (**logo tạm trung tính — cần thay bằng logo thật**).
+  Dùng cho trang login, tiêu đề tab, admin, và chỗ dự phòng. **Favicon `app/icon.svg` cũng là logo Ms
+  Nhi (plan gốc không nhắc)** → đã thay bằng logo nền tảng.
+- **Thanh bên** hiện logo + tên của workspace (store `lib/client/branding.js`, nạp bởi `ThemeLoader`
+  cùng request với theme, có cache localStorage; rời khu vực đăng nhập thì về mặc định). Route
+  `GET /api/workspace/theme` trả thêm `branding {name, slug, logoUrl}`.
+- **Upload logo** (phần Phase 6 hoãn): trang Workspace Settings, chỉ owner; upload lên Cloudinary
+  `workspaces/<slug>/logo`; server chỉ nhận URL Cloudinary của mình (≤500 ký tự) hoặc `""` để bỏ.
+- **Email:** tên trung tâm trong thân thư + tiêu đề dự phòng theo workspace của thông báo (escape HTML —
+  tên do giáo viên đặt); tên hiển thị người gửi = tên workspace, địa chỉ giữ hộp Gmail dùng chung
+  (lấy từ `EMAIL_FROM` hoặc `GMAIL_USER`), truyền dạng object cho nodemailer nên CR/LF trong tên không
+  chèn được header.
+- **Cloudinary:** `MediaLibrary` upload file MỚI vào `workspaces/<slug>/audio|images`; file cũ giữ nguyên
+  (R6). Đã kiểm preset unsigned `ielts_speaking_unsigned` qua Admin API: KHÔNG khoá thư mục → tham số
+  `folder` từ client được tôn trọng, không cần chỉnh gì bên Cloudinary. Slug lạ/chưa nạp → quay về thư
+  mục cũ (không vỡ upload). Tách thư mục ≠ bảo mật (R5).
+- `public/logo.svg` đổi tên thành `public/ms-nhi-logo.svg` (logo của workspace Ms Nhi).
+- `scripts/seed-workspace-logo.js`: gán `logoUrl` cho 1 workspace (mặc định dry-run, `--live/--dev`
+  bắt buộc, không đè logo đã có trừ khi `--force`).
+
+**BƯỚC BẮT BUỘC SAU KHI MERGE + DEPLOY** (nếu quên, cô Nhi sẽ thấy logo tạm của nền tảng):
+```
+node scripts/seed-workspace-logo.js --live --slug ms-nhi --logo /ms-nhi-logo.svg          # xem trước
+node scripts/seed-workspace-logo.js --live --slug ms-nhi --logo /ms-nhi-logo.svg --apply  # ghi thật
+```
+Và đặt trên Vercel: `NEXT_PUBLIC_PLATFORM_NAME` (tên nền tảng thật); cân nhắc đổi `EMAIL_FROM` từ
+"Ms Nhi IELTS <...>" sang tên nền tảng (tên hiển thị đã được ghi đè theo workspace nên chỉ còn là
+dự phòng).
+
+**Ngoài phạm vi / để lại**
+- Ngôn ngữ + múi giờ workspace vẫn chỉ lưu, chưa nối vào email/giờ hiển thị (`APP_TZ` cố định).
+- Bản cũ `/legacy` (public/legacy) còn chữ "IELTS with Ms Nhi" — đang bị bỏ dần, không sửa.
+- Ghi âm Speaking của học sinh và ảnh đính kèm ticket vẫn upload ở gốc/`tickets` (không theo workspace).
+- Lỗ hổng có sẵn (không do phase này): `pages/api/admin/audio.js`/`images.js` POST nhận
+  `cloudinaryUrl` từ client mà không gọi `isCloudinaryUrl` — nên bổ sung.
+
+**Kiểm chứng (probe dev DB, workspace probe riêng):** branding đúng theo workspace, học sinh workspace
+khác không thấy; 6 kiểu `logoUrl` xấu (`javascript:`, `http://`, cloud khác, `data:`, quá dài, số) → 400;
+non-owner → 403; đổi tên phản ánh vào branding; email (nodemailer giả): tên người gửi/thân/tiêu đề đúng
+workspace, HTML escape, không còn chữ "Ms Nhi", thiếu workspace → tên nền tảng, CRLF không chèn header;
+script seed: dry-run không ghi, `--apply` ghi, không đè logo có sẵn, `--force` đè, `--logo` xấu bị từ chối.
+Dọn sạch. **Chưa kiểm chứng trên trình duyệt** (thanh bên, upload logo thật lên Cloudinary, favicon).
+
+**Rollback:** không merge branch; hoặc revert. Logo đã upload lên Cloudinary vẫn dùng bình thường.
 
 ---
 
