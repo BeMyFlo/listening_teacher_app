@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="IELTS LMS">
-  <!-- Logo tạm của nền tảng — thay file này bằng logo thật. -->
-  <rect x="24" y="24" width="352" height="352" rx="84" fill="#3D97D6"/>
-  <path d="M200 112 88 168l112 56 112-56-112-56Z" fill="#fff"/>
-  <path d="M136 204v58c0 20 29 38 64 38s64-18 64-38v-58l-64 32-64-32Z" fill="#DCEFFF"/>
-  <path d="M328 176v72" stroke="#fff" stroke-width="14" stroke-linecap="round"/>
-</svg>
