@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, uploadToCloudinary } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
+import { useBranding } from "@/lib/client/branding";
 
 const CFG = {
   audio: {
@@ -15,7 +16,8 @@ const CFG = {
     fileLabel: "Audio file (mp3, wav...)",
     accept: "audio/*",
     resourceType: "video",
-    folder: "ielts-listening",
+    folder: "ielts-listening", // thư mục cũ, chỉ dùng khi chưa biết workspace
+    subfolder: "audio",
     list: () => api.teacher.listAudio(),
     create: (d) => api.teacher.createAudio(d),
     remove: (id) => api.teacher.deleteAudio(id),
@@ -31,6 +33,7 @@ const CFG = {
     accept: "image/*",
     resourceType: "image",
     folder: "ielts-images",
+    subfolder: "images",
     list: () => api.teacher.listImages(),
     create: (d) => api.teacher.createImage(d),
     remove: (id) => api.teacher.deleteImage(id),
@@ -40,6 +43,7 @@ const CFG = {
 export default function MediaLibrary({ kind }) {
   const dialog = useDialog();
   const cfg = CFG[kind];
+  const brand = useBranding();
   const [rows, setRows] = useState(null);
   const [listErr, setListErr] = useState("");
   const [title, setTitle] = useState("");
@@ -65,7 +69,10 @@ export default function MediaLibrary({ kind }) {
     setBusy(true);
     setStatus({ cls: "info", msg: "Uploading..." });
     try {
-      const up = await uploadToCloudinary(file, { resourceType: cfg.resourceType, folder: cfg.folder });
+      // File MỚI vào workspaces/<slug>/...; file cũ giữ nguyên chỗ cũ (đổi thư mục
+      // không di chuyển gì). Tách thư mục chỉ để gọn, KHÔNG phải ranh giới bảo mật.
+      const folder = /^[a-z0-9-]+$/.test(brand.slug) ? `workspaces/${brand.slug}/${cfg.subfolder}` : cfg.folder;
+      const up = await uploadToCloudinary(file, { resourceType: cfg.resourceType, folder });
       await cfg.create({ title: title.trim(), unit: unit.trim(), ...up });
       setStatus({ cls: "success", msg: "Uploaded successfully." });
       setTitle("");

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "@/lib/client/api";
+import { api, uploadToCloudinary } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
-import { applyTheme, cacheTheme } from "@/components/ThemeLoader";
+import { applyTheme, cacheTheme, cacheBranding } from "@/components/ThemeLoader";
+import { setBranding } from "@/lib/client/branding";
+import { PLATFORM_LOGO } from "@/lib/platform";
 import { THEME_VARS, resolveTheme, themeWarnings } from "@/lib/theme";
 
 const LOCALES = [
@@ -11,6 +13,14 @@ const LOCALES = [
   { value: "en", label: "English" },
 ];
 const GROUPS = ["Brand", "Surface", "Text", "Status"];
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+
+// Cập nhật thanh bên + cache ngay sau khi lưu, không cần tải lại trang.
+function pushBranding(ws) {
+  const b = { name: ws.name, slug: ws.slug, logoUrl: ws.logoUrl || "" };
+  setBranding(b);
+  cacheBranding("teacher", b);
+}
 
 function timezoneOptions(current) {
   const supported = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
@@ -23,6 +33,9 @@ export default function WorkspaceSettingsPage() {
   const [err, setErr] = useState("");
   const [canEdit, setCanEdit] = useState(false);
   const [general, setGeneral] = useState({ name: "", locale: "vi", timezone: "Asia/Ho_Chi_Minh" });
+  const [logo, setLogo] = useState({ url: "", slug: "" });
+  const [logoBusy, setLogoBusy] = useState(false);
+  const logoRef = useRef(null);
   const [draft, setDraft] = useState({}); // chỉ các màu đã đổi
   const [savingGeneral, setSavingGeneral] = useState(false);
   const [savingTheme, setSavingTheme] = useState(false);
@@ -33,6 +46,7 @@ export default function WorkspaceSettingsPage() {
       .workspaceSettings()
       .then((d) => {
         setGeneral({ name: d.workspace.name, locale: d.workspace.locale, timezone: d.workspace.timezone });
+        setLogo({ url: d.workspace.logoUrl || "", slug: d.workspace.slug });
         setDraft(d.theme || {});
         savedTheme.current = d.theme || {};
         setCanEdit(d.canEdit);
@@ -77,11 +91,51 @@ export default function WorkspaceSettingsPage() {
         timezone: general.timezone,
       });
       setGeneral({ name: d.workspace.name, locale: d.workspace.locale, timezone: d.workspace.timezone });
+      pushBranding(d.workspace);
       dialog.toast("Workspace settings saved");
     } catch (e2) {
       dialog.alert({ tone: "error", title: "Could not save", message: e2.message });
     } finally {
       setSavingGeneral(false);
+    }
+  }
+
+  async function changeLogo(file) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      dialog.alert({ tone: "error", title: "Not an image", message: "Please choose an image file (PNG, JPG, SVG...)." });
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      dialog.alert({ tone: "error", title: "Image too large", message: "Please choose an image under 2 MB." });
+      return;
+    }
+    setLogoBusy(true);
+    try {
+      const up = await uploadToCloudinary(file, { resourceType: "image", folder: `workspaces/${logo.slug}/logo` });
+      const d = await api.teacher.saveWorkspaceSettings({ logoUrl: up.cloudinaryUrl });
+      setLogo((l) => ({ ...l, url: d.workspace.logoUrl || "" }));
+      pushBranding(d.workspace);
+      dialog.toast("Logo updated");
+    } catch (e) {
+      dialog.alert({ tone: "error", title: "Could not update the logo", message: e.message });
+    } finally {
+      setLogoBusy(false);
+      if (logoRef.current) logoRef.current.value = "";
+    }
+  }
+
+  async function removeLogo() {
+    setLogoBusy(true);
+    try {
+      const d = await api.teacher.saveWorkspaceSettings({ logoUrl: "" });
+      setLogo((l) => ({ ...l, url: "" }));
+      pushBranding(d.workspace);
+      dialog.toast("Logo removed");
+    } catch (e) {
+      dialog.alert({ tone: "error", title: "Could not remove the logo", message: e.message });
+    } finally {
+      setLogoBusy(false);
     }
   }
 
@@ -126,6 +180,26 @@ export default function WorkspaceSettingsPage() {
 
           <div className="card" style={{ marginBottom: 14 }}>
             <h3 style={{ marginTop: 0 }}>General</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16, flexWrap: "wrap" }}>
+              <img src={logo.url || PLATFORM_LOGO} alt="Workspace logo" style={{ width: 64, height: 64, objectFit: "contain", border: "1px solid var(--border)", borderRadius: 10, background: "#fff" }} />
+              <div>
+                <div style={{ fontWeight: 600 }}>Logo</div>
+                <div className="page-sub" style={{ margin: "2px 0 8px" }}>
+                  Shown in the sidebar for you and your students. {logo.url ? "" : "Using the default logo."}
+                </div>
+                {canEdit && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input ref={logoRef} type="file" accept="image/*" hidden onChange={(e) => changeLogo(e.target.files && e.target.files[0])} />
+                    <button type="button" className="btn secondary sm" disabled={logoBusy} onClick={() => logoRef.current && logoRef.current.click()}>
+                      {logoBusy ? "Working…" : logo.url ? "Change logo" : "Upload logo"}
+                    </button>
+                    {logo.url && (
+                      <button type="button" className="btn secondary sm" disabled={logoBusy} onClick={removeLogo}>Remove</button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
             <form onSubmit={saveGeneral} style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))" }}>
               <div className="form-row" style={{ marginBottom: 0 }}>
                 <label>Workspace name</label>

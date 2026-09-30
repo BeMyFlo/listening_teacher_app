@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { NAV } from "@/lib/nav";
 import { clearSession, clearTeacherToken } from "@/lib/client/session";
 import { useShellBadges } from "@/lib/client/shellBadges";
+import { useBranding } from "@/lib/client/branding";
 import NotificationBell from "./NotificationBell";
 import SupportWidget from "./tickets/SupportWidget";
 import ChangelogModal from "./ChangelogModal";
@@ -19,6 +20,7 @@ export default function Shell({ role, userName, userSub, children }) {
   const router = useRouter();
   const cfg = NAV[role];
   const badges = useShellBadges();
+  const brand = useBranding();
   const [collapsed, setCollapsed] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
   const [imp, setImp] = useState(null); // { name } khi admin đang đăng nhập hộ
@@ -63,7 +65,10 @@ export default function Shell({ role, userName, userSub, children }) {
 
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <img className="logo" src="/logo.svg" alt="Ms Nhi" />
+          <div className="sidebar-brand-main">
+            <img className="logo" src={brand.logoUrl} alt={brand.name} />
+            {brand.isWorkspace && <span className="sidebar-brand-name">{brand.name}</span>}
+          </div>
           <button
             type="button"
             className="sidebar-collapse-btn"
