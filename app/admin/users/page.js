@@ -18,7 +18,7 @@ export default function AdminUsersPage() {
   const [q, setQ] = useState("");
   const [busyId, setBusyId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ role: "student", name: "", username: "", password: "", email: "", classId: "" });
+  const [form, setForm] = useState({ role: "student", name: "", username: "", password: "", email: "", classId: "", workspaceName: "" });
 
   function load() {
     api.admin
@@ -42,9 +42,10 @@ export default function AdminUsersPage() {
     try {
       const body = { ...form };
       if (form.role !== "student") delete body.classId;
+      if (form.role !== "teacher") delete body.workspaceName;
       await api.admin.createUser(body);
       setShowCreate(false);
-      setForm({ role: "student", name: "", username: "", password: "", email: "", classId: "" });
+      setForm({ role: "student", name: "", username: "", password: "", email: "", classId: "", workspaceName: "" });
       dialog.toast("Account created");
       load();
     } catch (e2) {
@@ -142,11 +143,16 @@ export default function AdminUsersPage() {
             <label>Username<input value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} required /></label>
             <label>Password<input type="text" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required /></label>
             <label>Email (optional)<input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
+            {form.role === "teacher" && (
+              <label>Workspace name (optional)
+                <input placeholder="Defaults to the teacher's name" value={form.workspaceName} onChange={(e) => setForm((f) => ({ ...f, workspaceName: e.target.value }))} />
+              </label>
+            )}
             {form.role === "student" && (
               <label>Class
                 <select value={form.classId} onChange={(e) => setForm((f) => ({ ...f, classId: e.target.value }))} required>
                   <option value="">— select —</option>
-                  {classes.map((c) => <option key={c._id} value={c._id}>{c.name} (L{c.level})</option>)}
+                  {classes.map((c) => <option key={c._id} value={c._id}>{`${c.name} (L${c.level}) · ${c.workspaceName || "—"}`}</option>)}
                 </select>
               </label>
             )}
@@ -200,7 +206,7 @@ export default function AdminUsersPage() {
                         onChange={(e) => patch(u._id, { classId: e.target.value || null }, "Class updated")}
                       >
                         <option value="">— none —</option>
-                        {classes.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                        {classes.filter((c) => c.workspaceId === u.workspaceId).map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
                       </select>
                     ) : u.role === "teacher" ? (
                       <span style={{ fontSize: ".8rem", color: "var(--muted)" }}>

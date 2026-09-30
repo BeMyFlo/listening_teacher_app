@@ -5,6 +5,8 @@ const User = require("../../../lib/models/User");
 const Teacher = require("../../../lib/models/Teacher");
 const Student = require("../../../lib/models/Student");
 const Class = require("../../../lib/models/Class");
+const Workspace = require("../../../lib/models/Workspace");
+const { asObjectId } = require("../../../lib/validate");
 const Submission = require("../../../lib/models/Submission");
 
 async function handler(req, res) {
@@ -32,13 +34,21 @@ async function handler(req, res) {
     const teacherIds = list.filter((u) => u.teacherId).map((u) => u.teacherId);
     const studentIds = list.filter((u) => u.studentId).map((u) => u.studentId);
     const [teachers, students] = await Promise.all([
-      Teacher.find({ _id: { $in: teacherIds } }).select("classIds").lean(),
-      Student.find({ _id: { $in: studentIds } }).select("classId").lean(),
+      Teacher.find({ _id: { $in: teacherIds } }).select("classIds workspaceId").lean(),
+      Student.find({ _id: { $in: studentIds } }).select("classId workspaceId").lean(),
     ]);
     const tById = {};
     teachers.forEach((t) => (tById[String(t._id)] = t));
     const sById = {};
     students.forEach((s) => (sById[String(s._id)] = s));
+
+    const wsIds = new Set();
+    classes.forEach((c) => c.workspaceId && wsIds.add(String(c.workspaceId)));
+    teachers.forEach((t) => t.workspaceId && wsIds.add(String(t.workspaceId)));
+    students.forEach((st) => st.workspaceId && wsIds.add(String(st.workspaceId)));
+    const wsDocs = wsIds.size ? await Workspace.find({ _id: { $in: [...wsIds] } }).select("name").lean() : [];
+    const wsName = {};
+    wsDocs.forEach((w) => (wsName[String(w._id)] = w.name));
 
     const rows = list.map((u) => {
       const t = u.teacherId ? tById[String(u.teacherId)] : null;
@@ -57,6 +67,7 @@ async function handler(req, res) {
         studentId: u.studentId || null,
         classId: s ? s.classId || null : null,
         className: cls ? cls.name : null,
+        workspaceId: (t || s) && (t || s).workspaceId ? String((t || s).workspaceId) : null,
         teacherClassIds: t ? (t.classIds || []).map(String) : [],
         submissionCount: u.studentId ? subByStudent[String(u.studentId)] || 0 : 0,
       };
@@ -64,7 +75,13 @@ async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       rows,
-      classes: classes.map((c) => ({ _id: String(c._id), name: c.name, level: c.level })),
+      classes: classes.map((c) => ({
+        _id: String(c._id),
+        name: c.name,
+        level: c.level,
+        workspaceId: c.workspaceId ? String(c.workspaceId) : null,
+        workspaceName: c.workspaceId ? wsName[String(c.workspaceId)] || "" : "",
+      })),
     });
   }
 
@@ -77,16 +94,11 @@ async function handler(req, res) {
         return res.status(201).json({ ok: true, user: { _id: user._id, username: user.username } });
       }
       if (role === "teacher") {
-        // Tạo giáo viên "đúng nghĩa" là phải tạo kèm Workspace + WorkspaceMember
-        // cho người đó — việc của Phase 5. Chưa có thì tài khoản sinh ra đăng
-        // nhập được nhưng 403 MỌI màn hình (lib/tenant.js -> withTenant).
-        // Chặn ở đây thay vì trả 201 rồi giao ra một tài khoản chết: cùng đúng
-        // nguyên tắc đã áp cho createStudent (PLAN-PHASE3-STEP12 mục 0.5).
-        return res.status(400).json({
-          ok: false,
-          error:
-            "Creating teacher accounts is temporarily disabled: a teacher needs their own workspace, " +
-            "which is not built yet. Ask a developer to create it manually for now.",
+        const { user, workspace } = await users.createTeacherWithWorkspace(b);
+        return res.status(201).json({
+          ok: true,
+          user: { _id: user._id, username: user.username },
+          workspace: { _id: workspace._id, name: workspace.name, slug: workspace.slug },
         });
       }
       if (role === "student") {
@@ -132,14 +144,24 @@ async function handler(req, res) {
       if ("classId" in b && user.studentId) {
         let cid = null;
         if (b.classId) {
-          const cls = await Class.findById(b.classId).catch(() => null);
+          const cidStr = asObjectId(b.classId);
+          const cls = cidStr ? await Class.findById(cidStr) : null;
           if (!cls) return res.status(400).json({ ok: false, error: "Class not found" });
+          // Lớp phải cùng workspace với học sinh.
+          const student = await Student.findById(user.studentId).select("workspaceId").lean();
+          if (!student || String(cls.workspaceId) !== String(student.workspaceId)) {
+            return res.status(400).json({ ok: false, error: "That class belongs to a different workspace" });
+          }
           cid = cls._id;
         }
         await Student.updateOne({ _id: user.studentId }, { $set: { classId: cid } });
       }
       if (Array.isArray(b.classIds) && user.teacherId) {
-        const valid = await Class.find({ _id: { $in: b.classIds } }).select("_id").lean();
+        const teacher = await Teacher.findById(user.teacherId).select("workspaceId").lean();
+        const ids = b.classIds.map(asObjectId).filter(Boolean);
+        const valid = teacher
+          ? await Class.find({ _id: { $in: ids }, workspaceId: teacher.workspaceId }).select("_id").lean()
+          : [];
         await Teacher.updateOne({ _id: user.teacherId }, { $set: { classIds: valid.map((c) => c._id) } });
       }
       return res.status(200).json({ ok: true });

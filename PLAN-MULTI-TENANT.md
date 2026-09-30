@@ -22,7 +22,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. 26/26 route. Deploy cùng Phase 3 bước 1–2 — xem Nhật ký |
 | 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 1–2–3–4–5–6 đều deploy xong. Bước 3 có 1 lỗ hổng ngoài dự tính, đã vá; bước 4–5 code bởi Haiku subagent, review dòng-theo-dòng + OCR review sau khi push bắt thêm 1 lỗi (cron thiếu workspaceId), đã vá — xem Nhật ký |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 5 (teacherScope) cố ý bỏ qua — xem Nhật ký |
-| 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ◐ gói 5A (B3+B10) xong; 5B, 5C chưa | 2026-09-30. Code bởi Sonnet subagent, Opus review — xem Nhật ký |
+| 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ◐ gói 5A (B3+B10) + 5B (tạo GV kèm workspace) xong; 5C chưa | 2026-09-30. Code bởi Sonnet subagent, Opus review — xem Nhật ký |
 | 6 | Self-serve signup + onboarding + Workspace Settings | ☐ chưa làm | |
 | 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ☐ chưa làm | |
 | 8 | Taxonomy Subject / Program / Skill (mở đường TOEIC, General, Toán…) | ☐ chưa làm | |
@@ -1493,6 +1493,36 @@ ai-settings GET 200, PUT 405. Dọn sạch probe (0 còn lại). `check-tenant-s
 
 **Ghi chú vận hành:** lúc chạy probe, `.env.local` đang trỏ LIVE (vừa chạy `npm run dev:live`) —
 guard `msnhiapp_dev` trong probe đã chặn đúng; probe tự đổi sang `MONGODB_URI_DEV` trong process.
+
+---
+
+### 2026-09-30 — Phase 5 gói 5B: mở lại tạo giáo viên kèm Workspace ☑
+
+**Tạo giáo viên** (`sysadmin/users.js` POST, và luồng bootstrap `TEACHER_PASSWORD` trong
+`auth.js`) giờ đi qua `users.createTeacherWithWorkspace`: validate hết trước khi ghi, sinh sẵn
+`workspaceId`, tạo Teacher + User → Workspace (slug từ username, trùng thì `-2`, `-3`…) →
+WorkspaceMember(owner). Lỗi ở bất kỳ bước nào → dọn sạch (Teacher xoá theo `workspaceId` vừa sinh,
+vì `createTeacher` tạo Teacher TRƯỚC User — review lần 1 bắt được: nếu `User.create` lỗi thì
+Teacher mồ côi sót lại). `createTeacher` giờ bắt buộc `workspaceId`. Khối chặn 400 đã gỡ.
+
+**Mục 4 (impersonate):** không cần sửa — token có `userId` của GV, `currentWorkspace` giải qua
+`WorkspaceMember` → probe xác nhận đăng nhập hộ GV mới thấy đúng workspace của GV đó, 0 lớp của
+workspace khác.
+
+**Vá thêm 3 lỗ sẵn có** ngoài plan: (1) admin đổi lớp học sinh sang lớp workspace khác → giờ 400;
+(2) admin gán `classIds` GV lấy lớp workspace khác → giờ lọc theo workspace của GV + bỏ id rác;
+(3) xoá GV chỉ xoá Teacher+User, bỏ lại Workspace mồ côi → giờ owner chỉ xoá được khi workspace
+rỗng (Student/Class/Unit/Test/Audio/Image/Submission/member khác = 0), còn dữ liệu thì 400 "disable
+instead"; xoá workspace rỗng thì dọn luôn Notification/AttendanceSession/StudentNote/GradingJob/
+DeadlineEmailJob (review lần 1 bắt được: notification của owner để lại workspaceId treo).
+
+**UI admin:** ô "Workspace name" khi tạo GV; dropdown lớp hiện tên workspace; đổi lớp học sinh chỉ
+liệt kê lớp cùng workspace. GET `sysadmin/users` trả thêm `workspaceId`/`workspaceName`.
+
+**Kiểm chứng:** probe dev DB 10 kịch bản (tạo GV, trùng slug, impersonate → `/teacher/me` + 0 lớp
+lạ, GV mới tạo lớp, chặn đổi lớp khác workspace, lọc classIds, chặn/cho xoá, createTeacher thiếu
+workspace, rollback) + probe vòng 2 cho 2 lỗi review bắt được (rollback khi `User.create` lỗi, dọn
+notification). Tất cả pass, dọn sạch. OCR review: không phát hiện đáng kể.
 
 ---
 

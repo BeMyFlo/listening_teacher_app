@@ -115,7 +115,7 @@ module.exports = async (req, res) => {
     const teacherCount = await Teacher.countDocuments();
     if (teacherCount === 0 && !(await User.exists({ username }))) {
       try {
-        const { user, teacher } = await users.createTeacher({ name: "Teacher", username, password });
+        const { user, teacher } = await users.createTeacherWithWorkspace({ name: "Teacher", username, password });
         return respond(user, teacher);
       } catch (e) {
         return res.status(e.status || 400).json({ ok: false, error: e.message });
