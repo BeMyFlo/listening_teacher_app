@@ -78,7 +78,7 @@ export default function AdminWorkspacesPage() {
                   <td>
                     {editId === w._id ? (
                       <span style={{ display: "flex", gap: 6 }}>
-                        <input value={editName} maxLength={140} onChange={(e) => setEditName(e.target.value)} />
+                        <input type="text" value={editName} maxLength={140} onChange={(e) => setEditName(e.target.value)} />
                         <button type="button" className="btn sm" disabled={busyId === w._id || !editName.trim()}
                           onClick={() => patch(w, { name: editName }, "Workspace renamed")}>Save</button>
                         <button type="button" className="btn secondary sm" onClick={() => setEditId(null)}>Cancel</button>

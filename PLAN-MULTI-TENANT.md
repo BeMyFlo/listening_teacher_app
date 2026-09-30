@@ -23,7 +23,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 1–2–3–4–5–6 đều deploy xong. Bước 3 có 1 lỗ hổng ngoài dự tính, đã vá; bước 4–5 code bởi Haiku subagent, review dòng-theo-dòng + OCR review sau khi push bắt thêm 1 lỗi (cron thiếu workspaceId), đã vá — xem Nhật ký |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 5 (teacherScope) cố ý bỏ qua — xem Nhật ký |
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☑ **XONG** (5A + 5B + 5C) | 2026-09-30. Code bởi Sonnet subagent, Opus thiết kế + review từng dòng — xem Nhật ký |
-| 6 | Onboarding + Workspace Settings + tuỳ chỉnh màu theo workspace (KHÔNG có tự đăng ký) | ☐ chưa làm | Chốt 2026-09-30, xem Phase 6 + mục 6.1 |
+| 6 | Onboarding + Workspace Settings + tuỳ chỉnh màu theo workspace (KHÔNG có tự đăng ký) | ◐ code xong trên branch `phase-6-onboarding-theme`, CHƯA merge/deploy | 2026-09-30. Xem Nhật ký; đợt 2 (dọn màu cứng) chưa làm |
 | 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ☐ chưa làm | |
 | 8 | Taxonomy Subject / Program / Skill (mở đường TOEIC, General, Toán…) | ☐ chưa làm | |
 | 9 | Tương lai: nhiều giáo viên / 1 workspace, enrollment nhiều lớp, Organization | ☐ chưa làm | không làm trong V1 |
@@ -818,9 +818,9 @@ lớp → thêm HS → HS đăng nhập thấy đúng lớp. Dữ liệu Ms Nhi 
 ### 6.1 Tuỳ chỉnh màu theo workspace — thiết kế và rủi ro
 
 **Hiện trạng đã khảo sát (2026-09-30):** toàn bộ màu nằm ở ~25 biến CSS trong `:root` của
-`public/legacy/assets/style.css` (`--blue`, `--navy`, `--pink`, `--bg`, `--ink`, `--border`, `--card`...;
+`styles/legacy.css` (file app THẬT SỰ nạp qua `app/globals.css`; `public/legacy/assets/style.css` là bản cũ, đừng nhầm) (`--blue`, `--navy`, `--pink`, `--bg`, `--ink`, `--border`, `--card`...;
 stylesheet dùng biến rất nhiều). Không có dark mode. `Workspace.settings` (Mixed) đã có sẵn nên lưu
-theme KHÔNG cần đổi schema. Còn ~100 chỗ màu viết cứng trong CSS (`#fff` ×38, `#FFE0E2`, `#DFF7E9`...) và
+theme KHÔNG cần đổi schema. Còn **214** chỗ màu viết cứng trong `styles/legacy.css` (đo lại ở đúng file; con số ~100 trước đó đo nhầm file cũ) và
 6 file JSX có hex cứng — những chỗ này sẽ KHÔNG đổi theo nếu chưa dọn.
 
 **Thiết kế**
@@ -840,7 +840,7 @@ theme KHÔNG cần đổi schema. Còn ~100 chỗ màu viết cứng trong CSS (
 
 **Chia hai đợt**
 - **Đợt 1 (thuộc Phase 6):** hạ tầng (lưu, kiểm tra, áp theme, trang chỉnh) với ~10 màu chính.
-- **Đợt 2 (sau, có thể gộp Phase 7):** dọn ~100 màu viết cứng thành biến rồi mở rộng thêm màu chỉnh
+- **Đợt 2 (sau, có thể gộp Phase 7):** dọn 214 màu viết cứng thành biến rồi mở rộng thêm màu chỉnh
   được. Dễ vỡ giao diện nếu làm ẩu → làm riêng, kiểm bằng ảnh chụp trước/sau.
 
 **Ngoài phạm vi:** màu trong email gửi ra và màu logo (Phase 7). Dark mode không tồn tại → 1 bộ màu.
@@ -1622,6 +1622,54 @@ nếu không giáo viên nhờ tạo sẽ không thấy lớp đó (cùng lỗi 
 Kiểm chứng probe dev DB 10 kịch bản (danh sách khớp số học sinh thật, lọc workspace, giáo viên bị
 403, tạo hộ cho GV toàn quyền và GV bị scope, validate, sửa, không có DELETE, audit đúng workspace,
 workspace thật không bị đụng). Dọn sạch.
+
+---
+
+### 2026-09-30 — Phase 6 code xong trên branch `phase-6-onboarding-theme` (chưa merge, chưa deploy) ◐
+
+**Quy tắc mới (chủ dự án):** mỗi phase push lên branch riêng, KHÔNG push thẳng `main`. Phase 6 nằm ở
+branch `phase-6-onboarding-theme`; chủ dự án tự quyết lúc merge/deploy.
+
+**Đã làm**
+- `lib/theme.js` (dùng chung server + client): danh sách 13 màu cho phép (Brand/Surface/Text/Status, mặc
+  định = đúng `:root` hiện tại, kèm alias `--indigo/--purple/--teal/--amber`...), `sanitizeTheme`
+  (chỉ nhận key trong danh sách + `#RRGGBB`, bỏ màu trùng mặc định), `themeToCss` (`html:root{...}`,
+  tự kiểm lại từng giá trị), tính tương phản WCAG + cảnh báo (chỉ tham khảo, không chặn lưu).
+- `pages/api/teacher/workspace.js`: GET cho mọi giáo viên, PUT chỉ owner (tên, ngôn ngữ, múi giờ,
+  theme; kiểm hết trước khi ghi; theme rỗng = xoá key). `pages/api/workspace/theme.js`: GET cho
+  giáo viên + học sinh, kiểm lại lúc đọc (DB có giá trị bẩn → trả rỗng, không bao giờ trả CSS bẩn).
+  Cả hai đã vào danh sách `check-tenant-scope`.
+- `components/ThemeLoader.js` gắn trong `RoleGate` (chỉ teacher/student): áp cache localStorage ngay
+  để không nháy màu, rồi lấy bản mới; rời khu vực đăng nhập thì gỡ → trang login luôn màu mặc định.
+- `/teacher/settings/workspace` (General + Appearance: chọn màu xem trước trực tiếp, Reset từng màu /
+  Reset all, cảnh báo tương phản; không-owner chỉ xem) + mục nav "Workspace" (Notifications thành `exact`
+  để không sáng đôi).
+- `/teacher/onboarding` (3 bước, bỏ qua được mọi bước) + dashboard rỗng: workspace chưa có lớp/bài học/
+  bài thi → thẻ chào với `Create Class / Create Lesson / Import Questions / Guided setup`.
+
+**Lệch plan có chủ đích**
+- **Logo: chưa làm.** Không có chỗ nào hiển thị logo cho tới Phase 7 (gỡ branding cứng); upload logo
+  bây giờ chỉ tạo dữ liệu không dùng. Field `Workspace.logoUrl` đã có sẵn.
+- **Ngôn ngữ + múi giờ: chỉ lưu, chưa có tác dụng.** Chưa có code nào đọc chúng (email/giờ vẫn cố định
+  `Asia/Ho_Chi_Minh`); sẽ nối ở Phase 7.
+- "Import Questions" trỏ tới `/teacher/tests/new` vì chức năng import nằm trong trình soạn bài thi/bài học.
+- Màu chỉnh được mới có 13 màu chính (đợt 1). `--violet` (màu chấm bài) và các màu `*-light` khác chưa
+  chỉnh được; 214 màu viết cứng chưa động tới → một số chỗ sẽ không đổi theo (đợt 2).
+
+**Kiểm chứng:** probe dev DB 27 kịch bản (2 workspace + giáo viên thứ 2 không phải owner + học sinh):
+owner ghi/đọc theme; giáo viên + học sinh cùng workspace thấy, workspace khác KHÔNG; non-owner/học
+sinh/owner workspace khác ghi → 403/không đổi; 8 kiểu giá trị độc (`red;}body{...`, `url(...)`, key lạ,
+`#12345`, mảng, chuỗi, số...) → 400 và theme cũ giữ nguyên; DB bị sửa tay giá trị độc → không bao giờ
+được trả ra; validate tên/ngôn ngữ/múi giờ; PUT chỉ tên giữ nguyên theme; màu trùng mặc định bị bỏ;
+reset xoá key; workspace suspended → theme 403; luồng onboarding qua API thật (dashboard rỗng → tạo
+lớp → thêm học sinh → không còn rỗng); workspace Ms Nhi trên dev không bị đụng. Dọn sạch. Cú pháp
+JSX kiểm bằng esbuild (không chạy dev server/build để khỏi đụng `.next` của chủ dự án).
+
+**CHƯA kiểm chứng:** hiển thị thật trên trình duyệt (chưa mở giao diện) — cần chủ dự án bấm thử
+trên môi trường của mình: đổi màu → xem toàn app đổi, đăng nhập bằng học sinh xem màu, đăng xuất về
+/login xem màu mặc định, workspace mới tạo xem thẻ chào + onboarding.
+
+**Rollback:** không merge branch; hoặc xoá `settings.theme` để về màu mặc định.
 
 ---
 

@@ -32,6 +32,8 @@ const SCAN_FILES = [
   "pages/api/submissions/reflection.js",
   "pages/api/changelog.js",
   "pages/api/teacher/me.js",
+  "pages/api/teacher/workspace.js",
+  "pages/api/workspace/theme.js",
 ];
 
 // Chỉ bắt lệnh gọi trên một Model Mongoose — nhận diện bằng quy ước đặt tên

@@ -99,7 +99,7 @@ export default function AdminClassesPage() {
                 {workspaces.map((w) => <option key={w._id} value={w._id}>{w.name}</option>)}
               </select>
             </label>
-            <label>Class name<input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required /></label>
+            <label>Class name<input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required /></label>
             <label>Level
               <input type="number" min="1" step="1" value={form.level} onChange={(e) => setForm((f) => ({ ...f, level: e.target.value }))} required />
             </label>
@@ -132,7 +132,7 @@ export default function AdminClassesPage() {
                   <tr>
                     {editId === c._id ? (
                       <>
-                        <td><input value={edit.name} onChange={(e) => setEdit((x) => ({ ...x, name: e.target.value }))} /></td>
+                        <td><input type="text" value={edit.name} onChange={(e) => setEdit((x) => ({ ...x, name: e.target.value }))} /></td>
                         <td><input type="number" min="1" step="1" style={{ width: 70 }} value={edit.level} onChange={(e) => setEdit((x) => ({ ...x, level: e.target.value }))} /></td>
                       </>
                     ) : (
