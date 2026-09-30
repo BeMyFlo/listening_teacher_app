@@ -13,13 +13,19 @@ export default function AdminAuditPage() {
   const [action, setAction] = useState("");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
+  const [workspaceId, setWorkspaceId] = useState("");
+  const [workspaces, setWorkspaces] = useState([]);
+
+  useEffect(() => {
+    api.admin.listWorkspaces().then((d) => setWorkspaces(d.rows)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.admin
-      .audit({ ...(actorRole ? { actorRole } : {}), ...(action ? { action } : {}), ...(q ? { q } : {}), page })
+      .audit({ ...(actorRole ? { actorRole } : {}), ...(action ? { action } : {}), ...(q ? { q } : {}), ...(workspaceId ? { workspaceId } : {}), page })
       .then(setData)
       .catch((e) => setErr(e.message));
-  }, [actorRole, action, q, page]);
+  }, [actorRole, action, q, workspaceId, page]);
 
   const rows = data?.rows || [];
   const pages = data ? Math.ceil(data.total / data.limit) : 1;
@@ -43,6 +49,10 @@ export default function AdminAuditPage() {
 
       <div className="page-head" style={{ marginBottom: 10 }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <select className="select-inline" value={workspaceId} onChange={(e) => { setWorkspaceId(e.target.value); setPage(0); }}>
+            <option value="">All workspaces</option>
+            {workspaces.map((w) => <option key={w._id} value={w._id}>{w.name}</option>)}
+          </select>
           <select className="select-inline" value={actorRole} onChange={(e) => { setActorRole(e.target.value); setPage(0); }}>
             <option value="">All actors</option>
             <option value="admin">Admin</option>

@@ -1,8 +1,10 @@
+const mongoose = require("mongoose");
 const { connectDB } = require("../../../lib/db");
 const { requireRole } = require("../../../lib/auth");
 const Notification = require("../../../lib/models/Notification");
 const Student = require("../../../lib/models/Student");
 const Teacher = require("../../../lib/models/Teacher");
+const { asObjectId } = require("../../../lib/validate");
 
 async function handler(req, res) {
   if (req.method !== "GET") {
@@ -11,11 +13,16 @@ async function handler(req, res) {
   }
   await connectDB();
 
-  const { type, recipient, emailStatus, page = "0", limit = "50" } = req.query;
+  const { type, recipient, emailStatus, workspaceId, page = "0", limit = "50" } = req.query;
   const lim = Math.min(200, Math.max(1, Number(limit) || 50));
   const skip = Math.max(0, Number(page) || 0) * lim;
 
   const filter = {};
+  if (workspaceId) {
+    const wid = asObjectId(workspaceId);
+    if (!wid) return res.status(400).json({ ok: false, error: "Invalid workspace" });
+    filter.workspaceId = new mongoose.Types.ObjectId(wid);
+  }
   if (type) filter.type = type;
   if (recipient === "student") filter.studentId = { $ne: null };
   if (recipient === "teacher") filter.teacherId = { $ne: null };
@@ -24,7 +31,7 @@ async function handler(req, res) {
   const [rows, total, byType] = await Promise.all([
     Notification.find(filter).sort({ createdAt: -1 }).skip(skip).limit(lim).lean(),
     Notification.countDocuments(filter),
-    Notification.aggregate([{ $group: { _id: "$type", n: { $sum: 1 } } }]),
+    Notification.aggregate([...(filter.workspaceId ? [{ $match: { workspaceId: filter.workspaceId } }] : []), { $group: { _id: "$type", n: { $sum: 1 } } }]),
   ]);
 
   const sIds = rows.filter((r) => r.studentId).map((r) => r.studentId);

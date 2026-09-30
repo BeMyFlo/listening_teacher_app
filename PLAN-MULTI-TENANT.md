@@ -22,7 +22,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. 26/26 route. Deploy cùng Phase 3 bước 1–2 — xem Nhật ký |
 | 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 1–2–3–4–5–6 đều deploy xong. Bước 3 có 1 lỗ hổng ngoài dự tính, đã vá; bước 4–5 code bởi Haiku subagent, review dòng-theo-dòng + OCR review sau khi push bắt thêm 1 lỗi (cron thiếu workspaceId), đã vá — xem Nhật ký |
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 5 (teacherScope) cố ý bỏ qua — xem Nhật ký |
-| 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ◐ gói 5A (B3+B10) + 5B (tạo GV kèm workspace) xong; 5C chưa | 2026-09-30. Code bởi Sonnet subagent, Opus review — xem Nhật ký |
+| 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☑ **XONG** (5A + 5B + 5C) | 2026-09-30. Code bởi Sonnet subagent, Opus thiết kế + review từng dòng — xem Nhật ký |
 | 6 | Self-serve signup + onboarding + Workspace Settings | ☐ chưa làm | |
 | 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ☐ chưa làm | |
 | 8 | Taxonomy Subject / Program / Skill (mở đường TOEIC, General, Toán…) | ☐ chưa làm | |
@@ -1523,6 +1523,38 @@ liệt kê lớp cùng workspace. GET `sysadmin/users` trả thêm `workspaceId`
 lạ, GV mới tạo lớp, chặn đổi lớp khác workspace, lọc classIds, chặn/cho xoá, createTeacher thiếu
 workspace, rollback) + probe vòng 2 cho 2 lỗi review bắt được (rollback khi `User.create` lỗi, dọn
 notification). Tất cả pass, dọn sạch. OCR review: không phát hiện đáng kể.
+
+---
+
+### 2026-09-30 — Phase 5 gói 5C: trang Workspaces + thực thi suspend + bộ lọc ☑
+
+**Thực thi suspend (ngoài plan — plan chỉ ghi "suspend/active" ở UI):** trước đây
+`Workspace.status` không được đọc ở đâu cả, nút Suspend sẽ là nút giả. Giờ `currentWorkspace` nạp
+thêm `status` (cache chung 60s), `withTenant` trả 403 "This workspace has been suspended…" cho mọi
+GV/HS của workspace đó. Workspace không tồn tại → null → 403 như cũ. `clearTenantCache()` được gọi
+sau khi admin đổi status (hiệu lực ngay trong container đó, container khác trễ tối đa 60s).
+
+**`sysadmin/workspaces.js` + `/admin/workspaces`:** danh sách workspace kèm owner, số GV/HS/lớp
+(1 aggregate/collection), đổi tên, suspend/activate qua `useDialog` confirm. Thêm mục nav.
+
+**Bộ lọc `workspaceId`** cho `sysadmin/dashboard|audit|notifications` + select trên 3 trang. Trang
+Storage cố ý không lọc (số liệu dung lượng toàn DB). Trên dashboard chỉ số admin là toàn platform.
+
+**Log không gắn workspace (phát hiện khi kiểm live: 62/62 auditlog, 3/3 ailog thiếu
+`workspaceId`):** `audit.record()` chưa từng ghi `req.ws.workspaceId`; `recordAiCall` chưa từng nhận
+workspace. Đã sửa cả hai (ai-grade/ai-lesson truyền `req.ws`, `runAiGrade` lấy từ submission). Đây là
+lý do `migrate-workspace` lần nào cũng phải backfill auditlog.
+
+**Kiểm chứng:** probe dev DB trên workspace probe riêng (không đụng workspace thật): số đếm khớp
+`countDocuments`; GV gọi route sysadmin → 403; suspend → GV và HS của workspace đó 403, workspace
+khác vẫn 200; activate → 200 lại; validate status/name/id; 3 bộ lọc chỉ trả dòng của workspace, id
+rác → 400; audit row của thao tác GV mang đúng `workspaceId`; AiLog lưu `workspaceId` (không gọi
+Gemini thật). Dọn sạch. OCR 16/16 file, không phát hiện mức trung bình trở lên.
+
+**Việc để lại:** (1) cron nhắc hạn vẫn gửi cho HS của workspace bị suspend; (2) `/admin/classes` vẫn
+là trang "Soon" và `api.admin.*Class` gọi `/api/sysadmin/classes` không tồn tại (code chết từ trước).
+
+→ **Phase 5 xong. Tiếp theo: Phase 6 (self-serve signup + onboarding + Workspace Settings).**
 
 ---
 

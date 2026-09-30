@@ -1,6 +1,7 @@
 const { connectDB } = require("../../../lib/db");
 const { requireRole } = require("../../../lib/auth");
 const AuditLog = require("../../../lib/models/AuditLog");
+const { asObjectId } = require("../../../lib/validate");
 
 async function handler(req, res) {
   if (req.method !== "GET") {
@@ -9,11 +10,16 @@ async function handler(req, res) {
   }
   await connectDB();
 
-  const { actorRole, action, q, page = "0", limit = "50" } = req.query;
+  const { actorRole, action, q, workspaceId, page = "0", limit = "50" } = req.query;
   const lim = Math.min(200, Math.max(1, Number(limit) || 50));
   const skip = Math.max(0, Number(page) || 0) * lim;
 
   const filter = {};
+  if (workspaceId) {
+    const wid = asObjectId(workspaceId);
+    if (!wid) return res.status(400).json({ ok: false, error: "Invalid workspace" });
+    filter.workspaceId = wid;
+  }
   if (actorRole) filter.actorRole = actorRole;
   if (action) filter.action = new RegExp("^" + String(action).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   if (q) filter.path = new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
@@ -21,7 +27,7 @@ async function handler(req, res) {
   const [rows, total, oldest] = await Promise.all([
     AuditLog.find(filter).sort({ at: -1 }).skip(skip).limit(lim).lean(),
     AuditLog.countDocuments(filter),
-    AuditLog.findOne().sort({ at: 1 }).select("at").lean(),
+    AuditLog.findOne(filter.workspaceId ? { workspaceId: filter.workspaceId } : {}).sort({ at: 1 }).select("at").lean(),
   ]);
 
   return res.status(200).json({

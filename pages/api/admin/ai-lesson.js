@@ -61,6 +61,7 @@ async function handler(req, res) {
       log: {
         purpose: mod.PURPOSE,
         actor: req.auth,
+        workspaceId: req.ws.workspaceId,
         source: req.url,
         context: { ...baseContext, topics: [topic] },
       },
@@ -90,6 +91,7 @@ async function handler(req, res) {
           log: {
             purpose: `${mod.PURPOSE}.check`,
             actor: req.auth,
+            workspaceId: req.ws.workspaceId,
             source: req.url,
             context: { ...baseContext, topics: [topic], questions: questions.length },
           },

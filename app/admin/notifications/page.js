@@ -13,13 +13,19 @@ export default function AdminNotificationsLogPage() {
   const [recipient, setRecipient] = useState("");
   const [emailStatus, setEmailStatus] = useState("");
   const [page, setPage] = useState(0);
+  const [workspaceId, setWorkspaceId] = useState("");
+  const [workspaces, setWorkspaces] = useState([]);
+
+  useEffect(() => {
+    api.admin.listWorkspaces().then((d) => setWorkspaces(d.rows)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.admin
-      .notificationsLog({ ...(type ? { type } : {}), ...(recipient ? { recipient } : {}), ...(emailStatus ? { emailStatus } : {}), page })
+      .notificationsLog({ ...(type ? { type } : {}), ...(recipient ? { recipient } : {}), ...(emailStatus ? { emailStatus } : {}), ...(workspaceId ? { workspaceId } : {}), page })
       .then(setData)
       .catch((e) => setErr(e.message));
-  }, [type, recipient, emailStatus, page]);
+  }, [type, recipient, emailStatus, workspaceId, page]);
 
   const rows = data?.rows || [];
   const pages = data ? Math.ceil(data.total / data.limit) : 1;
@@ -42,6 +48,10 @@ export default function AdminNotificationsLogPage() {
 
       <div className="page-head" style={{ marginBottom: 10 }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <select className="select-inline" value={workspaceId} onChange={(e) => { setWorkspaceId(e.target.value); setPage(0); }}>
+            <option value="">All workspaces</option>
+            {workspaces.map((w) => <option key={w._id} value={w._id}>{w.name}</option>)}
+          </select>
           <select className="select-inline" value={type} onChange={(e) => { setType(e.target.value); setPage(0); }}>
             <option value="">All types</option>
             <option value="deadline_soon">deadline_soon</option>

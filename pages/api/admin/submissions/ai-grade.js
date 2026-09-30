@@ -52,6 +52,7 @@ async function handler(req, res) {
       log: {
         purpose: `grading.${submission.kind}`,
         actor: req.auth,
+        workspaceId: req.ws.workspaceId,
         source: req.url,
         context: await submissionContext(submission),
       },

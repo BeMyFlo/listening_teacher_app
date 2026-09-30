@@ -19,12 +19,21 @@ export default function AdminDashboard() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [name, setName] = useState("");
+  const [workspaceId, setWorkspaceId] = useState("");
+  const [workspaces, setWorkspaces] = useState([]);
 
   useEffect(() => {
     const s = readSession("admin");
     setName((s && s.name) || "Admin");
-    api.admin.dashboard().then(setData).catch((e) => setErr(e.message));
+    api.admin.listWorkspaces().then((d) => setWorkspaces(d.rows)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    api.admin
+      .dashboard(workspaceId ? { workspaceId } : {})
+      .then((d) => { setErr(""); setData(d); })
+      .catch((e) => setErr(e.message));
+  }, [workspaceId]);
 
   return (
     <div className="tab-panel active">
@@ -34,6 +43,13 @@ export default function AdminDashboard() {
           <h2>System administration</h2>
           <p>Manage accounts, watch activity, and keep an eye on storage.</p>
         </div>
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <select className="select-inline" value={workspaceId} onChange={(e) => setWorkspaceId(e.target.value)}>
+          <option value="">All workspaces</option>
+          {workspaces.map((w) => <option key={w._id} value={w._id}>{w.name}</option>)}
+        </select>
       </div>
 
       {err && (
