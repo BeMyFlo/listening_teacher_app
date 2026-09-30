@@ -1,7 +1,7 @@
-// tenant-exempt: lỗ hổng B3 (PLAN-MULTI-TENANT.md) — route này chuyển sang
-// sysadmin/ ở Phase 5, cố ý CHƯA lọc theo workspace ở Phase 2.
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
+const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
+const { asObjectId } = require("../../../lib/validate");
 const Teacher = require("../../../lib/models/Teacher");
 const Class = require("../../../lib/models/Class");
 
@@ -12,8 +12,8 @@ async function handler(req, res) {
 
   if (req.method === "GET") {
     const [teachers, classes] = await Promise.all([
-      Teacher.find().sort({ createdAt: 1 }).lean(),
-      Class.find().sort({ level: 1, name: 1 }).lean(),
+      Teacher.find(tenantFilter(req.ws)).sort({ createdAt: 1 }).lean(),
+      Class.find(tenantFilter(req.ws)).sort({ level: 1, name: 1 }).lean(),
     ]);
     return res.status(200).json({
       ok: true,
@@ -30,13 +30,12 @@ async function handler(req, res) {
 
   if (req.method === "PUT") {
     const { id } = req.query;
-    let teacher;
-    try {
-      teacher = await Teacher.findById(id);
-    } catch (err) {
-      return res.status(404).json({ ok: false, error: "Teacher not found" });
+    const teacher = await assertOwned(req.ws, Teacher, id, { message: "Teacher not found" });
+
+    // Chỉ sửa được chính mình, hoặc owner sửa đồng nghiệp trong workspace.
+    if (String(teacher._id) !== String(req.auth.teacherId) && req.ws.role !== "owner") {
+      return res.status(403).json({ ok: false, error: "You can only edit your own settings" });
     }
-    if (!teacher) return res.status(404).json({ ok: false, error: "Teacher not found" });
 
     const { email, classIds } = req.body || {};
     if (email != null) {
@@ -50,7 +49,9 @@ async function handler(req, res) {
       if (!Array.isArray(classIds)) {
         return res.status(400).json({ ok: false, error: "classIds must be an array" });
       }
-      const valid = await Class.find({ _id: { $in: classIds } }).select("_id").lean();
+      // Bỏ id rác trước khi query (tránh CastError -> 500), rồi chỉ giữ lớp của workspace.
+      const validIds = classIds.map(asObjectId).filter(Boolean);
+      const valid = await Class.find(tenantFilter(req.ws, { _id: { $in: validIds } })).select("_id").lean();
       teacher.classIds = valid.map((c) => c._id);
     }
     await teacher.save();
@@ -61,6 +62,6 @@ async function handler(req, res) {
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
-module.exports = requireAuth(handler);
+module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;

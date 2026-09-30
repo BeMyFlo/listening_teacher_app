@@ -21,8 +21,8 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 1 | Thêm `Workspace` + `WorkspaceMember` + backfill dữ liệu cũ | ☑ xong | Chạy trên live 2026-09-22: 941 doc, còn thiếu 0 |
 | 2 | Tầng enforcement `lib/tenant.js` + áp cho mọi route ĐỌC | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. 26/26 route. Deploy cùng Phase 3 bước 1–2 — xem Nhật ký |
 | 3 | Áp `workspaceId` cho mọi route GHI + luồng học sinh | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 1–2–3–4–5–6 đều deploy xong. Bước 3 có 1 lỗ hổng ngoài dự tính, đã vá; bước 4–5 code bởi Haiku subagent, review dòng-theo-dòng + OCR review sau khi push bắt thêm 1 lỗi (cron thiếu workspaceId), đã vá — xem Nhật ký |
-| 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ◐ code xong, chưa deploy | 2026-09-25. Xem Nhật ký |
-| 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☐ chưa làm | |
+| 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 5 (teacherScope) cố ý bỏ qua — xem Nhật ký |
+| 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ◐ gói 5A (B3+B10) xong; 5B, 5C chưa | 2026-09-30. Code bởi Sonnet subagent, Opus review — xem Nhật ký |
 | 6 | Self-serve signup + onboarding + Workspace Settings | ☐ chưa làm | |
 | 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ☐ chưa làm | |
 | 8 | Taxonomy Subject / Program / Skill (mở đường TOEIC, General, Toán…) | ☐ chưa làm | |
@@ -1462,6 +1462,37 @@ liệu thử nghiệm của nhánh `feature/class-chat` khác, không liên quan
 → **Việc tiếp theo: review bằng `open-code-review` rồi mới push (đúng quy trình mới), deploy, chạy lại
 `migrate-workspace --live --apply` + `check-orphans --live --strict` sau deploy để chắc chắn không có
 document nào trôi dạt trong cửa sổ build trước khi `required` có hiệu lực, rồi Phase 5.**
+
+---
+
+### 2026-09-30 — Phase 5 gói 5A: vá B3 + B10 ☑
+
+Cách làm mới: Opus khảo sát + chốt thiết kế + review từng dòng; Sonnet subagent code + tự kiểm
+chứng bằng probe dữ liệu thật trên dev DB. Phase 5 chia 3 gói: **5A** (B3+B10, bảo mật), **5B**
+(mở lại tạo giáo viên kèm Workspace/WorkspaceMember; mục 4 impersonate thực ra đã đúng sẵn vì
+workspace giải từ DB theo `userId`, không từ JWT — chỉ cần verify), **5C** (trang
+`/admin/workspaces` + bộ lọc workspace cho sysadmin).
+
+**Lệch plan gốc (có chủ đích):** KHÔNG chuyển `admin/teachers.js` sang `sysadmin/`. Trang
+`/teacher/settings` đang dùng nó để giáo viên đặt email nhận thông báo — chuyển đi là mất chức
+năng. Admin platform đã quản lý tài khoản giáo viên qua `sysadmin/users.js`. Thay vào đó siết tại
+chỗ: `requireAuth(withTenant(...))`, GET chỉ trả giáo viên/lớp cùng workspace, PUT dùng
+`assertOwned` (khác workspace → 404) và chỉ cho sửa chính mình hoặc `req.ws.role === "owner"` sửa
+đồng nghiệp (→ 403). `classIds` lọc id rác bằng `asObjectId` trước khi query (trước đây id rác →
+CastError → 500) và chỉ giữ lớp của workspace.
+
+**B10:** `admin/ai-settings.js` bỏ PUT (→ 405, `Allow: GET`) — model AI là cấu hình toàn platform,
+admin đã chỉnh ở `/admin/system`. Trang `/teacher/ai-grading` thành chỉ-xem. Xoá
+`api.teacher.saveAiSettings`.
+
+**Kiểm chứng (probe dev DB, handler thật + JWT thật, 2 workspace):** owner A không thấy GV/lớp của
+B (200); A sửa GV của B → 404; A sửa email mình → 200, lưu đúng; `classIds=[lớp A, lớp B, "rác"]`
+→ chỉ lưu lớp A; GV thường A2 sửa owner → 403, sửa chính mình → 200; owner sửa A2 → 200;
+ai-settings GET 200, PUT 405. Dọn sạch probe (0 còn lại). `check-tenant-scope --strict` sạch
+(route này hết exempt). OCR review trước push: 4/4 file, không phát hiện.
+
+**Ghi chú vận hành:** lúc chạy probe, `.env.local` đang trỏ LIVE (vừa chạy `npm run dev:live`) —
+guard `msnhiapp_dev` trong probe đã chặn đúng; probe tự đổi sang `MONGODB_URI_DEV` trong process.
 
 ---
 

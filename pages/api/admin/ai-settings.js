@@ -1,6 +1,6 @@
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
-const { KNOWN_MODELS, envChain, getGradingModels, setGradingModels } = require("../../../lib/grading/aiModels");
+const { KNOWN_MODELS, envChain, getGradingModels } = require("../../../lib/grading/aiModels");
 const { isEnabled } = require("../../../lib/gemini");
 
 async function handler(req, res) {
@@ -17,19 +17,7 @@ async function handler(req, res) {
     });
   }
 
-  if (req.method === "PUT") {
-    const { models } = req.body || {};
-    if (!Array.isArray(models) || models.length === 0) {
-      return res.status(400).json({ ok: false, error: "Provide at least one model" });
-    }
-    const saved = await setGradingModels(models);
-    if (!saved.length) {
-      return res.status(400).json({ ok: false, error: "No valid model ids" });
-    }
-    return res.status(200).json({ ok: true, models: saved });
-  }
-
-  res.setHeader("Allow", "GET, PUT");
+  res.setHeader("Allow", "GET");
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }
 
