@@ -145,7 +145,7 @@ export default function AdminUsersPage() {
             <label>Email (optional)<input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
             {form.role === "teacher" && (
               <label>Workspace name (optional)
-                <input placeholder="Defaults to the teacher's name" value={form.workspaceName} onChange={(e) => setForm((f) => ({ ...f, workspaceName: e.target.value }))} />
+                <input type="text" placeholder="Defaults to the teacher's name" value={form.workspaceName} onChange={(e) => setForm((f) => ({ ...f, workspaceName: e.target.value }))} />
               </label>
             )}
             {form.role === "student" && (

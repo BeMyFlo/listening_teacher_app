@@ -127,20 +127,23 @@ export default function WorkspaceSettingsPage() {
           <div className="card" style={{ marginBottom: 14 }}>
             <h3 style={{ marginTop: 0 }}>General</h3>
             <form onSubmit={saveGeneral} style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))" }}>
-              <label>Workspace name
-                <input value={general.name} maxLength={140} disabled={!canEdit} required
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <label>Workspace name</label>
+                <input type="text" value={general.name} maxLength={140} disabled={!canEdit} required
                   onChange={(e) => setGeneral((g) => ({ ...g, name: e.target.value }))} />
-              </label>
-              <label>Language
+              </div>
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <label>Language</label>
                 <select value={general.locale} disabled={!canEdit} onChange={(e) => setGeneral((g) => ({ ...g, locale: e.target.value }))}>
                   {LOCALES.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
                 </select>
-              </label>
-              <label>Time zone
+              </div>
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <label>Time zone</label>
                 <select value={general.timezone} disabled={!canEdit} onChange={(e) => setGeneral((g) => ({ ...g, timezone: e.target.value }))}>
                   {zones.map((z) => <option key={z} value={z}>{z}</option>)}
                 </select>
-              </label>
+              </div>
               {canEdit && (
                 <div style={{ display: "flex", alignItems: "end" }}>
                   <button type="submit" className="btn" disabled={savingGeneral || !general.name.trim()}>

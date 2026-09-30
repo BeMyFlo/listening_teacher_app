@@ -88,9 +88,10 @@ export default function OnboardingPage() {
       <div className="card" style={{ maxWidth: 560 }}>
         {step === 0 && (
           <div style={{ display: "grid", gap: 12 }}>
-            <label>Workspace name
-              <input value={name} maxLength={140} disabled={!canEdit} onChange={(e) => setName(e.target.value)} />
-            </label>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label>Workspace name</label>
+              <input type="text" value={name} maxLength={140} disabled={!canEdit} onChange={(e) => setName(e.target.value)} />
+            </div>
             {!canEdit && <p className="notice info">Only the workspace owner can rename it.</p>}
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" className="btn" disabled={busy || (canEdit && !name.trim())} onClick={saveName}>Next</button>
@@ -101,12 +102,14 @@ export default function OnboardingPage() {
 
         {step === 1 && (
           <form onSubmit={createClass} style={{ display: "grid", gap: 12 }}>
-            <label>Class name
-              <input value={cls.name} placeholder="e.g. IELTS 6.5 — Evening" required onChange={(e) => setCls((c) => ({ ...c, name: e.target.value }))} />
-            </label>
-            <label>Level
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label>Class name</label>
+              <input type="text" value={cls.name} placeholder="e.g. IELTS 6.5 — Evening" required onChange={(e) => setCls((c) => ({ ...c, name: e.target.value }))} />
+            </div>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label>Level</label>
               <input type="number" min="1" step="1" value={cls.level} required onChange={(e) => setCls((c) => ({ ...c, level: e.target.value }))} />
-            </label>
+            </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="submit" className="btn" disabled={busy || !cls.name.trim()}>Create class</button>
               <button type="button" className="btn secondary" onClick={() => setStep(2)}>Skip this step</button>
@@ -128,15 +131,18 @@ export default function OnboardingPage() {
               <>
                 <p className="page-sub" style={{ margin: 0 }}>Adding students to <b>{createdClass.name}</b>.</p>
                 <form onSubmit={addStudent} style={{ display: "grid", gap: 10 }}>
-                  <label>Full name
-                    <input value={stu.name} required onChange={(e) => setStu((s) => ({ ...s, name: e.target.value }))} />
-                  </label>
-                  <label>Username
-                    <input value={stu.username} required onChange={(e) => setStu((s) => ({ ...s, username: e.target.value }))} />
-                  </label>
-                  <label>Password (min 4 characters)
+                  <div className="form-row" style={{ marginBottom: 0 }}>
+                    <label>Full name</label>
+                    <input type="text" value={stu.name} required onChange={(e) => setStu((s) => ({ ...s, name: e.target.value }))} />
+                  </div>
+                  <div className="form-row" style={{ marginBottom: 0 }}>
+                    <label>Username</label>
+                    <input type="text" value={stu.username} required onChange={(e) => setStu((s) => ({ ...s, username: e.target.value }))} />
+                  </div>
+                  <div className="form-row" style={{ marginBottom: 0 }}>
+                    <label>Password (min 4 characters)</label>
                     <input type="text" value={stu.password} required minLength={4} onChange={(e) => setStu((s) => ({ ...s, password: e.target.value }))} />
-                  </label>
+                  </div>
                   <div>
                     <button type="submit" className="btn" disabled={busy}>Add student</button>
                   </div>
