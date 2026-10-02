@@ -75,8 +75,8 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
     onChange && onChange(normalized);
   }
 
-  function queueCaret(os, insertAnnId) {
-    caretGoalRef.current = { os, insertAnnId: insertAnnId || null };
+  function queueCaret(os, insertAnnId, insOffset) {
+    caretGoalRef.current = { os, insertAnnId: insertAnnId || null, insOffset: insOffset == null ? null : insOffset };
     activeInsertRef.current = insertAnnId ? { id: insertAnnId, os } : null;
   }
 
@@ -95,7 +95,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
       const insEl = container.querySelector(`ins[data-ann-id="${goal.insertAnnId}"]`);
       if (insEl && insEl.firstChild) {
         node = insEl.firstChild;
-        offset = node.textContent.length;
+        offset = goal.insOffset == null ? node.textContent.length : goal.insOffset;
       }
     }
     if (!node) {
@@ -194,6 +194,62 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
     const r = s.getRangeAt(0);
     if (!essayRef.current.contains(r.commonAncestorContainer)) return;
     e.preventDefault();
+
+    // Con trỏ nằm TRONG chữ xanh (chèn/thay) -> gõ/xoá sửa thẳng nội dung chữ
+    // xanh đó tại đúng chỗ con trỏ, không đụng tới bài gốc.
+    const insOf = (n) => {
+      let el = n.nodeType === 3 ? n.parentElement : n;
+      while (el && el !== essayRef.current) {
+        if (el.tagName === "INS" && el.hasAttribute("data-ann-id")) return el;
+        el = el.parentElement;
+      }
+      return null;
+    };
+    const sIns = insOf(r.startContainer);
+    if (sIns && sIns === insOf(r.endContainer)) {
+      const cur = annsRef.current.find((x) => x.id === sIns.getAttribute("data-ann-id"));
+      if (!cur) return;
+      const offIn = (n, off) => (n.nodeType === 3 ? off : off === 0 ? 0 : sIns.textContent.length);
+      const p1 = offIn(r.startContainer, r.startOffset);
+      const p2 = offIn(r.endContainer, r.endOffset);
+      const lo = Math.min(p1, p2);
+      const hi = Math.max(p1, p2);
+      const text = cur.insertText;
+      const typed = e.data != null ? e.data : e.dataTransfer ? e.dataTransfer.getData("text/plain") : "";
+      let next;
+      let caret;
+      if (type === "insertText" || type === "insertFromPaste" || type === "insertReplacementText") {
+        if (!typed) return;
+        next = text.slice(0, lo) + typed + text.slice(hi);
+        caret = lo + typed.length;
+      } else if (type === "deleteContentBackward") {
+        const from = lo === hi ? lo - 1 : lo;
+        if (from < 0) return;
+        next = text.slice(0, from) + text.slice(hi);
+        caret = from;
+      } else if (type === "deleteContentForward") {
+        const to = lo === hi ? hi + 1 : hi;
+        if (lo >= text.length) return;
+        next = text.slice(0, lo) + text.slice(to);
+        caret = lo;
+      } else if (type === "deleteByCut" && lo !== hi) {
+        next = text.slice(0, lo) + text.slice(hi);
+        caret = lo;
+      } else {
+        return;
+      }
+      if (next) {
+        patchAnn(cur.id, { insertText: next });
+        queueCaret(cur.start, cur.id, caret);
+      } else if (cur.action === "replace") {
+        patchAnn(cur.id, { action: "delete", insertText: "" });
+        queueCaret(cur.end, null);
+      } else {
+        emit(annsRef.current.filter((x) => x.id !== cur.id));
+        queueCaret(cur.start, null);
+      }
+      return;
+    }
 
     const a0 = boundary(r.startContainer, r.startOffset, "start");
     const b0 = boundary(r.endContainer, r.endOffset, "end");
