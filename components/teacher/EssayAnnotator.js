@@ -27,7 +27,6 @@ import {
   normalizeAnnotation,
   CATEGORIES,
   MUTATING,
-  colorGroup,
   rid,
 } from "@/lib/grading/annotate";
 
@@ -168,7 +167,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
     setSel(null);
     setEditId(a.id);
     setForm({
-      action: a.action === "delete" || a.action === "replace" ? a.action : "comment",
+      action: a.action,
       insertText: a.insertText || "",
       category: a.category,
       criterion: a.criterion || "",
@@ -373,6 +372,10 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
     setEditId(null);
   }
 
+  // Đang sửa 1 lần sửa chữ (xoá/thêm/thay) chứ không phải 1 comment -> không
+  // cần tab Comment/Delete, nút xoá đổi thành "Undo".
+  const editingEdit = !!editId && MUTATING.has((anns.find((a) => a.id === editId) || {}).action);
+
   // ---- nhóm annotation theo tiêu chí cho panel ----
   const groups = useMemo(() => {
     const g = {};
@@ -419,9 +422,15 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
           // phía sau), nên key={i} khiến React gán NHẦM node DOM cũ cho nội
           // dung mới ở cùng vị trí, làm việc đặt lại con trỏ (placeCaret)
           // tính sai chỗ — đây chính là lỗi gõ số nhảy lung tung vị trí.
-          const key = seg.ann ? `${seg.kind}-${seg.ann.id}` : `keep-${seg.os}`;
-          const clickable = !!seg.ann || (seg.marks && seg.marks.length === 1);
-          const clickId = seg.ann ? seg.ann.id : seg.marks && seg.marks.length === 1 ? seg.marks[0].id : null;
+          // 1 annotation xoá/thay bị comment cắt thành nhiều mảnh -> các mảnh cùng
+          // seg.ann.id, nên key phải kèm offset gốc, nếu không trùng key và React
+          // để sót node DOM cũ (chữ hiện lặp sau khi Undo).
+          const key = seg.kind === "ins" ? `ins-${seg.ann.id}` : `${seg.kind}-${seg.ann ? seg.ann.id + "-" : ""}${seg.os}`;
+          // Đoạn có gạch chân xanh (comment) -> bấm mở chính comment đó, kể cả khi
+          // đoạn ấy cũng đang bị gạch đỏ; không có comment thì mở chỗ sửa chữ.
+          const hasMarks = !!(seg.marks && seg.marks.length);
+          const clickable = hasMarks || !!seg.ann;
+          const clickId = hasMarks ? seg.marks[0].id : seg.ann ? seg.ann.id : null;
           const onClick = clickable ? (e) => onMarkClick(e, clickId) : undefined;
           if (seg.kind === "ins")
             return (
@@ -439,19 +448,13 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
             );
           const cls =
             (seg.kind === "del" ? "ea-del" : "") + (seg.marks && seg.marks.length ? " ea-hl" : "");
-          const title = [
-            ...(seg.marks || []).map((m) => `${m.criterion || "—"} · ${CAT_LABEL[m.category]}: ${m.comment}`),
-          ].join("\n");
           const Tag = seg.kind === "del" ? "del" : "span";
-          const cat = seg.marks && seg.marks[0] ? seg.marks[0].category : seg.ann ? seg.ann.category : null;
           return (
             <Tag
               key={key}
               className={cls.trim() || undefined}
               data-os={seg.os}
               data-oe={seg.oe}
-              data-cat={cat ? colorGroup(cat) : undefined}
-              title={title || undefined}
               onClick={onClick}
               style={clickable ? { cursor: "pointer" } : undefined}
             >
@@ -470,27 +473,19 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
         typeof document !== "undefined" &&
         createPortal(
           <div className="ea-toolbar" style={{ left: sel ? sel.x : editPos.x, top: sel ? sel.y : editPos.y }}>
-            <div className="ea-tb-actions">
-              {["comment", "replace", "delete"].map((act) => (
+            <button type="button" className="ea-tb-close" aria-label="Close" onClick={() => { setSel(null); setEditId(null); }}>×</button>
+            {!editingEdit && <div className="ea-tb-actions">
+              {["comment", "delete"].map((act) => (
                 <button
                   key={act}
                   type="button"
                   className={"ea-tb-btn" + (form.action === act ? " active" : "")}
                   onClick={() => setForm((f) => ({ ...f, action: act }))}
                 >
-                  {act === "comment" ? "Comment" : act === "replace" ? "Replace" : "Delete"}
+                  {act === "comment" ? "Comment" : "Delete"}
                 </button>
               ))}
-            </div>
-            {form.action === "replace" && (
-              <input
-                autoFocus
-                className="ea-tb-input"
-                placeholder="Replace with…"
-                value={form.insertText}
-                onChange={(e) => setForm((f) => ({ ...f, insertText: e.target.value }))}
-              />
-            )}
+            </div>}
             <div className="ea-tb-row">
               <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}>
                 {CATEGORIES.map((c) => <option key={c} value={c}>{CAT_LABEL[c]}</option>)}
@@ -517,11 +512,10 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
                     Save
                   </button>
                   <button type="button" className="ea-tb-btn" style={{ color: "var(--red)" }} onClick={deleteEdit}>
-                    Delete
+                    {editingEdit ? "Undo" : "Delete"}
                   </button>
                 </>
               )}
-              <button type="button" className="ea-tb-btn" onClick={() => { setSel(null); setEditId(null); }}>Cancel</button>
             </div>
           </div>,
           document.body

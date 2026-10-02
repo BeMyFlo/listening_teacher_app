@@ -1,11 +1,11 @@
 "use client";
 
 // Hiển thị bài viết đã được chấm inline (chỉ đọc): chữ thêm = xanh, chữ xoá =
-// đỏ gạch, đoạn có ghi chú = highlight + tooltip. Kèm danh sách ghi chú theo
+// đỏ gạch, đoạn có ghi chú = gạch chân xanh dương, bấm vào hiện popup ghi chú. Kèm danh sách ghi chú theo
 // tiêu chí. Dùng ở màn kết quả của giáo viên và học sinh.
 
-import { useMemo } from "react";
-import { buildSegments, normalizeAnnotation, colorGroup } from "@/lib/grading/annotate";
+import { useEffect, useMemo, useState } from "react";
+import { buildSegments, normalizeAnnotation } from "@/lib/grading/annotate";
 
 const CAT_LABEL = {
   grammar: "Grammar",
@@ -25,6 +25,20 @@ export default function AnnotatedEssay({ essayText = "", annotations = [], showL
     [annotations, essayText]
   );
   const segments = useMemo(() => buildSegments(essayText, anns), [essayText, anns]);
+  const [pop, setPop] = useState(null); // { x, y, marks }
+  useEffect(() => {
+    if (!pop) return;
+    const close = () => setPop(null);
+    const onKey = (e) => e.key === "Escape" && close();
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("click", close);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [pop]);
   if (!essayText) return null;
 
   return (
@@ -34,19 +48,32 @@ export default function AnnotatedEssay({ essayText = "", annotations = [], showL
         {segments.map((seg, i) => {
           if (seg.kind === "ins") return <ins key={i} className="ea-add">{seg.text}</ins>;
           const marks = seg.marks || [];
-          const title = marks.map((m) => `${m.criterion || "—"} · ${CAT_LABEL[m.category]}: ${m.comment}`).join("\n");
-          const cls = (seg.kind === "del" ? "ea-del" : "") + (marks.length ? " ea-hl" : "");
           const Tag = seg.kind === "del" ? "del" : "span";
-          // Màu ưu tiên ghi chú (comment) đè lên màu của lỗi gạch ngang khi cả
-          // hai cùng che 1 đoạn; bình thường mỗi đoạn chỉ có 1 trong 2.
-          const cat = marks[0] ? marks[0].category : seg.ann ? seg.ann.category : null;
+          const cls = (seg.kind === "del" ? "ea-del" : "") + (marks.length ? " ea-hl" : "");
+          const onClick = marks.length
+            ? (e) => {
+                e.stopPropagation();
+                const r = e.currentTarget.getBoundingClientRect();
+                setPop({ x: Math.max(8, Math.min(r.left, window.innerWidth - 316)), y: r.bottom + 6, marks });
+              }
+            : undefined;
           return (
-            <Tag key={i} className={cls.trim() || undefined} data-cat={cat ? colorGroup(cat) : undefined} title={title || undefined}>
+            <Tag key={i} className={cls.trim() || undefined} onClick={onClick}>
               {seg.text}
             </Tag>
           );
         })}
       </div>
+      )}
+      {pop && (
+        <div className="ea-pop" style={{ left: pop.x, top: pop.y }} onClick={(e) => e.stopPropagation()}>
+          {pop.marks.map((m, i) => (
+            <div key={i} className="ea-pop-item">
+              <div className="ea-pop-tag">{[m.criterion, CAT_LABEL[m.category]].filter(Boolean).join(" · ")}</div>
+              {m.comment || <i>No note</i>}
+            </div>
+          ))}
+        </div>
       )}
 
       {showList && anns.length > 0 && (

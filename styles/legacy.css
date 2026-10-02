@@ -3575,32 +3575,18 @@ tr:hover td { background: #FFF7FB; }
 }
 .essay-annot.readonly { line-height: 1.9; }
 
-/* Bảng màu chấm bài theo 4 nhóm (lib/grading/annotate.js colorGroup) — chữ
-   sửa/chèn LUÔN xanh lá bất kể nhóm lỗi; gạch ngang (delete/replace) và
-   gạch chân (comment, dùng cho lỗi Idea/Logic — gạch chân cả câu) đổi màu
-   theo nhóm. data-cat trên các span/del/ins mang GIÁ TRỊ NHÓM MÀU (grammar
-   / vocabulary / cohesion / idea), không phải category gốc. */
-.essay-annot ins.ea-add { color: #2FA36B; background: #DFF7E9; text-decoration: none; border-radius: 3px; padding: 0 1px; }
-
-.essay-annot del.ea-del { text-decoration: line-through; border-radius: 3px; padding: 0 1px; }
-.essay-annot del.ea-del[data-cat="grammar"],
-.essay-annot del.ea-del:not([data-cat]) { color: var(--red); background: #FFE0E2; }
-.essay-annot del.ea-del[data-cat="vocabulary"] { color: var(--blue); background: var(--blue-light); }
-.essay-annot del.ea-del[data-cat="cohesion"] { color: var(--violet); background: var(--violet-light); }
-.essay-annot del.ea-del[data-cat="idea"] { color: var(--amber); background: var(--amber-light); }
-
-.essay-annot .ea-hl { border-bottom: 2px solid var(--amber); cursor: help; }
-.essay-annot .ea-hl[data-cat="grammar"] { border-bottom-color: var(--red); }
-.essay-annot .ea-hl[data-cat="vocabulary"] { border-bottom-color: var(--blue); }
-.essay-annot .ea-hl[data-cat="cohesion"] { border-bottom-color: var(--violet); }
-.essay-annot .ea-hl[data-cat="idea"] {
-  /* Idea/Logic gạch chân CẢ CÂU — dày hơn để phân biệt với gạch chân từ/cụm. */
-  border-bottom-color: var(--amber);
-  border-bottom-width: 3px;
-  background: var(--amber-light);
-  border-radius: 2px;
-  padding: 0 1px;
+/* Chấm bài chỉ dùng 3 màu: chữ xoá = đỏ gạch ngang, chữ thêm = xanh lá,
+   ghi chú (comment) = gạch chân xanh dương (bấm vào để xem). */
+.essay-annot ins.ea-add { color: #2FA36B; background: none; text-decoration: none; border-radius: 3px; padding: 0 1px; }
+.essay-annot del.ea-del { text-decoration: line-through; color: var(--red); background: #FFE0E2; border-radius: 3px; padding: 0 1px; }
+.essay-annot .ea-hl { border-bottom: 2px solid #2F7DE1; cursor: pointer; }
+.ea-pop {
+  position: fixed; z-index: 1000; max-width: 300px; padding: 10px 12px;
+  background: #fff; border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.14); font-size: .85rem; line-height: 1.5; color: var(--ink);
 }
+.ea-pop-item + .ea-pop-item { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.ea-pop-tag { font-size: .72rem; font-weight: 700; color: #2F7DE1; text-transform: uppercase; letter-spacing: .4px; }
 
 .ea-toolbar {
   /* Portal ra <body> (xem EssayAnnotator.js) nên định vị theo viewport,
@@ -3618,6 +3604,8 @@ tr:hover td { background: #FFF7FB; }
   gap: 7px;
 }
 .ea-tb-actions { display: flex; gap: 4px; }
+.ea-tb-close { position: absolute; top: -10px; right: -10px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); background: var(--card); color: var(--muted); font-size: 1rem; line-height: 1; cursor: pointer; padding: 0; box-shadow: var(--shadow-md); }
+.ea-tb-close:hover { color: var(--ink); }
 .ea-tb-btn {
   flex: 1; border: 1px solid var(--border); background: #fff; border-radius: 7px;
   padding: 5px 8px; font-size: .8rem; font-weight: 600; cursor: pointer; color: var(--ink);
