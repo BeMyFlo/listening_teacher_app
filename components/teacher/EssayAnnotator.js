@@ -49,6 +49,11 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
   const [editPos, setEditPos] = useState({ x: 0, y: 0 });
   const [form, setForm] = useState({ action: "comment", insertText: "", category: "grammar", criterion: "", comment: "" });
   const essayRef = useRef(null);
+  // Tăng khi cần dựng lại hẳn vùng contentEditable (sau IME composition, DOM
+  // do trình duyệt tự sửa nên không còn khớp với state của React).
+  const [domNonce, setDomNonce] = useState(0);
+  // Phần tử (span/ins) chứa con trỏ lúc bắt đầu IME composition.
+  const composingElRef = useRef(null);
   // Annotation đang được gõ tiếp (đang "mở"), để ký tự tiếp theo NỐI vào chứ
   // không tạo annotation insert mới mỗi ký tự. Reset khi con trỏ dời đi.
   const activeInsertRef = useRef(null); // { id, os } | null
@@ -128,7 +133,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
       s.removeAllRanges();
       s.addRange(range);
     } catch {}
-  }, [segments]);
+  }, [segments, domNonce]);
 
   // ---- Annotate: bắt vùng bôi đen MỚI -> offset trong bài gốc ----
   function onMouseUp() {
@@ -189,11 +194,20 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
   function onBeforeInput(e) {
     if (!essayRef.current) return;
     const type = e.inputType || "";
+    // IME (Telex/VNI trên macOS, gõ dấu giữ phím...) dùng composition: các
+    // beforeinput này KHÔNG huỷ được (preventDefault vô tác dụng) — để trình
+    // duyệt tự gõ, rồi onCompositionEnd quy đổi kết quả thành annotation.
+    if (e.isComposing || composingElRef.current || type.includes("Composition")) return;
     const s = window.getSelection();
     if (!s || !s.rangeCount) return;
-    const r = s.getRangeAt(0);
-    if (!essayRef.current.contains(r.commonAncestorContainer)) return;
+    const r0 = s.getRangeAt(0);
+    if (!essayRef.current.contains(r0.commonAncestorContainer)) return;
     e.preventDefault();
+    // Mac/Safari hay đặt con trỏ ở dạng (phần tử, chỉ số con) thay vì (text, ký
+    // tự) — quy về text node trước khi tính offset, nếu không sẽ lệch vị trí.
+    const [sc, so] = normPoint(r0.startContainer, r0.startOffset);
+    const [ec, eo] = normPoint(r0.endContainer, r0.endOffset);
+    const r = { startContainer: sc, startOffset: so, endContainer: ec, endOffset: eo };
 
     // Con trỏ nằm TRONG chữ xanh (chèn/thay) -> gõ/xoá sửa thẳng nội dung chữ
     // xanh đó tại đúng chỗ con trỏ, không đụng tới bài gốc.
@@ -353,16 +367,119 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
   // closure without re-attaching on every render.
   const onBeforeInputRef = useRef(onBeforeInput);
   onBeforeInputRef.current = onBeforeInput;
+
+  function onCompositionStart() {
+    const s = window.getSelection();
+    const root = essayRef.current;
+    composingElRef.current = null;
+    if (!s || !s.rangeCount || !root) return;
+    const r = s.getRangeAt(0);
+    let el = r.startContainer.nodeType === 3 ? r.startContainer.parentElement : r.startContainer;
+    while (el && el !== root && !el.hasAttribute("data-os")) el = el.parentElement;
+    if (el && el !== root) composingElRef.current = el;
+  }
+
+  // Trình duyệt đã tự sửa chữ trong 1 span/ins; so với bản gốc (diff tiền tố/
+  // hậu tố) để ra đúng đoạn bị xoá/thêm, đổi thành annotation, rồi dựng lại DOM.
+  function onCompositionEnd() {
+    const el = composingElRef.current;
+    composingElRef.current = null;
+    if (!el || !el.isConnected) {
+      setDomNonce((n) => n + 1);
+      return;
+    }
+    const newText = el.textContent || "";
+    if (el.tagName === "INS") {
+      const cur = annsRef.current.find((x) => x.id === el.getAttribute("data-ann-id"));
+      if (cur && newText !== cur.insertText) {
+        const sel = window.getSelection();
+        let caret = newText.length;
+        if (sel && sel.rangeCount && el.contains(sel.anchorNode) && sel.anchorNode.nodeType === 3) caret = sel.anchorOffset;
+        if (newText) {
+          patchAnn(cur.id, { insertText: newText });
+          queueCaret(cur.start, cur.id, caret);
+        } else if (cur.action === "replace") {
+          patchAnn(cur.id, { action: "delete", insertText: "" });
+          queueCaret(cur.end, null);
+        } else {
+          emit(annsRef.current.filter((x) => x.id !== cur.id));
+          queueCaret(cur.start, null);
+        }
+      }
+    } else if (el.tagName !== "DEL") {
+      const os = Number(el.getAttribute("data-os"));
+      const oe = Number(el.getAttribute("data-oe"));
+      const oldText = essayText.slice(os, oe);
+      if (newText !== oldText) {
+        let p = 0;
+        while (p < oldText.length && p < newText.length && oldText[p] === newText[p]) p++;
+        let q = 0;
+        while (q < oldText.length - p && q < newText.length - p && oldText[oldText.length - 1 - q] === newText[newText.length - 1 - q]) q++;
+        const lo = os + p;
+        const hi = oe - q;
+        const typed = newText.slice(p, newText.length - q);
+        if (!overlapsExisting(lo, hi) && (typed || hi > lo)) {
+          const a = {
+            id: rid(),
+            action: hi === lo ? "insert" : typed ? "replace" : "delete",
+            start: lo,
+            end: hi,
+            quote: essayText.slice(lo, hi),
+            insertText: typed,
+            category: "grammar",
+            criterion: null,
+            comment: "",
+            source: "teacher",
+          };
+          emit([...annsRef.current, a]);
+          queueCaret(lo, typed ? a.id : null);
+        }
+      }
+    }
+    setDomNonce((n) => n + 1);
+  }
+  const onCompositionStartRef = useRef(onCompositionStart);
+  onCompositionStartRef.current = onCompositionStart;
+  const onCompositionEndRef = useRef(onCompositionEnd);
+  onCompositionEndRef.current = onCompositionEnd;
+
+  // Vùng contentEditable bị dựng lại (key={domNonce}) nên gắn lại listener.
   useEffect(() => {
     const el = essayRef.current;
     if (!el) return;
-    const handler = (e) => onBeforeInputRef.current(e);
-    el.addEventListener("beforeinput", handler);
-    return () => el.removeEventListener("beforeinput", handler);
-  }, []);
+    const onBI = (e) => onBeforeInputRef.current(e);
+    const onCS = () => onCompositionStartRef.current();
+    const onCE = () => onCompositionEndRef.current();
+    el.addEventListener("beforeinput", onBI);
+    el.addEventListener("compositionstart", onCS);
+    el.addEventListener("compositionend", onCE);
+    return () => {
+      el.removeEventListener("beforeinput", onBI);
+      el.removeEventListener("compositionstart", onCS);
+      el.removeEventListener("compositionend", onCE);
+    };
+  }, [domNonce]);
+
+  // (phần tử, chỉ số con) -> (text node, ký tự) tương đương. Với container là
+  // phần tử thì `offset` là chỉ số node con, KHÔNG phải ký tự.
+  function normPoint(node, offset) {
+    let n = node;
+    let o = offset;
+    while (n && n.nodeType === 1 && n.childNodes.length) {
+      if (o < n.childNodes.length) {
+        n = n.childNodes[o];
+        o = 0;
+      } else {
+        n = n.childNodes[n.childNodes.length - 1];
+        o = n.nodeType === 3 ? n.length : n.childNodes.length;
+      }
+    }
+    return [n, o];
+  }
 
   // node/offset trong DOM -> offset ký tự trong essayText gốc
-  function boundary(node, offset, side) {
+  function boundary(node0, offset0, side) {
+    const [node, offset] = normPoint(node0, offset0);
     let el = node.nodeType === 3 ? node.parentElement : node;
     while (el && el !== essayRef.current && !el.hasAttribute("data-os")) el = el.parentElement;
     if (el && el.hasAttribute("data-os")) {
@@ -460,9 +577,15 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
       </p>
       <div
         className="essay-annot"
+        key={domNonce}
         ref={essayRef}
         contentEditable
         suppressContentEditableWarning
+        // Tắt autocorrect/spellcheck của macOS/Safari — chúng tự sửa chữ qua
+        // insertReplacementText và chèn popup, phá cấu trúc <ins>/<del>.
+        spellCheck={false}
+        autoCorrect="off"
+        autoCapitalize="off"
         onMouseUp={onMouseUp}
         // Grammarly (và tương tự) quét mọi vùng contentEditable và có thể
         // xung đột với cấu trúc <ins>/<del> lồng nhau ở đây, gây giật/nhảy
