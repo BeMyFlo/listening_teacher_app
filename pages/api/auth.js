@@ -7,6 +7,9 @@ const Teacher = require("../../lib/models/Teacher");
 const Student = require("../../lib/models/Student");
 const audit = require("../../lib/audit");
 const rateLimit = require("../../lib/rateLimit");
+const WorkspaceMember = require("../../lib/models/WorkspaceMember");
+const { hostFromReq } = require("../../lib/host");
+const { workspaceBySlug } = require("../../lib/tenant");
 
 // Hồ sơ nghiệp vụ của 1 User (để lấy tên). Admin không có hồ sơ.
 async function profileFor(user) {
@@ -39,6 +42,20 @@ module.exports = async (req, res) => {
   const username = String((req.body && req.body.username) || "").trim().toLowerCase();
   const password = String((req.body && req.body.password) || "");
 
+  // Phase 10: đăng nhập qua <slug>.<base> chỉ dành cho thành viên của đúng trung tâm đó.
+  // Host sai/không có trung tâm -> dừng sớm; domain gốc giữ nguyên hành vi cũ.
+  const hostInfo = hostFromReq(req);
+  let target = null;
+  if (hostInfo.kind !== "root") {
+    target = hostInfo.kind === "tenant" ? await workspaceBySlug(hostInfo.slug) : null;
+    if (!target) {
+      return res.status(404).json({ ok: false, error: "This address is not set up yet." });
+    }
+    if (target.status === "suspended") {
+      return res.status(403).json({ ok: false, error: "This workspace has been suspended. Please contact the administrator." });
+    }
+  }
+
   if (!username || !password) {
     return res.status(400).json({ ok: false, error: "Please enter your username and password" });
   }
@@ -66,7 +83,29 @@ module.exports = async (req, res) => {
     });
   }
 
+  // Tài khoản có thuộc trung tâm đang truy cập không? Admin nền tảng chỉ đăng nhập ở domain gốc.
+  const belongsToTarget = async (user, profile) => {
+    if (user.role === "teacher") {
+      return !!(await WorkspaceMember.exists({ workspaceId: target.workspaceId, userId: user._id }));
+    }
+    if (user.role === "student") {
+      return !!profile && String(profile.workspaceId) === String(target.workspaceId);
+    }
+    return false;
+  };
+
   const respond = async (user, profile) => {
+    if (target && !(await belongsToTarget(user, profile))) {
+      // Cùng thông báo như sai mật khẩu: không để lộ tài khoản này thuộc trung tâm nào.
+      audit.record({
+        req, res,
+        actor: { role: "system" },
+        action: "auth.login_wrong_workspace",
+        status: 401,
+        meta: { username, workspaceId: String(target.workspaceId) },
+      });
+      return res.status(401).json({ ok: false, error: "Invalid username or password" });
+    }
     rateLimit.reset(userKey);
     rateLimit.reset(ipKey);
     await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
@@ -92,7 +131,7 @@ module.exports = async (req, res) => {
   // Nhánh này chỉ mở khi KHÔNG còn admin nào (adminCount === 0). Trạng thái đó
   // không đạt tới được từ giao diện: pages/api/sysadmin/users.js chặn xoá / vô
   // hiệu hoá admin cuối cùng. Sửa hai chỗ đó thì phải xem lại chỗ này.
-  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) {
+  if (!target && process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) {
     const adminCount = await User.countDocuments({ role: "admin" });
     if (adminCount === 0) {
       if (await User.exists({ username })) {
@@ -111,7 +150,7 @@ module.exports = async (req, res) => {
   }
 
   // 2) Bootstrap giáo viên đầu tiên qua TEACHER_PASSWORD (giữ luồng cũ).
-  if (process.env.TEACHER_PASSWORD && password === process.env.TEACHER_PASSWORD) {
+  if (!target && process.env.TEACHER_PASSWORD && password === process.env.TEACHER_PASSWORD) {
     const teacherCount = await Teacher.countDocuments();
     if (teacherCount === 0 && !(await User.exists({ username }))) {
       try {

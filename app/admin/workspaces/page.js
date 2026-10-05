@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
+import { baseDomain } from "@/lib/host";
 
 export default function AdminWorkspacesPage() {
   const dialog = useDialog();
@@ -32,6 +33,22 @@ export default function AdminWorkspacesPage() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function editAddress(w) {
+    const value = await dialog.prompt({
+      title: "Change workspace address",
+      message:
+        "Old links break: bookmarks, links already sent to students and past emails stop working. " +
+        "Teachers and students must sign in again at the new address. Their data is not affected.",
+      label: "New address",
+      initialValue: w.slug,
+      placeholder: "e.g. msnhi",
+    });
+    if (value == null) return;
+    const next = String(value).trim().toLowerCase();
+    if (!next || next === w.slug) return;
+    patch(w, { slug: next }, "Address changed");
   }
 
   async function toggle(w) {
@@ -87,7 +104,9 @@ export default function AdminWorkspacesPage() {
                       <b>{w.name}</b>
                     )}
                   </td>
-                  <td><code>{w.slug}</code></td>
+                  <td>
+                    {w.origin ? <a href={w.origin} target="_blank" rel="noreferrer"><code>{w.slug}.{baseDomain()}</code></a> : <code>{w.slug}</code>}
+                  </td>
                   <td>
                     {w.owner.name || "—"}
                     {w.owner.username && <div style={{ fontSize: ".78rem", color: "var(--muted)" }}>{w.owner.username}</div>}
@@ -104,6 +123,7 @@ export default function AdminWorkspacesPage() {
                   <td style={{ whiteSpace: "nowrap", textAlign: "right" }}>
                     <button type="button" className="btn secondary sm" disabled={busyId === w._id}
                       onClick={() => { setEditId(w._id); setEditName(w.name); }}>Rename</button>{" "}
+                    <button type="button" className="btn secondary sm" disabled={busyId === w._id} onClick={() => editAddress(w)}>Address</button>{" "}
                     <button type="button" className="btn secondary sm" disabled={busyId === w._id} onClick={() => toggle(w)}>
                       {w.status === "suspended" ? "Activate" : "Suspend"}
                     </button>

@@ -27,7 +27,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ☑ **XONG, đã merge** (PR #10) | 2026-09-30. Tên nền tảng đã chốt **BeMyFlo** (2026-10-05) — xem Nhật ký |
 | 8 | Taxonomy Subject / Program / Skill (mở đường TOEIC, General, Toán…) | ☐ chưa làm | |
 | 9 | Tương lai: nhiều giáo viên / 1 workspace, enrollment nhiều lớp, Organization | ☐ chưa làm | không làm trong V1 |
-| 10 | **Subdomain theo workspace** (`<slug>.bemyflo.com`) | ☐ **ƯU TIÊN NGAY, làm TRƯỚC Phase 8** — plan đã viết 2026-10-05, chưa code | Chủ dự án chốt ưu tiên 2026-10-05. Xem mục Phase 10 |
+| 10 | **Subdomain theo workspace** (`<slug>.bemyflo.com`) | ◐ **code xong** trên branch `phase-10-subdomains`, CHƯA merge/deploy; chờ chủ dự án merge + đặt env | 2026-10-05. Phần DNS/Vercel đã xong (nameserver → Vercel, `*.bemyflo.com` có chứng chỉ). Xem Nhật ký |
 
 Ký hiệu: ☐ chưa làm · ◐ đang làm · ☑ xong & đã verify trên production
 
@@ -965,6 +965,10 @@ miền chỉ được phép **thu hẹp** thêm: nếu tài khoản không thu�
 3. Thêm 3 tên vào dự án Vercel: `bemyflo.com`, `www.bemyflo.com`, `*.bemyflo.com`.
 4. Đặt env trên Vercel: `APP_BASE_DOMAIN=bemyflo.com`, `NEXT_PUBLIC_APP_BASE_DOMAIN=bemyflo.com`,
    `APP_URL=https://bemyflo.com`.
+**Trạng thái 2026-10-05: mục 2–3 ĐÃ XONG và kiểm bằng lệnh** (nameserver ở registry là `ns1/ns2.vercel-dns.com`;
+`*.bemyflo.com` đã được cấp chứng chỉ Let's Encrypt đến 2027-01; `abc-test.bemyflo.com` trả HTTP 200). Còn mục 1
+(kiểm gói) và mục 4 (env, sau khi merge code).
+
 Làm xong 1–3 mà chưa có code thì mọi `x.bemyflo.com` chỉ hiện giống trang chủ (chưa nhận ra trung tâm) —
 không gãy gì. Domain gốc `bemyflo.com` **tiếp tục hoạt động mãi** cho mọi người dùng hiện có.
 
@@ -1887,6 +1891,51 @@ gốc vẫn chạy, dashboard admin ở domain gốc, giáo viên vào workspace
 ảnh hưởng data không" đã rà code và phát hiện `scripts/migrate-workspace.js` tra workspace theo slug → thêm việc
 vá vào Phase 10 (mục 10.1.10). Dữ liệu thật thì **không** bị ảnh hưởng vì không bản ghi nào lưu slug ngoài
 Workspace.
+
+---
+
+### 2026-10-05 — Phase 10 code xong trên branch `phase-10-subdomains` (chưa merge, chưa deploy) ◐
+
+**Đã làm (đúng thiết kế ở Phase 10, trừ các điểm lệch ghi bên dưới)**
+- `lib/slug.js` (`validateSlug`: 3–40 ký tự, `a-z0-9-`, không `--`, danh sách tên dành riêng) và `lib/host.js`
+  (`parseHost`: root / tenant / invalid; `workspaceOrigin`; hỗ trợ `*.localhost`). Không đặt `APP_BASE_DOMAIN` =
+  tính năng tắt, mọi host coi là gốc.
+- `lib/tenant.js`: `workspaceBySlug` (cache chỉ kết quả tìm thấy) + `withTenant` so host với workspace của tài
+  khoản: host trung tâm khác / không tồn tại / sai định dạng → 404. Chế độ gốc không đổi.
+- `pages/api/auth.js`: trên host trung tâm chỉ giáo viên (có `WorkspaceMember`) và học sinh (đúng
+  `workspaceId`) đăng nhập được; admin nền tảng chỉ ở domain gốc; sai trung tâm trả **đúng thông báo "sai tên
+  đăng nhập hoặc mật khẩu"** (không lộ tài khoản thuộc đâu) + ghi audit `auth.login_wrong_workspace`; host
+  không có trung tâm → 404; trung tâm bị suspend → 403; luồng bootstrap ADMIN/TEACHER_PASSWORD chỉ ở domain gốc.
+- `pages/api/public/workspace-branding.js` (không cần token): chỉ trả `{name, logoUrl, theme}`, slug lấy từ
+  header Host, bỏ qua tham số client, cache 60s. Trang đăng nhập (`app/login/page.js`) dùng nó để hiện logo +
+  tên + màu của trung tâm; slug lạ/suspended → trang "địa chỉ chưa có trung tâm".
+- Link trong email theo workspace (`https://<slug>.<APP_BASE_DOMAIN>`, lùi về `APP_URL` khi chưa cấu hình).
+- Quản lý slug: `createTeacherWithWorkspace` nhận `slug` (kiểm chặt; sinh tự động thì tránh tên dành riêng /
+  quá ngắn / trùng); ô "Workspace address" ở form tạo giáo viên; `/admin/workspaces` hiện địa chỉ và có nút
+  **Address** để admin đổi (hộp xác nhận cảnh báo link cũ hỏng); trùng → 409, tên dành riêng → 400.
+- `components/AddressBanner.js`: người dùng ở domain gốc thấy gợi ý chuyển sang địa chỉ riêng của trung tâm
+  (không tự chuyển hướng; có nút Dismiss).
+- **`scripts/migrate-workspace.js` đã vá** (mục 10.1.10): không thấy workspace theo slug mà đã có workspace khác
+  → từ chối, đòi `--slug` đúng hoặc `--create-new` (kiểm dry-run trên dev: slug sai bị từ chối, slug mặc định
+  vẫn chạy).
+
+**Lệch so với thiết kế:** (1) biểu ngữ gợi ý địa chỉ làm luôn ở bản này (plan ghi là tuỳ chọn); (2) không làm
+`previousSlugs`/chuyển hướng slug cũ (đúng YAGNI đã ghi); (3) endpoint branding chưa vào danh sách
+`check-tenant-scope` vì cố ý truy vấn không theo tenant (route công khai).
+
+**Kiểm chứng:** probe 41 kịch bản trên dev DB với handler thật + header `Host` giả lập — bảng `parseHost`; đăng
+nhập: gốc không đổi, đúng trung tâm OK, sai trung tâm/học sinh khác/admin → 401 cùng một thông báo, host lạ/nhiều
+nhãn → 404, host preview như gốc, suspend → 403, audit ghi đủ; `withTenant`: token A trên host B → 404, trên gốc
+→ 200; endpoint công khai: đúng 3 trường, không lộ id/slug, bỏ qua slug do client gửi; tạo/đổi slug: tên dành
+riêng 400, trùng 409, slug sinh tự động tránh `www` → `www-2`; **đổi slug không đổi một bản ghi dữ liệu nào**
+(lớp/học sinh/giáo viên/thành viên/logo giữ nguyên), host cũ 404 và host mới đăng nhập được (cả học sinh), cùng
+một token vẫn dùng được ở host mới; link email theo workspace và lùi về `APP_URL`. Dọn sạch. **Chưa kiểm chứng
+trên trình duyệt thật và trên `*.bemyflo.com` thật** — cần sau khi merge + đặt env.
+
+**Việc của chủ dự án sau khi merge** (xem hướng dẫn trong phản hồi cho chủ dự án): đặt 3 env trên Vercel
+(`APP_BASE_DOMAIN`, `NEXT_PUBLIC_APP_BASE_DOMAIN`, `APP_URL`) → deploy lại (biến `NEXT_PUBLIC_*` cần build
+lại) → thử `ms-nhi.bemyflo.com` / `demo.bemyflo.com`. **Không đổi slug của workspace Ms Nhi** cho tới khi đã thử
+xong. Rollback: gỡ `APP_BASE_DOMAIN` (tính năng tắt, mọi host về chế độ gốc) hoặc revert.
 
 ---
 
