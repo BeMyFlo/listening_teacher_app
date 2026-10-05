@@ -1932,6 +1932,14 @@ riêng 400, trùng 409, slug sinh tự động tránh `www` → `www-2`; **đổ
 một token vẫn dùng được ở host mới; link email theo workspace và lùi về `APP_URL`. Dọn sạch. **Chưa kiểm chứng
 trên trình duyệt thật và trên `*.bemyflo.com` thật** — cần sau khi merge + đặt env.
 
+**Live đã đổi slug (2026-10-05, theo yêu cầu của chủ dự án):** workspace Ms Nhi trên DB live đổi `ms-nhi` →
+**`ieltswithnhi`** (địa chỉ sẽ là `ieltswithnhi.bemyflo.com` khi Phase 10 được merge + đặt env). Ghi trực tiếp, một
+document, đối chiếu số liệu trước/sau: dữ liệu (học sinh, lớp, bài, bài nộp...) giữ nguyên. Hệ quả: (a) file
+upload MỚI vào thư mục `workspaces/ieltswithnhi/...` (file cũ giữ nguyên); (b) **mọi lệnh
+`scripts/migrate-workspace.js --live` về sau phải dùng bản đã vá trong branch này, hoặc thêm
+`--slug ieltswithnhi`** — bản cũ trên `main` mặc định tìm slug `ms-nhi` và sẽ tạo workspace trùng; (c) trước khi
+Phase 10 lên production, slug mới chưa ảnh hưởng gì nhìn thấy được.
+
 **Việc của chủ dự án sau khi merge** (xem hướng dẫn trong phản hồi cho chủ dự án): đặt 3 env trên Vercel
 (`APP_BASE_DOMAIN`, `NEXT_PUBLIC_APP_BASE_DOMAIN`, `APP_URL`) → deploy lại (biến `NEXT_PUBLIC_*` cần build
 lại) → thử `ms-nhi.bemyflo.com` / `demo.bemyflo.com`. **Không đổi slug của workspace Ms Nhi** cho tới khi đã thử
