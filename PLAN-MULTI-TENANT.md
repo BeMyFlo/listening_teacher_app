@@ -953,7 +953,13 @@ miền chỉ được phép **thu hẹp** thêm: nếu tài khoản không thu�
 1. Kiểm gói Vercel có cho dùng wildcard domain không (tài liệu Vercel không ghi hạn chế theo gói, nhưng gói
    Hobby giới hạn 50 tên miền tùy chỉnh/dự án — con số này tính cho tên miền riêng của từng trung tâm, **không**
    tính từng subdomain của một wildcard). Hobby cũng không dành cho mục đích thương mại — cân nhắc Pro.
-2. Wildcard **bắt buộc** để Vercel quản lý DNS: đổi **nameserver của `bemyflo.com` sang Vercel**, hoặc nếu
+2. **Tình trạng thực tế (kiểm 2026-10-05):** `bemyflo.com` đăng ký tại **P.A. Việt Nam**, nameserver đang trỏ
+   về **Cloudflare**; DNS hiện chỉ có `A` → Vercel và `www` → CNAME Vercel, **không có MX/TXT** nào cần giữ. Vì
+   vậy cách gọn nhất là **đổi nameserver tại P.A. Việt Nam sang `ns1.vercel-dns.com` / `ns2.vercel-dns.com`**
+   (Vercel tự tạo lại 2 bản ghi trên). Nếu muốn giữ Cloudflare: thêm 2 bản ghi `NS` tên `_acme-challenge` →
+   `ns1.vercel-dns.com.` và `ns2.vercel-dns.com.`, cộng `CNAME *` → `cname.vercel-dns-0.com.` ở chế độ **DNS only**
+   (mây xám, không proxy), và bật "Enable Vercel DNS" trong Vercel mà giữ nguyên nameserver. Tài liệu Vercel
+   khuyên chỉ dùng cách thứ hai khi không đổi được nameserver. Wildcard **bắt buộc** để Vercel quản lý DNS: đổi **nameserver của `bemyflo.com` sang Vercel**, hoặc nếu
    không muốn đổi thì ủy quyền riêng bản ghi `_acme-challenge` cho Vercel (xem tài liệu "Use wildcard domains
    with an external DNS provider").
 3. Thêm 3 tên vào dự án Vercel: `bemyflo.com`, `www.bemyflo.com`, `*.bemyflo.com`.
@@ -993,9 +999,23 @@ không gãy gì. Domain gốc `bemyflo.com` **tiếp tục hoạt động mãi**
    thêm ô "Workspace address"; `/admin/workspaces` cho **admin** sửa slug (kiểm trùng + tên dành riêng).
    **v1 chỉ admin được đổi slug**; owner tự đổi chỉ cân nhắc khi mở đăng ký. Đổi slug làm link cũ hỏng nên
    v1 **không** làm chuyển hướng từ slug cũ (YAGNI; middleware chạy ở Edge không truy vấn Mongo được) — ghi
-   rõ cảnh báo trong UI. Thư mục Cloudinary theo slug lúc upload (file cũ không di chuyển).
+   rõ cảnh báo trong UI.
+   **Slug đặt lúc tạo workspace; sau đó chỉ admin đổi** (chốt Q8). **Đổi slug có ảnh hưởng gì (đã kiểm code):**
+
+   | Thứ | Ảnh hưởng |
+   |---|---|
+   | Dữ liệu (học sinh, lớp, bài, bài nộp, điểm danh...) | **Không** — mọi bản ghi tham chiếu `workspaceId`, không ai lưu slug; `slug` chỉ nằm ở bản ghi Workspace |
+   | Phiên đăng nhập (JWT) | Không chứa slug; nhưng nằm theo từng subdomain nên đăng nhập lại 1 lần ở địa chỉ mới |
+   | File audio/ảnh/logo đã upload | Không hỏng: DB lưu URL đầy đủ + `publicId` từ lúc upload. File **mới** vào thư mục slug mới (thư mục tách đôi, chỉ là cảnh quan) |
+   | Link cũ (email đã gửi, bookmark, link gửi học sinh) | **Hỏng** — subdomain cũ thành "địa chỉ chưa có trung tâm" (v1 không chuyển hướng) |
+   | Link thông báo trong app (`/student/lessons/...`) | Không — là đường dẫn tương đối |
+   | **`scripts/migrate-workspace.js`** | **Nguy hiểm nếu không sửa** — script tra workspace theo slug (mặc định `ms-nhi`); nếu slug đã đổi, chạy lại sẽ **tạo workspace mới trùng tên** → xem mục 10 bên dưới |
 9. **Dev trên máy:** `msnhi.localhost:3000` chạy được ở Chrome/Firefox (không cần sửa hosts) khi
    `APP_BASE_DOMAIN=localhost`. Lưu ý `.env.local` hiện hay trỏ DB live — kiểm trước khi bấm thử.
+10. **Vá `scripts/migrate-workspace.js`** trước khi cho phép đổi slug: tra workspace theo **chủ sở hữu**
+    (`ownerUserId` = giáo viên cũ nhất, như đã dùng để chống trôi owner ở Phase 3) thay vì theo slug; `--slug` chỉ
+    dùng khi tạo mới. Script này idempotent và hay được chạy lại sau mỗi lần deploy, nên đây là chỗ duy nhất
+    việc đổi slug có thể gây hại dữ liệu thật.
 
 #### 10.2 Hệ quả cần chấp nhận
 - **Token đăng nhập nằm trong localStorage, mà mỗi subdomain là một "nguồn" riêng** → đăng nhập ở
@@ -1862,6 +1882,12 @@ từng subdomain" — wildcard giải quyết đúng chỗ này), không phải 
 nhập mang thương hiệu trung tâm. Chưa có dòng code nào; xem Phase 10 để biết thiết kế, việc của chủ dự án
 (DNS/Vercel) và cách kiểm chứng.
 
+**Cùng ngày, chủ dự án trả lời Q7–Q9** (subdomain wildcard; slug đặt lúc tạo, sau đó chỉ admin đổi; domain
+gốc vẫn chạy, dashboard admin ở domain gốc, giáo viên vào workspace bằng subdomain). Khi trả lời "đổi slug có
+ảnh hưởng data không" đã rà code và phát hiện `scripts/migrate-workspace.js` tra workspace theo slug → thêm việc
+vá vào Phase 10 (mục 10.1.10). Dữ liệu thật thì **không** bị ảnh hưởng vì không bản ghi nào lưu slug ngoài
+Workspace.
+
 ---
 
 ## 11. Câu hỏi còn treo (cần quyết trước khi tới phase tương ứng)
@@ -1874,6 +1900,6 @@ nhập mang thương hiệu trung tâm. Chưa có dòng code nào; xem Phase 10 
 | Q4 | TOEIC chưa có rubric chấm Writing/Speaking. Tạm dùng rubric IELTS, hay ẩn 2 kỹ năng đó với program TOEIC? | 8 |
 | Q5 | Có giới hạn số HS/dung lượng theo workspace ngay từ V1 không, hay để sau cùng với billing? | 6 |
 | Q6 | Ngân sách AI dùng chung toàn platform (0.3.4) — khi một workspace tiêu hết quota làm cả nhà bị chặn thì xử lý ra sao: admin nâng trần tay, hay cảnh báo sớm theo workspace? | 6 |
-| Q7 | Phase 10: xác nhận chọn **subdomain wildcard** (không phải đường dẫn)? Gói Vercel hiện tại có cho dùng wildcard không? | 10 |
-| Q8 | Phase 10: ai được đổi slug sau khi tạo — chỉ admin (v1) hay cả owner? Đổi slug làm link cũ hỏng, có cần chuyển hướng slug cũ không? | 10 |
-| Q9 | Phase 10: người dùng ở domain gốc — giữ mãi song song, hay dần chuyển hết sang subdomain (cần cơ chế chuyển token)? | 10 |
+| ~~Q7~~ | ~~Phase 10: subdomain wildcard hay đường dẫn?~~ **ĐÃ TRẢ LỜI 2026-10-05: subdomain wildcard.** Gói Vercel có cho wildcard không vẫn cần chủ dự án tự kiểm. | 10 |
+| ~~Q8~~ | ~~Phase 10: ai đổi slug?~~ **ĐÃ TRẢ LỜI 2026-10-05: slug đặt lúc tạo; sau đó CHỈ admin được đổi.** Tác động của việc đổi: xem bảng ở Phase 10.1 mục 8. | 10 |
+| ~~Q9~~ | ~~Phase 10: domain gốc về sau thế nào?~~ **ĐÃ TRẢ LỜI 2026-10-05: domain gốc vẫn chạy bình thường; dashboard admin ở lại domain gốc; giáo viên/học sinh thuộc workspace vào bằng subdomain của workspace.** | 10 |
