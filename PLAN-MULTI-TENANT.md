@@ -24,7 +24,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 4 | Siết cứng: `required: true`, bỏ fallback, index, kiểm tra mồ côi | ☑ **XONG, ĐÃ LÊN LIVE** | 2026-09-25. Bước 5 (teacherScope) cố ý bỏ qua — xem Nhật ký |
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☑ **XONG** (5A + 5B + 5C) | 2026-09-30. Code bởi Sonnet subagent, Opus thiết kế + review từng dòng — xem Nhật ký |
 | 6 | Onboarding + Workspace Settings + tuỳ chỉnh màu theo workspace (KHÔNG có tự đăng ký) | ☑ **XONG, đã merge vào `main`** (PR #9) | 2026-09-30. Đợt 2 (dọn 214 màu cứng) chưa làm |
-| 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ◐ code xong trên branch `phase-7-branding`, CHƯA merge/deploy | 2026-09-30. Xem Nhật ký |
+| 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ☑ **XONG, đã merge** (PR #10) | 2026-09-30. Tên nền tảng đã chốt **BeMyFlo** (2026-10-05) — xem Nhật ký |
 | 8 | Taxonomy Subject / Program / Skill (mở đường TOEIC, General, Toán…) | ☐ chưa làm | |
 | 9 | Tương lai: nhiều giáo viên / 1 workspace, enrollment nhiều lớp, Organization | ☐ chưa làm | không làm trong V1 |
 
@@ -1722,11 +1722,36 @@ Dọn sạch. Sau khi hoàn lại logo chỉ đổi đường dẫn hằng số 
 
 ---
 
+### 2026-10-05 — Chốt tên thương hiệu: **BeMyFlo** (tên miền `bemyflo.com`) ☑
+
+Chủ dự án chốt sau nhiều vòng thử tên. Tiêu chí đã thống nhất: bán B2B cho trung tâm, quốc tế ngay, cảm giác
+ấm áp gần gũi, tên tự đặt dễ nhớ, **bắt buộc có `.com`**, đủ rộng để làm môn khác ngoài tiếng Anh sau này
+(vì vậy không dùng tên có chữ ngành như "class"). BeMyFlo cũng là tên tài khoản GitHub của chủ dự án.
+
+**Đã làm:** mặc định `PLATFORM_NAME` trong `lib/platform.js` đổi thành "BeMyFlo" (vẫn ghi đè được bằng env
+`NEXT_PUBLIC_PLATFORM_NAME`); mô tả trang ở `app/layout.js` bỏ chữ "IELTS"; ví dụ `EMAIL_FROM` trong
+`lib/mailer.js`. Tên hiển thị người gửi email vẫn theo từng workspace (Phase 7).
+
+**Tên miền (kiểm 2026-10-05 bằng RDAP chính thức): `bemyflo.com`, `.net`, `.org`, `.app` đều CÒN TRỐNG.**
+Chưa ai mua — chủ dự án phải tự đăng ký ngay (tên trống có thể mất bất cứ lúc nào). `.co`/`.io` chưa kiểm
+được đáng tin.
+
+**Việc còn lại (không làm được bằng code):**
+1. Mua `bemyflo.com` (nên mua thêm `.app`/`.net` để giữ thương hiệu).
+2. **Tra nhãn hiệu trước khi làm logo/chi tiền quảng bá**: WIPO Global Brand Database + Cục Sở hữu trí tuệ
+   Việt Nam, nhóm 9/41/42, tìm "BeMyFlo" và các dạng gần giống ("Be My Flo", "Flo"). Chưa tra.
+3. Gắn domain vào Vercel (Project → Settings → Domains), trỏ DNS theo hướng dẫn của Vercel.
+4. Đặt biến môi trường trên Vercel: `APP_URL=https://bemyflo.com` (link trong email lấy từ đây) và cân nhắc
+   `EMAIL_FROM` dạng `BeMyFlo <địa-chỉ-gửi>`; không cần `NEXT_PUBLIC_PLATFORM_NAME` nữa vì đã là mặc định.
+5. Đổi logo (chủ dự án sẽ làm sau) — nhớ thay `public/logo.svg` và `app/icon.svg`.
+
+---
+
 ## 11. Câu hỏi còn treo (cần quyết trước khi tới phase tương ứng)
 
 | # | Câu hỏi | Cần trước phase |
 |---|---|---|
-| Q1 | Tên + logo của **platform** là gì? ("Ms Nhi" sẽ chỉ còn là tên workspace) | 7 |
+| ~~Q1~~ | ~~Tên + logo của **platform** là gì?~~ **ĐÃ CHỐT 2026-10-05: tên BeMyFlo, tên miền bemyflo.com, logo MN giữ nguyên (sẽ đổi logo sau).** | 7 |
 | Q2 | Mở signup tự do hay phải có mã mời / admin duyệt? | 6 |
 | ~~Q3~~ | ~~Giáo viên hiện có (ngoài cô Nhi) — nằm chung workspace hay tách riêng?~~ **ĐÃ TRẢ LỜI 2026-09-22: câu hỏi không còn tồn tại — live DB chỉ có đúng 1 tài khoản teacher (`msnhi`).** Script chỉ cần tạo 1 workspace. | ~~1~~ |
 | Q4 | TOEIC chưa có rubric chấm Writing/Speaking. Tạm dùng rubric IELTS, hay ẩn 2 kỹ năng đó với program TOEIC? | 8 |
