@@ -4,7 +4,7 @@ import { PLATFORM_NAME } from "@/lib/platform";
 
 export const metadata = {
   title: PLATFORM_NAME,
-  description: "IELTS LMS",
+  description: "Lessons, practice and grading for teachers and students.",
 };
 
 export default function RootLayout({ children }) {

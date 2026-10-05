@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Shell from "./Shell";
 import ThemeLoader from "./ThemeLoader";
+import AddressBanner from "./AddressBanner";
 import { DialogProvider } from "./ui/Dialog";
 import { readSession } from "@/lib/client/session";
 
@@ -33,6 +34,7 @@ export default function RoleGate({ role, children }) {
     <DialogProvider>
       <ThemeLoader role={role} />
       <Shell role={role} userName={session.name} userSub={userSub}>
+        {role !== "admin" && <AddressBanner />}
         {children}
       </Shell>
     </DialogProvider>

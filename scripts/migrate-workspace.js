@@ -16,7 +16,7 @@
 const mongoose = require("mongoose");
 const { resolveTarget } = require("./dbTarget");
 
-const USAGE = "Usage: node scripts/migrate-workspace.js <--live|--dev|URI> [--apply] [--name <tên>] [--slug <slug>]";
+const USAGE = "Usage: node scripts/migrate-workspace.js <--live|--dev|URI> [--apply] [--name <tên>] [--slug <slug>] [--create-new]";
 
 const argv = process.argv.slice(2);
 const APPLY = argv.includes("--apply");
@@ -61,6 +61,19 @@ const MISSING = { $or: [{ workspaceId: { $exists: false } }, { workspaceId: null
 
   // --- 2. Workspace ---------------------------------------------------------
   let ws = await Workspace.findOne({ slug: WS_SLUG });
+
+  // Slug có thể đã bị admin đổi (Phase 10). Nếu không thấy workspace theo slug mà ĐÃ có
+  // workspace khác, TUYỆT ĐỐI không tự tạo workspace mới trùng tên (rồi gán mọi tài liệu
+  // mồ côi vào đó). Bắt người chạy chỉ rõ --slug, hoặc cố ý thêm --create-new.
+  if (!ws && !argv.includes("--create-new")) {
+    const existing = await Workspace.countDocuments();
+    if (existing > 0) {
+      const list = (await Workspace.find().select("slug name").lean()).map((w) => `${w.slug} ("${w.name}")`).join(", ");
+      console.error(`Không tìm thấy workspace slug="${WS_SLUG}" nhưng đã có ${existing} workspace: ${list}.`);
+      console.error("Chạy lại với --slug <slug-đúng>, hoặc thêm --create-new nếu thật sự muốn tạo workspace mới. Dừng.");
+      process.exit(1);
+    }
+  }
 
   // Chủ workspace: nếu workspace ĐÃ tồn tại, dùng đúng `ownerUserId` đã lưu
   // cố định trong document đó — nguồn sự thật duy nhất, KHÔNG tính lại theo
