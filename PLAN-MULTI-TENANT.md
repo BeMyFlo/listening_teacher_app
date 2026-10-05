@@ -672,6 +672,46 @@ Chạy xong **xoá sạch WS-B** khỏi DB thật.
 
 ---
 
+### Phase 10B — Tự chuyển từ domain gốc sang subdomain, không hỏi lại mật khẩu *(chủ dự án chốt cách B, ưu tiên bảo mật, 2026-10-05)*
+
+**Vấn đề:** phiên đăng nhập lưu theo từng địa chỉ nên đăng nhập ở `bemyflo.com` không có hiệu lực ở
+`ieltswithnhi.bemyflo.com`. Chủ dự án hỏi vì sao không tự chuyển; bản Phase 10 cố ý chỉ hiện biểu ngữ. Câu trả lời Q9
+được hiểu lại: giáo viên/học sinh có workspace thì **tự được chuyển** sang subdomain.
+
+**Thiết kế: mã ủy quyền dùng một lần + `state` (cùng họ OAuth/"đăng nhập bằng Google")**
+1. Ở domain gốc, đăng nhập xong (hoặc đã đăng nhập sẵn) → `GET /api/handoff/target` cho biết địa chỉ riêng (**server
+   tính từ workspace của tài khoản**) → chuyển tới `<origin>/handoff`.
+2. Subdomain (chưa có phiên) sinh `state` ngẫu nhiên 256 bit, giữ trong **sessionStorage của chính nó**, nhảy về
+   `bemyflo.com/handoff?state=…`.
+3. Domain gốc (đã có token) gọi `POST /api/handoff/start {state}` → server cấp **mã 256 bit, sống 60s, dùng một lần**,
+   gắn với (userId, workspaceId, state); trình duyệt nhảy về `<origin>/handoff#code=…&state=…` (**mã nằm sau dấu `#`**).
+4. Subdomain xoá `#…` khỏi thanh địa chỉ ngay, kiểm `state` khớp sessionStorage rồi `POST /api/handoff/exchange
+   {code,state}` → nhận token thường như đăng nhập → vào trang chính.
+
+**Chốt chặn bảo mật (mỗi dòng đã có test, 49 kịch bản, tất cả đạt):**
+| Mối đe doạ | Cách chặn |
+|---|---|
+| Lộ mã qua lịch sử/log/Referer | mã ở fragment `#` (không gửi lên server, không vào log/Referer); xoá khỏi URL ngay; header `Referrer-Policy: no-referrer`, `no-store`, `X-Frame-Options: DENY` cho `/handoff` |
+| Dùng lại / dò mã | 256 bit; DB chỉ lưu SHA-256; sống 60s; xoá nguyên tử khi dùng (**đốt ngay lần trình ra đầu tiên**, kể cả khi sai state/host); 2 request song song chỉ 1 thành công |
+| Login CSRF (nhét mã của kẻ xấu vào trình duyệt nạn nhân) | `state` sinh và giữ ở **trình duyệt người dùng**, mã chỉ nhận khi `state` khớp; server cũng ràng mã với hash của state |
+| Open redirect | địa chỉ đích do server tính, **bỏ qua** mọi `origin`/`target` client gửi |
+| Mã dùng sai trung tâm | đổi mã chỉ hợp lệ trên subdomain của đúng workspace đã gắn; sai → 401 và mã bị đốt |
+| Tài khoản đổi trạng thái giữa chừng | kiểm lại lúc đổi mã: user bị khoá, mất membership, học sinh chuyển workspace, workspace bị suspend → 401 |
+| CSRF từ trang khác | các endpoint cần header `Authorization: Bearer` (không dùng cookie) |
+| Dò hàng loạt | giới hạn tốc độ theo IP cho `start` và `exchange` |
+| Phiên "đăng nhập hộ" của admin, admin nền tảng | không được cấp mã; `start` chỉ chạy ở domain gốc, `exchange` chỉ ở subdomain |
+| Lộ qua audit log | ghi `auth.handoff_issued/handoff/handoff_failed`, không ghi mã/state (mở rộng `SECRET_KEYS` che `code`,`state`) |
+| Vòng lặp chuyển hướng | chỉ thử 1 lần/30s mỗi trình duyệt (`lib/client/handoffGuard.js`); thất bại thì ở lại domain gốc; subdomain không bao giờ tự chuyển ngược |
+
+**Rủi ro còn lại (đã chấp nhận):** XSS ở domain gốc vẫn là rủi ro như trước (script đã đọc được token, cơ chế này
+không thêm khả năng mới); đăng xuất ở domain gốc **không** đăng xuất ở subdomain; mã nằm trong lịch sử trình duyệt chỉ
+trong vài giây (bị xoá ngay và hết hạn/dùng một lần).
+**Code:** `lib/handoff.js`, `lib/models/HandoffCode.js` (TTL), `pages/api/handoff/{target,start,exchange}.js`,
+`app/handoff/page.js`, nối vào `app/login/page.js` + `components/RoleGate.js`; collection `handoffcodes` khai báo
+PLATFORM trong `scripts/check-orphans.js`. **Chưa kiểm chứng trên trình duyệt thật** (cần bấm thử sau deploy).
+
+---
+
 ### 8.1 Trôi dạt giữa Phase 1 và Phase 3 — VÀ VÌ SAO PHASE 2 KHÔNG ĐƯỢC DEPLOY MỘT MÌNH
 
 Phase 1 đóng dấu xong là `check-orphans` ra 0. Con số đó **không ổn định**: nó là ảnh chụp
@@ -1022,7 +1062,7 @@ không gãy gì. Domain gốc `bemyflo.com` **tiếp tục hoạt động mãi**
     việc đổi slug có thể gây hại dữ liệu thật.
 
 #### 10.2 Hệ quả cần chấp nhận
-- **Token đăng nhập nằm trong localStorage, mà mỗi subdomain là một "nguồn" riêng** → đăng nhập ở
+- **(Đã được thay thế bởi Phase 10B bên dưới — chuyển phiên tự động.)** **Token đăng nhập nằm trong localStorage, mà mỗi subdomain là một "nguồn" riêng** → đăng nhập ở
   `bemyflo.com` **không** tự đăng nhập ở `msnhi.bemyflo.com`. Người dùng hiện có (cô Nhi, học sinh) phải
   đăng nhập lại **một lần** khi chuyển sang địa chỉ mới; domain gốc vẫn dùng được song song nên không gãy link
   cũ. v1 không tự chuyển hướng (tránh vòng lặp, tránh cơ chế chuyển token); chỉ hiện biểu ngữ gợi ý địa chỉ
