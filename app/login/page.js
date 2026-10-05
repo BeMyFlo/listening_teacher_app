@@ -8,6 +8,7 @@ import { NAV } from "@/lib/nav";
 import { PLATFORM_NAME, PLATFORM_LOGO } from "@/lib/platform";
 import { parseHost, baseDomain } from "@/lib/host";
 import { applyTheme } from "@/components/ThemeLoader";
+import { shouldAttemptHandoff } from "@/lib/client/handoffGuard";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -55,6 +56,19 @@ export default function LoginPage() {
     try {
       const data = await api.login(username, password);
       storeLoginResult(data, remember);
+      // Đăng nhập ở domain gốc: giáo viên/học sinh có địa chỉ riêng thì chuyển sang đó
+      // (không hỏi lại mật khẩu). Lỗi/không có địa chỉ riêng -> vào trang chính như thường.
+      if ((data.role === "teacher" || data.role === "student") && parseHost(window.location.host).kind === "root" && shouldAttemptHandoff()) {
+        try {
+          const t = await api.handoffTarget(data.role);
+          if (t && t.origin) {
+            window.location.assign(`${t.origin}/handoff`);
+            return;
+          }
+        } catch {
+          /* bỏ qua, dùng domain gốc */
+        }
+      }
       router.replace(NAV[data.role].home);
     } catch (err) {
       setError(err.message);
