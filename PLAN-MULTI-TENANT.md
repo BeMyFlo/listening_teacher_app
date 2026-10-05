@@ -27,6 +27,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ☑ **XONG, đã merge** (PR #10) | 2026-09-30. Tên nền tảng đã chốt **BeMyFlo** (2026-10-05) — xem Nhật ký |
 | 8 | Taxonomy Subject / Program / Skill (mở đường TOEIC, General, Toán…) | ☐ chưa làm | |
 | 9 | Tương lai: nhiều giáo viên / 1 workspace, enrollment nhiều lớp, Organization | ☐ chưa làm | không làm trong V1 |
+| 10 | **Subdomain theo workspace** (`<slug>.bemyflo.com`) | ☐ **ƯU TIÊN NGAY, làm TRƯỚC Phase 8** — plan đã viết 2026-10-05, chưa code | Chủ dự án chốt ưu tiên 2026-10-05. Xem mục Phase 10 |
 
 Ký hiệu: ☐ chưa làm · ◐ đang làm · ☑ xong & đã verify trên production
 
@@ -926,6 +927,108 @@ Ghi lại để sau này không phải nghĩ lại, và để biết Phase 1-8 �
 
 ---
 
+### Phase 10 — Subdomain theo workspace: `<slug>.bemyflo.com` *(1–2 ngày, ƯU TIÊN NGAY — làm trước Phase 8)*
+
+**Mục tiêu:** mỗi trung tâm có địa chỉ riêng `msnhi.bemyflo.com`, và **trang đăng nhập hiện đúng logo/màu/tên
+của trung tâm ngay trước khi đăng nhập** (hiện đang là điểm yếu: trang login luôn dùng màu và logo mặc định
+của nền tảng). Khi mở đăng ký công khai sau này, giáo viên đặt `slug` là có địa chỉ ngay, **admin không phải
+làm gì** (không tạo DNS, không cấu hình Vercel cho từng người).
+
+**Cách hoạt động — một lần cấu hình, không phải mỗi trung tâm một lần:** thêm tên miền wildcard
+`*.bemyflo.com` vào Vercel. Mọi tên `x.bemyflo.com` tự trỏ về cùng một app; app đọc **tên miền người dùng
+truy cập** để biết trung tâm nào. Vercel cấp **một chứng chỉ** cho cả `*.bemyflo.com`. Đây đúng là mô hình
+"multi-tenant platform" có tài liệu chính thức của Vercel (đã đối chiếu 2026-10-05).
+
+**Nguyên tắc bất di bất dịch:** *tên miền chỉ để ĐỊNH TUYẾN và HIỆN THƯƠNG HIỆU, KHÔNG BAO GIỜ để PHÂN QUYỀN.*
+Quyền truy cập dữ liệu vẫn lấy từ tài khoản (token → DB → workspace, đúng như `lib/tenant.js` hiện tại). Tên
+miền chỉ được phép **thu hẹp** thêm: nếu tài khoản không thuộc workspace trong tên miền → từ chối. Đổi
+`msnhi` thành `trungtamkhac` trên thanh địa chỉ **không bao giờ** mở thêm được dữ liệu nào.
+
+**Hiện trạng (đã kiểm code 2026-10-05):** mọi trung tâm dùng chung `bemyflo.com/teacher/...`; không có
+`middleware.js`; `pages/api/auth.js` không biết workspace; `withTenant` giải workspace chỉ từ token;
+`Workspace.slug` đã có (unique, `a-z0-9-`) nhưng mới dùng cho thư mục Cloudinary; `APP_URL` dùng ở
+`lib/notifications/channels/email.js` để dựng link trong email.
+
+#### 10.0 Việc của chủ dự án (không phải code) — làm trước, vô hại với app đang chạy
+1. Kiểm gói Vercel có cho dùng wildcard domain không (tài liệu Vercel không ghi hạn chế theo gói, nhưng gói
+   Hobby giới hạn 50 tên miền tùy chỉnh/dự án — con số này tính cho tên miền riêng của từng trung tâm, **không**
+   tính từng subdomain của một wildcard). Hobby cũng không dành cho mục đích thương mại — cân nhắc Pro.
+2. Wildcard **bắt buộc** để Vercel quản lý DNS: đổi **nameserver của `bemyflo.com` sang Vercel**, hoặc nếu
+   không muốn đổi thì ủy quyền riêng bản ghi `_acme-challenge` cho Vercel (xem tài liệu "Use wildcard domains
+   with an external DNS provider").
+3. Thêm 3 tên vào dự án Vercel: `bemyflo.com`, `www.bemyflo.com`, `*.bemyflo.com`.
+4. Đặt env trên Vercel: `APP_BASE_DOMAIN=bemyflo.com`, `NEXT_PUBLIC_APP_BASE_DOMAIN=bemyflo.com`,
+   `APP_URL=https://bemyflo.com`.
+Làm xong 1–3 mà chưa có code thì mọi `x.bemyflo.com` chỉ hiện giống trang chủ (chưa nhận ra trung tâm) —
+không gãy gì. Domain gốc `bemyflo.com` **tiếp tục hoạt động mãi** cho mọi người dùng hiện có.
+
+#### 10.1 Việc làm (code)
+1. **`lib/slug.js`** — `validateSlug(slug)`: chỉ `a-z`, `0-9`, `-`; dài 3–40; không bắt đầu/kết thúc bằng `-`;
+   không có `--` (tránh dạng `xn--` của IDN); **danh sách tên dành riêng** (`www admin api app login logout
+   signup register mail email smtp ftp static assets cdn files media img images docs help support status blog
+   billing pay dashboard teacher student sysadmin legacy`...). Chỉ áp cho slug **mới hoặc được đổi** — slug đã
+   có (`ms-nhi`, `demo`...) được giữ nguyên (grandfather). Tái dùng ở mọi nơi tạo/đổi slug.
+2. **`lib/host.js`** — `tenantSlugFromHost(host, baseDomain)`: bỏ cổng, hạ chữ thường; `host === base` hoặc
+   `www.<base>` hoặc host không kết thúc bằng `.<base>` (vd `*.vercel.app` của bản preview) → `null` = **chế độ
+   gốc** (hành vi như hiện tại); đúng 1 nhãn trước `.<base>` → trả slug; nhiều nhãn (`a.b.<base>`) → coi là
+   không hợp lệ. Hỗ trợ `*.localhost` cho máy dev. Hàm thuần, có test theo bảng.
+3. **`withTenant`** (`lib/tenant.js`) — sau khi giải workspace từ token: nếu có `hostSlug` thì tra workspace
+   theo slug (cache RAM 60s như hiện tại); không thấy → 404; thấy nhưng **khác** workspace của tài khoản →
+   từ chối (404, cùng quy ước "không lộ sự tồn tại" của mục 0.4). Chế độ gốc: không đổi gì.
+4. **Đăng nhập** (`pages/api/auth.js`) — trên host có slug: giáo viên phải có `WorkspaceMember` của workspace
+   đó, học sinh phải có `Student.workspaceId` đó; **admin nền tảng chỉ đăng nhập ở domain gốc**. Sai workspace
+   trả **đúng thông báo "sai tên đăng nhập hoặc mật khẩu"** (không để lộ tài khoản này thuộc trung tâm nào) và
+   ghi audit. Workspace bị `suspended` → thông báo riêng. Rate limit giữ nguyên.
+5. **Endpoint công khai `GET /api/public/workspace-branding`** (không cần token) — slug lấy từ **header Host
+   phía server, bỏ qua mọi tham số client**; chỉ trả `{ name, logoUrl, theme }` (3 trường vốn đã công khai
+   theo thiết kế) hoặc 404; `Cache-Control: public, max-age=60`. Không bao giờ trả id, slug nội bộ, số liệu.
+6. **Trang đăng nhập** (`app/login/page.js`) — đọc hostname phía client (so với
+   `NEXT_PUBLIC_APP_BASE_DOMAIN`); nếu là host trung tâm: gọi endpoint ở mục 5, hiện logo + tên + áp màu của
+   trung tâm (dùng lại `applyTheme`, đã tự gỡ khi rời trang). Slug không tồn tại → trang "Địa chỉ này chưa
+   có trung tâm" kèm link về domain gốc. Domain gốc: giữ trang đăng nhập nền tảng như hiện nay.
+7. **Link trong email** (`lib/notifications/channels/email.js`) — gốc link theo workspace của thông báo:
+   `https://<slug>.<APP_BASE_DOMAIN>` nếu cấu hình đủ, không thì `APP_URL` như cũ.
+8. **Quản lý slug** — `createTeacherWithWorkspace` nhận tham số `slug` tuỳ chọn (qua `validateSlug`; không
+   truyền thì sinh từ username như hiện nay, vẫn qua bộ lọc tên dành riêng); form tạo giáo viên ở `/admin/users`
+   thêm ô "Workspace address"; `/admin/workspaces` cho **admin** sửa slug (kiểm trùng + tên dành riêng).
+   **v1 chỉ admin được đổi slug**; owner tự đổi chỉ cân nhắc khi mở đăng ký. Đổi slug làm link cũ hỏng nên
+   v1 **không** làm chuyển hướng từ slug cũ (YAGNI; middleware chạy ở Edge không truy vấn Mongo được) — ghi
+   rõ cảnh báo trong UI. Thư mục Cloudinary theo slug lúc upload (file cũ không di chuyển).
+9. **Dev trên máy:** `msnhi.localhost:3000` chạy được ở Chrome/Firefox (không cần sửa hosts) khi
+   `APP_BASE_DOMAIN=localhost`. Lưu ý `.env.local` hiện hay trỏ DB live — kiểm trước khi bấm thử.
+
+#### 10.2 Hệ quả cần chấp nhận
+- **Token đăng nhập nằm trong localStorage, mà mỗi subdomain là một "nguồn" riêng** → đăng nhập ở
+  `bemyflo.com` **không** tự đăng nhập ở `msnhi.bemyflo.com`. Người dùng hiện có (cô Nhi, học sinh) phải
+  đăng nhập lại **một lần** khi chuyển sang địa chỉ mới; domain gốc vẫn dùng được song song nên không gãy link
+  cũ. v1 không tự chuyển hướng (tránh vòng lặp, tránh cơ chế chuyển token); chỉ hiện biểu ngữ gợi ý địa chỉ
+  mới cho người dùng ở domain gốc. Cơ chế chuyển token một lần (one-time code) để sau nếu cần.
+- **Lợi ích bảo mật kèm theo:** vì localStorage tách theo nguồn, lỗi XSS ở trung tâm A **không đọc được token
+  của trung tâm B** (hiện tại mọi trung tâm chung một nguồn). Cookie không dùng nên không dính chuyện
+  cookie chéo subdomain. Giáo viên không chạy được mã trên subdomain; nội dung lý thuyết đã được escape — chưa
+  cần nộp Public Suffix List, ghi lại để cân nhắc nếu sau này cho giáo viên đăng HTML tự do.
+- Header `Host` do Vercel đặt; kể cả bị giả mạo thì chỉ làm **thu hẹp thêm** quyền của chính người giả mạo
+  (vì mọi kiểm tra quyền vẫn từ token) — đúng nguyên tắc ở đầu mục.
+
+#### 10.3 Kiểm chứng
+Probe trên dev DB với handler thật + header `Host` giả lập: (a) bảng test `tenantSlugFromHost` (gốc, `www`,
+`*.vercel.app`, 1 nhãn, nhiều nhãn, cổng, hoa/thường, `localhost`); (b) `validateSlug` (hợp lệ, quá ngắn/dài, ký
+tự lạ, `--`, tên dành riêng, slug đã có được grandfather); (c) đăng nhập: giáo viên/học sinh đúng trung tâm → OK;
+đúng mật khẩu nhưng sai trung tâm → cùng thông báo như sai mật khẩu; admin trên host trung tâm → bị từ chối;
+domain gốc không đổi hành vi; trung tâm `suspended`; (d) `withTenant`: token workspace A + host của B → từ chối;
+(e) endpoint branding: chỉ đúng 3 trường, bỏ qua slug do client gửi, slug lạ → 404; (f) link email theo workspace
+và quay về `APP_URL` khi thiếu cấu hình; (g) `check-tenant-scope --strict`. Sau đó bấm thử thật trên
+`*.bemyflo.com` sau khi chủ dự án làm xong mục 10.0.
+
+**App còn chạy không:** có — domain gốc không đổi hành vi; mọi thứ mới chỉ kích hoạt khi truy cập bằng
+subdomain. **Rollback:** gỡ `*.bemyflo.com` khỏi Vercel và/hoặc revert; không có migration dữ liệu nào.
+
+**Làm xong thì mở khóa:** (1) trang đăng nhập mang thương hiệu trung tâm; (2) khi mở đăng ký công khai chỉ cần
+thêm ô chọn slug trong form; (3) về sau có thể thêm **tên miền riêng của trung tâm** (vd `hoc.msnhi.vn`) bằng
+API tên miền của Vercel, dùng cùng cơ chế tra workspace theo host.
+
+---
+
 ## 9. Thứ tự ưu tiên nếu phải cắt bớt
 
 Nếu cần ra mắt sớm, thứ tự **không được đảo**:
@@ -936,6 +1039,7 @@ Phase 0 → 1 → 2 → 3 → 4    ← bắt buộc, đây là phần "cô lập
 Phase 5                     ← bắt buộc trước khi có GV thứ 2 THẬT (lỗ hổng B3).
 Phase 6                     ← onboarding + đổi màu/cài đặt workspace. Không có tự đăng ký (admin tạo GV).
 Phase 7                     ← cần khi bán cho người ngoài.
+Phase 10                    ← ƯU TIÊN NGAY (chốt 2026-10-05), làm TRƯỚC Phase 8: subdomain theo workspace.
 Phase 8                     ← chỉ cần khi thật sự có khách hàng TOEIC/General.
 ```
 
@@ -1747,6 +1851,19 @@ Chưa ai mua — chủ dự án phải tự đăng ký ngay (tên trống có th
 
 ---
 
+### 2026-10-05 — Thêm Phase 10 (subdomain theo workspace) vào plan, đặt ưu tiên cao ☑
+
+Chủ dự án chốt thương hiệu BeMyFlo/`bemyflo.com` (mục trước), nhận ra URL chưa có tên trung tâm
+(`bemyflo.com/teacher/overview` dùng chung) và hỏi việc này thuộc phase nào. Kiểm plan: **chưa có phase nào** —
+`slug` chỉ dùng cho thư mục Cloudinary, Phase 9 không nhắc URL/tên miền theo trung tâm. Ghi thành **Phase 10**,
+chủ dự án chọn **ưu tiên làm ngay, trước Phase 8**. Chọn **subdomain wildcard** thay vì đường dẫn
+(`/ms-nhi/...`) vì: một lần cấu hình dùng cho mọi trung tâm (chủ dự án lo "1000 giáo viên thì không tạo nổi
+từng subdomain" — wildcard giải quyết đúng chỗ này), không phải viết lại toàn bộ route, và mở khóa trang đăng
+nhập mang thương hiệu trung tâm. Chưa có dòng code nào; xem Phase 10 để biết thiết kế, việc của chủ dự án
+(DNS/Vercel) và cách kiểm chứng.
+
+---
+
 ## 11. Câu hỏi còn treo (cần quyết trước khi tới phase tương ứng)
 
 | # | Câu hỏi | Cần trước phase |
@@ -1757,3 +1874,6 @@ Chưa ai mua — chủ dự án phải tự đăng ký ngay (tên trống có th
 | Q4 | TOEIC chưa có rubric chấm Writing/Speaking. Tạm dùng rubric IELTS, hay ẩn 2 kỹ năng đó với program TOEIC? | 8 |
 | Q5 | Có giới hạn số HS/dung lượng theo workspace ngay từ V1 không, hay để sau cùng với billing? | 6 |
 | Q6 | Ngân sách AI dùng chung toàn platform (0.3.4) — khi một workspace tiêu hết quota làm cả nhà bị chặn thì xử lý ra sao: admin nâng trần tay, hay cảnh báo sớm theo workspace? | 6 |
+| Q7 | Phase 10: xác nhận chọn **subdomain wildcard** (không phải đường dẫn)? Gói Vercel hiện tại có cho dùng wildcard không? | 10 |
+| Q8 | Phase 10: ai được đổi slug sau khi tạo — chỉ admin (v1) hay cả owner? Đổi slug làm link cũ hỏng, có cần chuyển hướng slug cũ không? | 10 |
+| Q9 | Phase 10: người dùng ở domain gốc — giữ mãi song song, hay dần chuyển hết sang subdomain (cần cơ chế chuyển token)? | 10 |
