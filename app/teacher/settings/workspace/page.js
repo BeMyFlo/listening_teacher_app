@@ -49,6 +49,9 @@ export default function WorkspaceSettingsPage() {
         setLogo({ url: d.workspace.logoUrl || "", slug: d.workspace.slug });
         setDraft(d.theme || {});
         savedTheme.current = d.theme || {};
+        // Cleanup bên dưới (chạy cả khi StrictMode mount 2 lần ở dev) đã gỡ theme
+        // do ThemeLoader áp -> áp lại bản đã lưu khi dữ liệu về.
+        applyTheme(d.theme || {});
         setCanEdit(d.canEdit);
         setLoaded(true);
       })
