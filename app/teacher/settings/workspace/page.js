@@ -40,6 +40,7 @@ export default function WorkspaceSettingsPage() {
   const [savingGeneral, setSavingGeneral] = useState(false);
   const [savingTheme, setSavingTheme] = useState(false);
   const savedTheme = useRef({});
+  const themeLoaded = useRef(false);
 
   useEffect(() => {
     api.teacher
@@ -49,15 +50,17 @@ export default function WorkspaceSettingsPage() {
         setLogo({ url: d.workspace.logoUrl || "", slug: d.workspace.slug });
         setDraft(d.theme || {});
         savedTheme.current = d.theme || {};
-        // Cleanup bên dưới (chạy cả khi StrictMode mount 2 lần ở dev) đã gỡ theme
-        // do ThemeLoader áp -> áp lại bản đã lưu khi dữ liệu về.
-        applyTheme(d.theme || {});
+        themeLoaded.current = true;
         setCanEdit(d.canEdit);
         setLoaded(true);
       })
       .catch((e) => setErr(e.message));
     // Rời trang mà chưa lưu -> trả về theme đã lưu, không để màu nháp ở lại.
-    return () => applyTheme(savedTheme.current);
+    // Chưa tải xong (hoặc StrictMode mount/unmount thử ở dev) thì KHÔNG đụng vào:
+    // savedTheme còn rỗng sẽ gỡ theme của workspace -> màu app nháy lên rồi quay lại.
+    return () => {
+      if (themeLoaded.current) applyTheme(savedTheme.current);
+    };
   }, []);
 
   const effective = useMemo(() => resolveTheme(draft), [draft]);
