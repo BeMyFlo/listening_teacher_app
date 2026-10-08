@@ -25,9 +25,10 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☑ **XONG** (5A + 5B + 5C) | 2026-09-30. Code bởi Sonnet subagent, Opus thiết kế + review từng dòng — xem Nhật ký |
 | 6 | Onboarding + Workspace Settings + tuỳ chỉnh màu theo workspace (KHÔNG có tự đăng ký) | ☑ **XONG, đã merge vào `main`** (PR #9) | 2026-09-30. Đợt 2 (dọn 214 màu cứng) chưa làm |
 | 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ☑ **XONG, đã merge** (PR #10) | 2026-09-30. Tên nền tảng đã chốt **BeMyFlo** (2026-10-05) — xem Nhật ký |
-| 8 | Taxonomy Subject / Program / Skill (mở đường TOEIC, General, Toán…) | ☐ chưa làm | |
+| 8 | Taxonomy Program + **TOEIC** (8A: Nghe/Đọc · 8B: Nói/Viết) + nút chuyển chương trình | ◐ **plan xong**, chưa code — [PLAN-PHASE8-TOEIC.md](PLAN-PHASE8-TOEIC.md), branch `phase-8-toeic` | 2026-10-08. Chủ dự án chọn TOEIC làm chương trình đầu tiên |
 | 9 | Tương lai: nhiều giáo viên / 1 workspace, enrollment nhiều lớp, Organization | ☐ chưa làm | không làm trong V1 |
-| 10 | **Subdomain theo workspace** (`<slug>.bemyflo.com`) | ◐ **code xong** trên branch `phase-10-subdomains`, CHƯA merge/deploy; chờ chủ dự án merge + đặt env | 2026-10-05. Phần DNS/Vercel đã xong (nameserver → Vercel, `*.bemyflo.com` có chứng chỉ). Xem Nhật ký |
+| 10 | **Subdomain theo workspace** (`<slug>.bemyflo.com`) | ☑ **XONG, đã merge** (PR #11) | 2026-10-05. DNS/Vercel đã xong (nameserver → Vercel, `*.bemyflo.com` có chứng chỉ). Plan chưa ghi kết quả kiểm thử trên `*.bemyflo.com` thật. Xem Nhật ký |
+| 10B | Tự chuyển phiên đăng nhập từ domain gốc sang subdomain | ☑ **XONG, đã merge** (PR #12) | 2026-10-05 |
 
 Ký hiệu: ☐ chưa làm · ◐ đang làm · ☑ xong & đã verify trên production
 
@@ -916,6 +917,10 @@ email nhận được có tên workspace đúng.
 ---
 
 ### Phase 8 — Taxonomy Subject / Program / Skill *(2-3 ngày)*
+
+> **2026-10-08:** chi tiết thi hành (đã chốt TOEIC là chương trình đầu tiên, UX nút chuyển chương trình,
+> chia 8A/8B) nằm ở [PLAN-PHASE8-TOEIC.md](PLAN-PHASE8-TOEIC.md). Phần dưới đây là thiết kế gốc, giữ để tham khảo;
+> chỗ nào lệch thì **file kia thắng**.
 
 **Mục tiêu:** mở đường TOEIC / General English / môn khác mà **không đụng** vào chức năng
 IELTS đang chạy.
@@ -1985,6 +1990,21 @@ Phase 10 lên production, slug mới chưa ảnh hưởng gì nhìn thấy đư�
 lại) → thử `ms-nhi.bemyflo.com` / `demo.bemyflo.com`. **Không đổi slug của workspace Ms Nhi** cho tới khi đã thử
 xong. Rollback: gỡ `APP_BASE_DOMAIN` (tính năng tắt, mọi host về chế độ gốc) hoặc revert.
 
+### 2026-10-08 — Phase 8 (TOEIC): nghiên cứu + plan xong, chưa code ◐
+
+- Chủ dự án chọn **TOEIC** làm chương trình mở thêm đầu tiên. Đã nghiên cứu định dạng TOEIC L&R (Part 1–7) và
+  S&W (11 + 8 câu) từ trang ETS/IIBC, đối chiếu với engine câu hỏi: L&R gần như dùng lại toàn bộ (`mcq`), chỉ
+  thiếu ảnh riêng cho từng câu và thang điểm 10–990. S&W thiếu nhiều (rubric, đồng hồ chuẩn bị/nói, audio trong đề).
+- Chốt: chia **8A (Nghe/Đọc) → 8B (Nói/Viết)**. UX **không có màn chọn chương trình lúc vào**, thay bằng nút
+  chuyển `All | IELTS | TOEIC` trên thanh trên cùng, chỉ hiện khi workspace bật ≥ 2 chương trình. Level tính
+  riêng theo chương trình. Mockup trang Lessons đã duyệt.
+- Phát hiện khi soát code: học sinh chỉ thấy bài khi được giao **đúng lớp** (`classIds`), nên không tự lộ chéo
+  chương trình. Nhưng ô chọn lớp và các hàm `sanitize*` ở `admin/units.js`/`admin/tests.js` chỉ so `level` →
+  vẫn giao nhầm được. Plan chặn ở server bằng `(level, program)`.
+- Các mặc định D1–D6 (ai bật chương trình, chế độ All, cách hiện điểm...) ghi ở PLAN-PHASE8-TOEIC.md mục 2.2,
+  chờ chủ dự án xác nhận.
+- Đính chính bảng 0.1: Phase 10 và 10B đã merge (PR #11, #12) từ trước, bảng ghi chưa merge là cũ.
+
 ---
 
 ## 11. Câu hỏi còn treo (cần quyết trước khi tới phase tương ứng)
@@ -1994,7 +2014,7 @@ xong. Rollback: gỡ `APP_BASE_DOMAIN` (tính năng tắt, mọi host về chế
 | ~~Q1~~ | ~~Tên + logo của **platform** là gì?~~ **ĐÃ CHỐT 2026-10-05: tên BeMyFlo, tên miền bemyflo.com, logo MN giữ nguyên (sẽ đổi logo sau).** | 7 |
 | Q2 | Mở signup tự do hay phải có mã mời / admin duyệt? | 6 |
 | ~~Q3~~ | ~~Giáo viên hiện có (ngoài cô Nhi) — nằm chung workspace hay tách riêng?~~ **ĐÃ TRẢ LỜI 2026-09-22: câu hỏi không còn tồn tại — live DB chỉ có đúng 1 tài khoản teacher (`msnhi`).** Script chỉ cần tạo 1 workspace. | ~~1~~ |
-| Q4 | TOEIC chưa có rubric chấm Writing/Speaking. Tạm dùng rubric IELTS, hay ẩn 2 kỹ năng đó với program TOEIC? | 8 |
+| ~~Q4~~ | ~~TOEIC chưa có rubric chấm Writing/Speaking. Tạm dùng rubric IELTS, hay ẩn?~~ **ĐÃ TRẢ LỜI 2026-10-08: ẩn ở 8A, làm rubric TOEIC thật ở 8B. Không dùng tạm rubric IELTS.** | 8 |
 | Q5 | Có giới hạn số HS/dung lượng theo workspace ngay từ V1 không, hay để sau cùng với billing? | 6 |
 | Q6 | Ngân sách AI dùng chung toàn platform (0.3.4) — khi một workspace tiêu hết quota làm cả nhà bị chặn thì xử lý ra sao: admin nâng trần tay, hay cảnh báo sớm theo workspace? | 6 |
 | ~~Q7~~ | ~~Phase 10: subdomain wildcard hay đường dẫn?~~ **ĐÃ TRẢ LỜI 2026-10-05: subdomain wildcard.** Gói Vercel có cho wildcard không vẫn cần chủ dự án tự kiểm. | 10 |
