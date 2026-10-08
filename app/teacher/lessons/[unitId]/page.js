@@ -25,7 +25,7 @@ const CAT_ICONS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.icon]));
 const CAT_COLORS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.color]));
 
 function toEditorUnit(u) {
-  return {
+  const editor = {
     _id: u._id,
     name: u.name || "",
     level: u.level,
@@ -108,6 +108,21 @@ function toEditorUnit(u) {
       })),
     })),
   };
+  // Unit cũ/seed có thể thiếu 1 kỹ năng (vd. demo không có Listening) -> bù category rỗng,
+  // nếu không tab đó đọc `cat.theory` của undefined và cả trang văng lỗi.
+  LESSON_CATS.forEach((c) => {
+    if (!editor.categories.some((x) => x.key === c.key)) {
+      editor.categories.push({
+        key: c.key,
+        theory: { html: "", doc: null, audioId: "", imageId: "", resourceUrl: "", resourceLabel: "" },
+        exercises: [],
+        prompts: [],
+        topics: [],
+        groups: [],
+      });
+    }
+  });
+  return editor;
 }
 
 function catHasContent(c) {
