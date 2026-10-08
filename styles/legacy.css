@@ -1,5 +1,5 @@
 :root {
-  --navy: #2F9E8C;
+  --navy: #000000;
   --navy-dark: #194B80;
   --blue: #4DBFA9;
   --blue-light: #E8F7F3;
@@ -3326,6 +3326,9 @@ tr:hover td { background: var(--pink-wash-2); }
 .dash-row-2 > .card, .dash-row-3 > .card { margin-bottom: 0; display: flex; flex-direction: column; }
 .dash-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .dash-col > .card { margin-bottom: 0; }
+.dash-watch { margin-bottom: 20px; }
+.dash-watch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; }
+@media (max-width: 1100px) { .dash-watch-grid { grid-template-columns: 1fr; } }
 @media (max-width: 1100px) {
   .dash-row-2, .dash-row-3 { grid-template-columns: 1fr; }
   .dash-row-2 { align-items: start; }
