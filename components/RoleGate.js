@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Shell from "./Shell";
 import ThemeLoader from "./ThemeLoader";
+import PageLoader from "./PageLoader";
 import AddressBanner from "./AddressBanner";
 import { DialogProvider } from "./ui/Dialog";
 import { readSession } from "@/lib/client/session";
@@ -16,6 +17,7 @@ import { shouldAttemptHandoff } from "@/lib/client/handoffGuard";
 export default function RoleGate({ role, children }) {
   const router = useRouter();
   const [session, setSession] = useState(undefined); // undefined = đang kiểm tra
+  const [themeReady, setThemeReady] = useState(false);
 
   useEffect(() => {
     const s = readSession(role);
@@ -43,18 +45,23 @@ export default function RoleGate({ role, children }) {
   }, [role, router]);
 
   if (session === undefined || session === null) {
-    return null;
+    return <PageLoader />;
   }
 
   const userSub = role === "student" ? "" : role === "admin" ? "System Admin" : "Administrator";
 
   return (
     <DialogProvider>
-      <ThemeLoader role={role} />
-      <Shell role={role} userName={session.name} userSub={userSub}>
-        {role !== "admin" && <AddressBanner />}
-        {children}
-      </Shell>
+      <ThemeLoader role={role} onReady={() => setThemeReady(true)} />
+      {themeReady ? (
+        <Shell role={role} userName={session.name} userSub={userSub}>
+          {role !== "admin" && <AddressBanner />}
+          {children}
+        </Shell>
+      ) : (
+        // Chờ màu/logo của workspace về rồi mới vẽ giao diện, tránh nháy màu mặc định.
+        <PageLoader />
+      )}
     </DialogProvider>
   );
 }

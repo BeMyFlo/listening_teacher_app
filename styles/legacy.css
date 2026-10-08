@@ -1,43 +1,43 @@
 :root {
-  --navy: #2F7CB8;
-  --navy-dark: #245F8F;
-  --blue: #3D97D6;
-  --blue-light: #DCEFFF;
+  --navy: #2F9E8C;
+  --navy-dark: #194B80;
+  --blue: #4DBFA9;
+  --blue-light: #E8F7F3;
   --accent: #E08A2E;
   --green: #2FA36B;
   --red: #E0607A;
-  --ink: #37324A;
-  --muted: #8D89A3;
-  --border: #EBE4EC;
-  --bg: #FFF6FA;
+  --ink: #1D2939;
+  --muted: #66758C;
+  --border: #E1E8F0;
+  --bg: #F6F9FC;
   --card: #ffffff;
   --radius: 10px;
   /* Bảng màu phụ — dùng để tạo sắc thái riêng cho từng loại chỉ số/thẻ
      (stat card, avatar, pill...) thay vì mọi thứ đều cùng 1 màu xanh. */
-  --purple: #F2669C;
-  --purple-light: #FFE3EE;
+  --purple: #3868D9;
+  --purple-light: #DBE4F8;
   --teal: #2FA36B;
   --teal-light: #DFF7E9;
-  --indigo: #3D97D6;
-  --indigo-light: #DCEFFF;
-  --pink: #F2669C;
-  --pink-light: #FFE3EE;
+  --indigo: #4DBFA9;
+  --indigo-light: #E8F7F3;
+  --pink: #3868D9;
+  --pink-light: #DBE4F8;
   --amber: #E08A2E;
   --amber-light: #FFEBD1;
-  --sky: #5BB4EE;
-  --sky-light: #DCEFFF;
+  --sky: #71CCBA;
+  --sky-light: #E8F7F3;
   /* Tím thật (khác --purple, vốn thực chất là hồng) — dùng riêng cho nhóm
      màu chấm bài "Cohesion" (xem lib/grading/annotate.js colorGroup). */
   --violet: #8B6FD9;
   --violet-light: #ECE6FB;
   /* Dẫn xuất từ màu chính — themeToCss ghi đè khi workspace đổi màu gốc. */
   --red-light: #FFE0E2;
-  --blue-border: #BEE1F6;
-  --pink-wash: #FFF4F8;
-  --pink-wash-2: #FFF7FB;
-  --shadow-sm: 0 2px 10px rgba(150, 120, 145, .06);
-  --shadow-md: 0 8px 24px rgba(150, 120, 145, .1);
-  --shadow-lg: 0 20px 50px rgba(150, 120, 145, .14);
+  --blue-border: #C1E9E1;
+  --pink-wash: #F3F6FD;
+  --pink-wash-2: #F7F9FD;
+  --shadow-sm: 0 2px 10px rgba(90, 115, 145, .06);
+  --shadow-md: 0 8px 24px rgba(90, 115, 145, .1);
+  --shadow-lg: 0 20px 50px rgba(90, 115, 145, .14);
   font-size: 16px;
 }
 
@@ -87,11 +87,11 @@ a { color: var(--blue); }
   text-align: center;
   text-decoration: none;
   color: var(--ink);
-  box-shadow: 0 2px 10px rgba(150, 120, 145, .06);
+  box-shadow: 0 2px 10px rgba(90, 115, 145, .06);
   transition: transform .15s ease, box-shadow .15s ease;
   display: block;
 }
-.choice-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(150, 120, 145, .13); }
+.choice-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(90, 115, 145, .13); }
 .choice-card .icon { width: 2.6rem; height: 2.6rem; margin-bottom: 10px; color: var(--blue); }
 .choice-card h2 { margin: 6px 0 6px; color: var(--navy); font-size: 1.25rem; }
 .choice-card p { color: var(--muted); font-size: .92rem; margin: 0; }
@@ -102,7 +102,7 @@ a { color: var(--blue); }
   border-radius: var(--radius);
   padding: 24px;
   margin-bottom: 20px;
-  box-shadow: 0 2px 10px rgba(150, 120, 145, .05);
+  box-shadow: 0 2px 10px rgba(90, 115, 145, .05);
   /* Nội dung giáo viên nhập đôi khi là 1 chuỗi dài không có khoảng trắng
      (VD gõ nhầm/dán lỗi) — không cho nó đẩy tràn ngang cả trang. */
   overflow-wrap: anywhere;
@@ -3263,7 +3263,7 @@ tr:hover td { background: var(--pink-wash-2); }
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 18px 20px;
-  box-shadow: 0 2px 10px rgba(150, 120, 145, .05);
+  box-shadow: 0 2px 10px rgba(90, 115, 145, .05);
   transition: box-shadow .15s ease, transform .15s ease;
 }
 .dash-stat:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
