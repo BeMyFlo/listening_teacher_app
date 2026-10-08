@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { setTeacherToken } from "@/lib/client/session";
 import { useDialog } from "@/components/ui/Dialog";
+import { baseDomain } from "@/lib/host";
 import { timeAgo } from "@/components/dash/DashKit";
 
 const ROLE_PILL = { admin: "pill-danger", teacher: "pill-info", student: "pill-muted" };
@@ -18,7 +19,7 @@ export default function AdminUsersPage() {
   const [q, setQ] = useState("");
   const [busyId, setBusyId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ role: "student", name: "", username: "", password: "", email: "", classId: "", workspaceName: "" });
+  const [form, setForm] = useState({ role: "student", name: "", username: "", password: "", email: "", classId: "", workspaceName: "", slug: "" });
 
   function load() {
     api.admin
@@ -42,10 +43,11 @@ export default function AdminUsersPage() {
     try {
       const body = { ...form };
       if (form.role !== "student") delete body.classId;
-      if (form.role !== "teacher") delete body.workspaceName;
+      if (form.role !== "teacher") { delete body.workspaceName; delete body.slug; }
+      if (!String(body.slug || "").trim()) delete body.slug;
       await api.admin.createUser(body);
       setShowCreate(false);
-      setForm({ role: "student", name: "", username: "", password: "", email: "", classId: "", workspaceName: "" });
+      setForm({ role: "student", name: "", username: "", password: "", email: "", classId: "", workspaceName: "", slug: "" });
       dialog.toast("Account created");
       load();
     } catch (e2) {
@@ -146,6 +148,14 @@ export default function AdminUsersPage() {
             {form.role === "teacher" && (
               <label>Workspace name (optional)
                 <input type="text" placeholder="Defaults to the teacher's name" value={form.workspaceName} onChange={(e) => setForm((f) => ({ ...f, workspaceName: e.target.value }))} />
+              </label>
+            )}
+            {form.role === "teacher" && (
+              <label>Workspace address (optional)
+                <input type="text" placeholder="e.g. msnhi" value={form.slug} maxLength={40} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value.toLowerCase() }))} />
+                <span style={{ fontSize: ".78rem", color: "var(--muted)" }}>
+                  {(form.slug || "your-address") + "." + (baseDomain() || "your-domain")} — 3-40 letters, numbers or hyphens. Leave empty to generate one.
+                </span>
               </label>
             )}
             {form.role === "student" && (

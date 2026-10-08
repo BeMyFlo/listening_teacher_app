@@ -2,6 +2,8 @@ const { connectDB } = require("../../../lib/db");
 const { requireRole } = require("../../../lib/auth");
 const { clearTenantCache } = require("../../../lib/tenant");
 const { asObjectId } = require("../../../lib/validate");
+const { validateSlug } = require("../../../lib/slug");
+const { workspaceOrigin } = require("../../../lib/host");
 const Workspace = require("../../../lib/models/Workspace");
 const WorkspaceMember = require("../../../lib/models/WorkspaceMember");
 const User = require("../../../lib/models/User");
@@ -33,6 +35,7 @@ async function handler(req, res) {
           _id: w._id,
           name: w.name,
           slug: w.slug,
+          origin: workspaceOrigin(w.slug),
           status: w.status,
           createdAt: w.createdAt,
           owner: { username: o ? o.username : "", name: o ? o.name : "" },
@@ -49,7 +52,7 @@ async function handler(req, res) {
     const ws = id ? await Workspace.findById(id) : null;
     if (!ws) return res.status(404).json({ ok: false, error: "Workspace not found" });
 
-    const { status, name } = req.body || {};
+    const { status, name, slug } = req.body || {};
     if (status != null) {
       if (!Workspace.STATUSES.includes(status)) {
         return res.status(400).json({ ok: false, error: "status must be active or suspended" });
@@ -63,9 +66,25 @@ async function handler(req, res) {
       }
       ws.name = nm;
     }
-    await ws.save();
+    if (slug != null) {
+      // Đổi địa chỉ làm link cũ hỏng; dữ liệu không đổi (không bản ghi nào khác lưu slug).
+      const v = validateSlug(slug);
+      if (!v.ok) return res.status(400).json({ ok: false, error: v.error });
+      if (v.slug !== ws.slug) {
+        if (await Workspace.exists({ slug: v.slug, _id: { $ne: ws._id } })) {
+          return res.status(409).json({ ok: false, error: "That workspace address is already taken" });
+        }
+        ws.slug = v.slug;
+      }
+    }
+    try {
+      await ws.save();
+    } catch (e) {
+      if (e && e.code === 11000) return res.status(409).json({ ok: false, error: "That workspace address is already taken" });
+      throw e;
+    }
     clearTenantCache();
-    return res.status(200).json({ ok: true, workspace: { _id: ws._id, name: ws.name, slug: ws.slug, status: ws.status } });
+    return res.status(200).json({ ok: true, workspace: { _id: ws._id, name: ws.name, slug: ws.slug, status: ws.status, origin: workspaceOrigin(ws.slug) } });
   }
 
   res.setHeader("Allow", "GET, PUT");

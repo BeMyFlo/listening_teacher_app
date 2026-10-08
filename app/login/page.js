@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { storeLoginResult } from "@/lib/client/session";
 import { NAV } from "@/lib/nav";
 import { PLATFORM_NAME, PLATFORM_LOGO } from "@/lib/platform";
+import { parseHost, baseDomain } from "@/lib/host";
+import { applyTheme } from "@/components/ThemeLoader";
+import { shouldAttemptHandoff } from "@/lib/client/handoffGuard";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,6 +17,33 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
+  // Trang đăng nhập theo trung tâm (Phase 10): trên <slug>.<base> hiện logo/tên/màu của trung tâm.
+  // "root" = domain gốc (thương hiệu nền tảng, như trước).
+  const [tenant, setTenant] = useState({ status: "root", name: "", logoUrl: "" });
+
+  useEffect(() => {
+    if (parseHost(window.location.host).kind === "root") return undefined;
+    let cancelled = false;
+    setTenant({ status: "loading", name: "", logoUrl: "" });
+    fetch("/api/public/workspace-branding")
+      .then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }))
+      .then(({ status, body }) => {
+        if (cancelled) return;
+        if (status !== 200 || !body.ok) return setTenant({ status: "missing", name: "", logoUrl: "" });
+        if (body.suspended) return setTenant({ status: "suspended", name: "", logoUrl: "" });
+        applyTheme(body.workspace.theme);
+        setTenant({ status: "ok", name: body.workspace.name, logoUrl: body.workspace.logoUrl });
+      })
+      .catch(() => !cancelled && setTenant({ status: "missing", name: "", logoUrl: "" }));
+    // Rời trang đăng nhập thì gỡ màu; ThemeLoader sẽ nạp lại theme sau khi đăng nhập.
+    return () => {
+      cancelled = true;
+      applyTheme(null);
+    };
+  }, []);
+
+  const unavailable = tenant.status === "missing" || tenant.status === "suspended";
+  const rootHref = baseDomain() ? `https://${baseDomain()}` : "/";
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -26,6 +56,19 @@ export default function LoginPage() {
     try {
       const data = await api.login(username, password);
       storeLoginResult(data, remember);
+      // Đăng nhập ở domain gốc: giáo viên/học sinh có địa chỉ riêng thì chuyển sang đó
+      // (không hỏi lại mật khẩu). Lỗi/không có địa chỉ riêng -> vào trang chính như thường.
+      if ((data.role === "teacher" || data.role === "student") && parseHost(window.location.host).kind === "root" && shouldAttemptHandoff()) {
+        try {
+          const t = await api.handoffTarget(data.role);
+          if (t && t.origin) {
+            window.location.assign(`${t.origin}/handoff`);
+            return;
+          }
+        } catch {
+          /* bỏ qua, dùng domain gốc */
+        }
+      }
       router.replace(NAV[data.role].home);
     } catch (err) {
       setError(err.message);
@@ -87,10 +130,25 @@ export default function LoginPage() {
           </svg>
         </div>
 
+        {unavailable && (
+          <div className="login-card">
+            <div className="login-brand">
+              <img className="logo" src={PLATFORM_LOGO} alt={PLATFORM_NAME} />
+            </div>
+            <p className="login-sub">
+              {tenant.status === "suspended"
+                ? "This workspace is currently unavailable. Please contact your administrator."
+                : "This address is not set up yet. Check the link you were given, or go to the main site."}
+            </p>
+            <a className="btn login-submit" href={rootHref} style={{ textAlign: "center" }}>Go to {PLATFORM_NAME}</a>
+          </div>
+        )}
+        {!unavailable && (
         <form className="login-card" onSubmit={onSubmit}>
           <div className="login-brand">
-            <img className="logo" src={PLATFORM_LOGO} alt={PLATFORM_NAME} />
+            <img className="logo" src={tenant.logoUrl || PLATFORM_LOGO} alt={tenant.name || PLATFORM_NAME} />
           </div>
+          {tenant.status === "ok" && tenant.name && <p className="login-sub" style={{ fontWeight: 700, marginBottom: 4 }}>{tenant.name}</p>}
           <p className="login-sub">Sign in to continue — role is detected automatically (Teacher / Student).</p>
 
           <div className="form-row login-field">
@@ -178,6 +236,7 @@ export default function LoginPage() {
             </span>
           </div>
         </form>
+        )}
 
         <div className="login-deco login-deco-right">
           <div className="floating-card progress-card">
