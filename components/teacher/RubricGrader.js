@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getRubric, resolveVariant, overallBand } from "@/lib/grading/rubric";
 import { resumeAiGrade } from "@/lib/client/aiGrade";
+import { useDialog } from "@/components/ui/Dialog";
 import EssayAnnotator from "./EssayAnnotator";
 import SpeakingReview from "./SpeakingReview";
 import SuggestedActionsEditor from "./SuggestedActionsEditor";
@@ -18,6 +19,7 @@ const BANDS = [9, 8, 7, 6, 5, 4, 3, 2, 1];
 //   onSave({ criteria, rubricVariant, manualScore, manualFeedback, annotations, gradeSource })
 //   onAiGrade  : optional () => Promise<draft>  (Gemini) — nạp band + annotation + feedback vào form
 export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
+  const dialog = useDialog();
   const isWriting = submission.kind === "writing";
   const isSpeaking = submission.kind === "speaking";
   const hasEssay = isWriting && !!submission.essayText;
@@ -162,6 +164,8 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
     } catch (e) {
       setErr("AI grading failed: " + e.message);
       setAiNote("");
+      // Lỗi inline nằm cuối form nên dễ bị bỏ sót (vd demo workspace bị tắt AI) -> báo toast.
+      dialog.toast(e.message || "AI grading failed", "error", 5000);
     } finally {
       setAiBusy(false);
     }
