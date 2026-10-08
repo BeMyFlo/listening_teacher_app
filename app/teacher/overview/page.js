@@ -251,31 +251,32 @@ export default function OverviewPage() {
                   })
                 )}
               </div>
-
-              <div className="card">
-                <CardHead icon="user" title="Students Needing Attention" actionLabel="View all" onAction={() => go("/teacher/students")} />
-                {(!data.watch || data.watch.length === 0) ? (
-                  <Empty icon="trophy" title="Everyone's on track" text="No students are overdue, inactive, or dropping in score." />
-                ) : (
-                  data.watch.map((w) => (
-                    <div className="list-item" key={w.studentId}>
-                      <div className="meta">
-                        <div className="avatar">{initials(w.name)}</div>
-                        <div className="meta-text">
-                          <h4>{w.name}</h4>
-                          <p>{w.summary}</p>
-                        </div>
-                      </div>
-                      <div className="list-value">
-                        <button type="button" className="dash-review-btn" onClick={() => go("/teacher/students")}>
-                          <svg className="icon"><use href="#icon-sparkles" /></svg> Review
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
             </div>
+          </div>
+
+          <div className="card dash-watch">
+          <CardHead icon="user" title="Students Needing Attention" actionLabel="View all" onAction={() => go("/teacher/students")} />
+          {(!data.watch || data.watch.length === 0) ? (
+            <Empty icon="trophy" title="Everyone's on track" text="No students are overdue, inactive, or dropping in score." />
+          ) : (
+            <div className="dash-watch-grid">{data.watch.map((w) => (
+              <div className="list-item" key={w.studentId}>
+                <div className="meta">
+                  <div className="avatar">{initials(w.name)}</div>
+                  <div className="meta-text">
+                    <h4>{w.name}</h4>
+                    <p>{w.summary}</p>
+                  </div>
+                </div>
+                <div className="list-value">
+                  <button type="button" className="dash-review-btn" onClick={() => go("/teacher/students")}>
+                    <svg className="icon"><use href="#icon-sparkles" /></svg> Review
+                  </button>
+                </div>
+              </div>
+            ))}
+            </div>
+          )}
           </div>
 
           <div className="dash-row-3">

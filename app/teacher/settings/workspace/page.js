@@ -27,6 +27,33 @@ function timezoneOptions(current) {
   return [...new Set([current, "Asia/Ho_Chi_Minh", "UTC", ...supported].filter(Boolean))];
 }
 
+// Ô nhập mã màu: gõ tự do, chỉ áp dụng khi là hex hợp lệ (#RGB hoặc #RRGGBB, có/không dấu #).
+function normaliseHex(raw) {
+  let t = String(raw || "").trim().replace(/^#/, "");
+  if (/^[0-9a-f]{3}$/i.test(t)) t = t.split("").map((c) => c + c).join("");
+  return /^[0-9a-f]{6}$/i.test(t) ? "#" + t.toUpperCase() : null;
+}
+function HexInput({ value, disabled, label, onCommit }) {
+  const [text, setText] = useState(value);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => { if (!focused) setText(value); }, [value, focused]);
+  const valid = normaliseHex(text) !== null;
+  function change(v) {
+    setText(v);
+    const hex = normaliseHex(v);
+    if (hex && hex !== String(value).toUpperCase()) onCommit(hex);
+  }
+  return (
+    <input
+      type="text" value={text} disabled={disabled} aria-label={label} spellCheck={false} maxLength={7}
+      onChange={(e) => change(e.target.value)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => { setFocused(false); setText(normaliseHex(text) || value); }}
+      style={{ width: 92, fontFamily: "monospace", padding: "4px 8px", border: "1px solid " + (valid ? "var(--border)" : "var(--red)"), borderRadius: 6 }}
+    />
+  );
+}
+
 export default function WorkspaceSettingsPage() {
   const dialog = useDialog();
   const [loaded, setLoaded] = useState(false);
@@ -271,7 +298,7 @@ export default function WorkspaceSettingsPage() {
                         aria-label={d.label} onChange={(e) => setColor(d, e.target.value)}
                         style={{ width: 42, height: 30, padding: 0, border: "1px solid var(--border)", borderRadius: 6, background: "none" }} />
                       <span style={{ minWidth: 150 }}>{d.label}</span>
-                      <code style={{ color: "var(--muted)" }}>{effective[d.key]}</code>
+                      <HexInput value={effective[d.key]} disabled={!canEdit} label={d.label + " hex code"} onCommit={(hex) => setColor(d, hex)} />
                       {canEdit && changed && (
                         <button type="button" className="btn secondary sm" onClick={() => resetColor(d)}>Reset</button>
                       )}
