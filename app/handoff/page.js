@@ -6,6 +6,7 @@ import { api } from "@/lib/client/api";
 import { readSession, storeLoginResult } from "@/lib/client/session";
 import { NAV } from "@/lib/nav";
 import { parseHost, baseDomain } from "@/lib/host";
+import PageLoader from "@/components/PageLoader";
 
 // Chuyển phiên đăng nhập từ domain gốc sang subdomain của trung tâm (PLAN Phase 10B).
 // Cùng một trang chạy ở HAI nơi:
@@ -88,18 +89,16 @@ export default function HandoffPage() {
       .catch((e) => fail(e.message));
   }, [router]);
 
+  // Đang chuyển: dùng cùng màn chờ với phần còn lại của app (logo + vòng xoay).
+  if (!error) return <PageLoader text="Signing you in…" />;
+
+  // Lỗi: một thẻ ở giữa (login-stage mặc định chia 2 cột nên phải ép 1 cột).
   return (
     <div className="login-page">
-      <div className="login-stage">
+      <div className="login-stage" style={{ gridTemplateColumns: "1fr", maxWidth: 430 }}>
         <div className="login-card">
-          {error ? (
-            <>
-              <p className="login-sub">{error}</p>
-              <a className="btn login-submit" href="/login" style={{ textAlign: "center" }}>Sign in</a>
-            </>
-          ) : (
-            <p className="login-sub">Signing you in…</p>
-          )}
+          <p className="login-sub">{error}</p>
+          <a className="btn login-submit" href="/login" style={{ textAlign: "center" }}>Sign in</a>
         </div>
       </div>
     </div>
