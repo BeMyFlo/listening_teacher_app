@@ -1,7 +1,6 @@
 # PLAN — Phase 11: Trang giới thiệu (landing) ở `www.bemyflo.com`
 
-> Trạng thái: **CHỈ LÀ PLAN, chưa có code.** Soạn 2026-10-09 theo yêu cầu của chủ dự án ("lên plan, cần triển khai
-> cái này trước"). Số phase: 8 = TOEIC (đang nằm trên nhánh `phase-8-toeic`), 9 = tương lai, 10/10B = subdomain, nên đây là **Phase 11**.
+> Trạng thái: **11A + 11B CODE XONG trên nhánh `phase-11-landing` (chưa merge, chưa deploy) ◐.** Soạn 2026-10-09 theo yêu cầu của chủ dự án; chủ dự án đã trả lời Q1–Q8 cùng ngày (xem mục 8). 11C (trang pháp lý) để sau theo Q7. Số phase: 8 = TOEIC (đang nằm trên nhánh `phase-8-toeic`), 9 = tương lai, 10/10B = subdomain, nên đây là **Phase 11**.
 > Nhánh làm việc dự kiến: `phase-11-landing` (không bao giờ push thẳng `main`).
 
 ## 1. Mục tiêu và ngoài phạm vi
@@ -69,8 +68,8 @@ Quy tắc "UI chỉ tiếng Anh" áp cho **ứng dụng**; trang quảng bá nh�
 - **Truy cập được:** điều hướng bàn phím, focus rõ, tương phản đủ, nút/thẻ đủ lớn trên mobile.
 - **Link demo:** dựng từ `workspaceOrigin("demo")`; nếu chưa cấu hình tên miền gốc (dev local) thì ẩn khối demo.
 - **Sitemap:** `lib/seo.js` thêm `/privacy`, `/terms` (sau 11C). `robots.txt` giữ nguyên (đã cho `/`, chặn khu vực sau đăng nhập và mọi subdomain).
-- **Không form liên hệ ở V1:** `mailto:`/Zalo là đủ, tránh phải lưu dữ liệu cá nhân, chống spam, thêm bề mặt tấn công. Làm form khi có lượng liên hệ đủ lớn.
-- **Env mới (không bí mật, `NEXT_PUBLIC_`):** `NEXT_PUBLIC_CONTACT_EMAIL`, `NEXT_PUBLIC_CONTACT_ZALO` (đổi liên hệ không cần sửa code). Thiếu thì ẩn kênh tương ứng.
+- **Form xin dùng thử (chủ dự án chọn, Q3):** KHÔNG tạo tài khoản — chỉ lưu yêu cầu để admin liên hệ lại, nên quy tắc "không tự đăng ký" vẫn giữ. Model `SignupRequest` (tầng platform, không có `workspaceId`), API công khai `POST /api/public/signup-request` (ô bẫy, giới hạn theo IP, trần 1000 yêu cầu `new`, trùng email 24h thì bỏ qua, không trả lại dữ liệu), API admin `/api/sysadmin/signup-requests` (xem/đổi trạng thái/ghi chú/xoá) và trang `/admin/signups`. Thư báo cho chủ dự án gửi nếu đặt env `SIGNUP_NOTIFY_EMAIL`.
+- **Env (tuỳ chọn):** `NEXT_PUBLIC_CONTACT_EMAIL`, `NEXT_PUBLIC_CONTACT_PHONE` (mặc định là liên hệ chủ dự án đưa ngày 2026-10-09), `SIGNUP_NOTIFY_EMAIL` (địa chỉ nhận thư báo có yêu cầu mới; thiếu thì không gửi thư, vẫn xem được ở trang admin).
 
 ## 6. Các bước thực hiện
 
@@ -98,7 +97,11 @@ Quy tắc "UI chỉ tiếng Anh" áp cho **ứng dụng**; trang quảng bá nh�
 
 Không cần migration, không đụng DB, không đụng `pages/api`, không đổi `check-tenant-scope`.
 
-## 8. Câu hỏi cần chủ dự án quyết (kèm mặc định tôi đề xuất)
+## 8. Câu hỏi cần chủ dự án quyết — ĐÃ TRẢ LỜI 2026-10-09
+
+**Câu trả lời:** Q1 tiếng Việt · Q2 haminhthong0811@gmail.com + 0934149864 · Q3 không hiện giá, chỉ form đăng ký, ghi rõ "miễn phí trong giai đoạn thử nghiệm để có người dùng test" · Q4 không nêu tên khách · Q5 có hiện tài khoản demo · Q6 ok ảnh từ demo · Q7 để sau · Q8 giao tôi tự nghĩ: **"Quản lý lớp IELTS gọn hơn, chấm bài nhanh hơn."**
+
+Câu hỏi gốc (giữ để tham chiếu):
 
 - **Q1. Ngôn ngữ trang:** tiếng Việt (đề xuất, khớp metadata SEO và thị trường) · hay song ngữ vi/en?
 - **Q2. Kênh liên hệ:** email nào, Zalo/Facebook nào? (cần giá trị thật để đặt env)
@@ -129,3 +132,17 @@ Không cần migration, không đụng DB, không đụng `pages/api`, không đ
 - Lighthouse mobile ≥ 90 cho Performance, SEO, Accessibility; không nhảy bố cục.
 - Chủ dự án đã duyệt từng câu nội dung và ảnh; không có số liệu/khách hàng bịa.
 - `npm run build` (gồm `check-tenant-scope --strict`) qua; Vercel preview của nhánh chạy được trước khi merge.
+
+## 11. Nhật ký thực hiện
+
+### 2026-10-09 — 11A + 11B code xong trên `phase-11-landing` (chưa merge, chưa deploy) ◐
+- Đã làm: `app/page.js` (server, theo host) · `lib/landing.js` · `components/landing/*` · `styles/landing.css` · `public/og.png` ·
+  form xin dùng thử + API công khai + API/trang admin (`Sign-up requests` trong sidebar) · `scripts/check-orphans.js` biết collection `signuprequests`.
+- Kiểm tra (trên BẢN SAO build ở thư mục tạm, cổng 3199, DB dev; không đụng `.next` hay dev server của chủ dự án):
+  `next build` qua · `www`/gốc/`*.vercel.app` ra landing (title, 1 `<h1>`, canonical, JSON-LD) · `ieltswithnhi.`/`demo.`/`a.b.` giữ hành vi cũ (không có landing) ·
+  `robots.txt`/`sitemap.xml` đúng theo host · API: GET 405, hợp lệ 200, email sai/tên ngắn/SĐT sai/body không phải object 400, trùng email 200 không lưu thêm,
+  ô bẫy 200 không lưu, hit thứ 6 từ một IP 429 · admin API: không token 401, token giáo viên 403, đổi trạng thái/lọc/xoá đúng, id sai 404 · form gửi thành công trong trình duyệt,
+  mobile 375px không tràn ngang. Đã xoá sạch dữ liệu probe khỏi DB dev.
+- **Chưa có:** ảnh chụp màn hình thật (`SCREENSHOTS` trong `lib/landing.js` đang rỗng nên mục "Xem giao diện thực tế" ẩn) — chủ dự án chụp từ workspace demo rồi đặt vào `public/landing/`;
+  trang pháp lý 11C; Lighthouse (cần chạy trên bản deploy preview); chưa thử gửi thư báo thật (cần `SIGNUP_NOTIFY_EMAIL` + Gmail trên Vercel).
+- Cần chủ dự án sau khi merge: đặt `SIGNUP_NOTIFY_EMAIL` trên Vercel; xoá `NEXT_PUBLIC_PLATFORM_NAME`; gửi `sitemap.xml` ở Search Console; mở `/robots.txt`, `/sitemap.xml`, `/og.png` kiểm tra.
