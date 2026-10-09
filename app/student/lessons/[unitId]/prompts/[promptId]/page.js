@@ -36,7 +36,7 @@ function ResubmitSpeaking({ prompt, submitContext, parentId, onSubmitted }) {
       return;
     }
     if (!navigator.mediaDevices || !window.MediaRecorder) {
-      dialog.alert({ tone: "error", title: "Không hỗ trợ", message: "Trình duyệt không hỗ trợ ghi âm." });
+      dialog.alert({ tone: "error", title: "Not supported", message: "Your browser does not support audio recording." });
       return;
     }
     try {
@@ -55,14 +55,14 @@ function ResubmitSpeaking({ prompt, submitContext, parentId, onSubmitted }) {
       setRecording(true);
       setBlobUrl("");
     } catch (e) {
-      dialog.alert({ tone: "error", title: "Lỗi micro", message: e.message });
+      dialog.alert({ tone: "error", title: "Microphone error", message: e.message });
     }
   }
 
   async function submit() {
     const blob = recRef.current?.blob;
     if (!blob) {
-      dialog.toast("Hãy ghi âm trước khi nộp.", "error");
+      dialog.toast("Please record your answer before submitting.", "error");
       return;
     }
     setBusy(true);
@@ -76,10 +76,10 @@ function ResubmitSpeaking({ prompt, submitContext, parentId, onSubmitted }) {
         audioPublicId,
         parentSubmissionId: parentId,
       });
-      dialog.toast("Đã nộp bài ghi âm lần 2");
+      dialog.toast("Second recording submitted");
       onSubmitted && (await onSubmitted());
     } catch (e) {
-      dialog.alert({ tone: "error", title: "Nộp thất bại", message: e.message });
+      dialog.alert({ tone: "error", title: "Submission failed", message: e.message });
       setBusy(false);
     }
   }
@@ -87,18 +87,18 @@ function ResubmitSpeaking({ prompt, submitContext, parentId, onSubmitted }) {
   return (
     <div className="card">
       <div className="page-head" style={{ marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>P3 · Ghi âm lại</h3>
-        <span className="pill pill-warn">Lần 2</span>
+        <h3 style={{ margin: 0 }}>P3 · Record again</h3>
+        <span className="pill pill-warn">Attempt 2</span>
       </div>
       <button type="button" className="btn btn-rec-toggle" onClick={toggle}>
         <svg className="icon"><use href={recording ? "#icon-cross" : "#icon-mic"} /></svg>{" "}
-        {recording ? "Dừng ghi âm" : blobUrl ? "Ghi âm lại" : "Bắt đầu ghi âm"}
+        {recording ? "Stop recording" : blobUrl ? "Record again" : "Start recording"}
       </button>
       {blobUrl && (
         <div style={{ marginTop: 12 }}>
           <audio controls style={{ width: "100%" }} src={blobUrl} />
           <button type="button" className="btn" style={{ marginTop: 10 }} disabled={busy} onClick={submit}>
-            {busy ? "Đang nộp..." : "Nộp bài ghi âm"}
+            {busy ? "Submitting..." : "Submit recording"}
           </button>
         </div>
       )}
@@ -115,7 +115,7 @@ function ResubmitWriting({ prompt, submitContext, parentId, onSubmitted }) {
 
   async function submit() {
     if (!text.trim()) {
-      dialog.toast("Hãy viết lại bài trước khi nộp.", "error");
+      dialog.toast("Please rewrite your essay before submitting.", "error");
       return;
     }
     setBusy(true);
@@ -127,10 +127,10 @@ function ResubmitWriting({ prompt, submitContext, parentId, onSubmitted }) {
         essayText: text.trim(),
         parentSubmissionId: parentId,
       });
-      dialog.toast("Đã nộp bài viết lại");
+      dialog.toast("Rewritten essay submitted");
       onSubmitted && (await onSubmitted());
     } catch (e) {
-      dialog.alert({ tone: "error", title: "Nộp thất bại", message: e.message });
+      dialog.alert({ tone: "error", title: "Submission failed", message: e.message });
       setBusy(false);
     }
   }
@@ -138,25 +138,25 @@ function ResubmitWriting({ prompt, submitContext, parentId, onSubmitted }) {
   return (
     <div className="card">
       <div className="page-head" style={{ marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>P3 · Viết lại bài</h3>
-        <span className="pill pill-warn">Lần 2</span>
+        <h3 style={{ margin: 0 }}>P3 · Rewrite</h3>
+        <span className="pill pill-warn">Attempt 2</span>
       </div>
       <p style={{ margin: "0 0 8px", color: "var(--muted)", fontSize: ".85rem" }}>
-        Áp dụng đúng những gì em vừa ghi ở Reflection Log — giống phần Speaking, ghi âm lần nữa
-        sau khi nghe feedback.
+        Apply exactly what you wrote in your Reflection Log, then rewrite the essay using your
+        teacher's feedback.
       </p>
       <textarea
         rows={8}
         className="essay-input"
         style={{ width: "100%" }}
-        placeholder="Viết lại đoạn văn ở đây, chú ý ngữ pháp, quan hệ từ và từ vựng em vừa ghi chú ở trên..."
+        placeholder="Rewrite your essay here, paying attention to the grammar, linking words and vocabulary you noted above..."
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-        <span style={{ color: "var(--muted)", fontSize: ".85rem" }}>{words} / {WORD_LIMIT} từ</span>
+        <span style={{ color: "var(--muted)", fontSize: ".85rem" }}>{words} / {WORD_LIMIT} words</span>
         <button type="button" className="btn" disabled={busy} onClick={submit}>
-          {busy ? "Đang nộp..." : "Nộp bài viết lại"}
+          {busy ? "Submitting..." : "Submit rewrite"}
         </button>
       </div>
     </div>
@@ -185,7 +185,7 @@ export default function PromptSubmissionPage() {
       </section>
     );
   }
-  if (!unit) return <section><div className="notice info">Đang tải...</div></section>;
+  if (!unit) return <section><div className="notice info">Loading...</div></section>;
 
   let cat = null;
   let prompt = null;
@@ -201,7 +201,7 @@ export default function PromptSubmissionPage() {
     return (
       <section>
         <div className="card">
-          <div className="notice error"><svg className="icon"><use href="#icon-warning" /></svg> Không tìm thấy bài nộp.</div>
+          <div className="notice error"><svg className="icon"><use href="#icon-warning" /></svg> Submission not found.</div>
         </div>
       </section>
     );
@@ -220,10 +220,10 @@ export default function PromptSubmissionPage() {
     setReflBusy(true);
     try {
       await api.student.saveReflection(attempt1._id, answers);
-      dialog.toast("Đã lưu Reflection Log");
+      dialog.toast("Reflection Log saved");
       await refresh();
     } catch (e) {
-      dialog.alert({ tone: "error", title: "Lưu thất bại", message: e.message });
+      dialog.alert({ tone: "error", title: "Save failed", message: e.message });
     } finally {
       setReflBusy(false);
     }
@@ -233,19 +233,19 @@ export default function PromptSubmissionPage() {
     <section>
       <div className="card">
         <p className="back-link" onClick={() => router.push(`/student/lessons/${unitId}`)}>
-          <svg className="icon"><use href="#icon-arrow-left" /></svg> Lessons · {catMeta ? catMeta.label : cat.key} · Bài nộp
+          <svg className="icon"><use href="#icon-arrow-left" /></svg> Lessons · {catMeta ? catMeta.label : cat.key} · Submission
         </p>
 
         <h2 style={{ marginBottom: 8 }}>
-          {prompt.title || (cat.key === "speaking" ? "Bài nói & Reflection Log" : "Bài chữa & Reflection Log")}
+          {prompt.title || (cat.key === "speaking" ? "Speaking & Reflection Log" : "Corrected essay & Reflection Log")}
         </h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
           <span className="pill pill-info">{catMeta ? catMeta.label : cat.key}</span>
-          {attempt1 && <span className="pill pill-muted">Nộp {fmtDate(attempt1.submittedAt)}</span>}
+          {attempt1 && <span className="pill pill-muted">Submitted {fmtDate(attempt1.submittedAt)}</span>}
         </div>
 
         <SubmissionStepper
-          labels={cat.key === "speaking" ? ["Bài đã chấm", "Reflection Log", "Ghi âm lại"] : ["Bài đã sửa", "Reflection Log", "Viết lại bài"]}
+          labels={cat.key === "speaking" ? ["Graded", "Reflection Log", "Record again"] : ["Corrected", "Reflection Log", "Rewrite"]}
           done={[step0Done, step1Done, step2Done]}
           current={current}
         />
@@ -253,13 +253,13 @@ export default function PromptSubmissionPage() {
 
       <div className="card">
         <div className="page-head" style={{ marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>P1 · {cat.key === "speaking" ? "Bài ghi âm & Nhận xét" : "Bài sửa"}</h3>
-          <span className="pill pill-muted">Chỉ xem</span>
+          <h3 style={{ margin: 0 }}>P1 · {cat.key === "speaking" ? "Recording & Feedback" : "Corrections"}</h3>
+          <span className="pill pill-muted">Read only</span>
         </div>
         {!attempt1 ? (
-          <div className="empty-state">Chưa có bài nộp cho phần này.</div>
+          <div className="empty-state">No submission for this task yet.</div>
         ) : attempt1.gradingStatus !== "graded" ? (
-          <div className="notice info">Đã nộp — đang chờ giáo viên chấm.</div>
+          <div className="notice info">Submitted — waiting for your teacher to grade it.</div>
         ) : (
           <RubricResult
             rubricVariant={attempt1.rubricVariant}
@@ -302,11 +302,11 @@ export default function PromptSubmissionPage() {
       {attempt2 && (
         <div className="card">
           <div className="page-head" style={{ marginBottom: 12 }}>
-            <h3 style={{ margin: 0 }}>P3 · {cat.key === "speaking" ? "Ghi âm lại" : "Viết lại bài"}</h3>
-            <span className="pill pill-warn">Lần 2</span>
+            <h3 style={{ margin: 0 }}>P3 · {cat.key === "speaking" ? "Record again" : "Rewrite"}</h3>
+            <span className="pill pill-warn">Attempt 2</span>
           </div>
           {attempt2.gradingStatus !== "graded" ? (
-            <div className="notice info">Đã nộp lại — đang chờ giáo viên chấm.</div>
+            <div className="notice info">Resubmitted — waiting for your teacher to grade it.</div>
           ) : (
             <RubricResult
               rubricVariant={attempt2.rubricVariant}

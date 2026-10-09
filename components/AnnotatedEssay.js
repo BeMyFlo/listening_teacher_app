@@ -3,6 +3,8 @@
 // Hiển thị bài viết đã được chấm inline (chỉ đọc): chữ thêm = xanh, chữ xoá =
 // đỏ gạch, đoạn có ghi chú = gạch chân xanh dương, bấm vào hiện popup ghi chú. Kèm danh sách ghi chú theo
 // tiêu chí. Dùng ở màn kết quả của giáo viên và học sinh.
+// Chỗ sửa (replace/delete/insert) có kèm comment cũng bấm được để xem ghi chú —
+// học sinh không có danh sách lỗi bên dưới nên đây là chỗ duy nhất các em đọc được.
 
 import { useEffect, useMemo, useState } from "react";
 import { buildSegments, normalizeAnnotation } from "@/lib/grading/annotate";
@@ -46,19 +48,23 @@ export default function AnnotatedEssay({ essayText = "", annotations = [], showL
       {showText && (
       <div className="essay-annot readonly">
         {segments.map((seg, i) => {
-          if (seg.kind === "ins") return <ins key={i} className="ea-add">{seg.text}</ins>;
           const marks = seg.marks || [];
-          const Tag = seg.kind === "del" ? "del" : "span";
-          const cls = (seg.kind === "del" ? "ea-del" : "") + (marks.length ? " ea-hl" : "");
-          const onClick = marks.length
+          const fixNote = seg.ann && seg.ann.comment ? [seg.ann] : [];
+          const popMarks = [...fixNote, ...marks];
+          const Tag = seg.kind === "ins" ? "ins" : seg.kind === "del" ? "del" : "span";
+          const cls =
+            (seg.kind === "ins" ? "ea-add" : seg.kind === "del" ? "ea-del" : "") +
+            (marks.length ? " ea-hl" : "") +
+            (fixNote.length ? " ea-has-note" : "");
+          const onClick = popMarks.length
             ? (e) => {
                 e.stopPropagation();
                 const r = e.currentTarget.getBoundingClientRect();
-                setPop({ x: Math.max(8, Math.min(r.left, window.innerWidth - 316)), y: r.bottom + 6, marks });
+                setPop({ x: Math.max(8, Math.min(r.left, window.innerWidth - 316)), y: r.bottom + 6, marks: popMarks });
               }
             : undefined;
           return (
-            <Tag key={i} className={cls.trim() || undefined} onClick={onClick}>
+            <Tag key={i} className={cls.trim() || undefined} onClick={onClick} title={fixNote.length ? "Click to see the teacher's note" : undefined}>
               {seg.text}
             </Tag>
           );

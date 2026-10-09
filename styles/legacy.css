@@ -3588,6 +3588,9 @@ tr:hover td { background: var(--pink-wash-2); }
 .essay-annot ins.ea-add { color: #2FA36B; background: none; text-decoration: none; border-radius: 3px; padding: 0 1px; }
 .essay-annot del.ea-del { text-decoration: line-through; color: var(--red); background: var(--red-light); border-radius: 3px; padding: 0 1px; }
 .essay-annot .ea-hl { border-bottom: 2px solid #2F7DE1; cursor: pointer; }
+/* Chỗ sửa có kèm ghi chú: gạch chân chấm xanh dương, bấm vào xem ghi chú. */
+.essay-annot .ea-has-note { border-bottom: 2px dotted #2F7DE1; cursor: pointer; }
+.essay-annot .ea-has-note:hover { filter: brightness(.92); }
 .ea-pop {
   position: fixed; z-index: 1000; max-width: 300px; padding: 10px 12px;
   background: var(--card); border: 1px solid var(--border); border-radius: 10px;
