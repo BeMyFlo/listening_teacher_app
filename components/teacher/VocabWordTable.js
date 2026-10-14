@@ -24,7 +24,11 @@ export function emptyWord() {
   };
 }
 
-export default function VocabWordTable({ words, onChange }) {
+// extraCols: cột thêm ngoài 8 cột chuẩn, dạng [[key, label], ...] (vd Vocab Review
+// thêm cột Context). Dòng mới (Add word) chỉ có sẵn các key chuẩn — cột thêm
+// tự coi là "" cho tới khi nhập.
+export default function VocabWordTable({ words, onChange, extraCols = [] }) {
+  const cols = extraCols.length ? [...COLS, ...extraCols] : COLS;
   function patch(mut) {
     const draft = structuredClone(words);
     mut(draft);
@@ -37,7 +41,7 @@ export default function VocabWordTable({ words, onChange }) {
         <table className="data-table">
           <thead>
             <tr>
-              {COLS.map(([k, label]) => (
+              {cols.map(([k, label]) => (
                 <th key={k}>{label}</th>
               ))}
               <th />
@@ -46,18 +50,18 @@ export default function VocabWordTable({ words, onChange }) {
           <tbody>
             {words.length === 0 && (
               <tr>
-                <td colSpan={COLS.length + 1} style={{ textAlign: "center", color: "var(--muted)" }}>
+                <td colSpan={cols.length + 1} style={{ textAlign: "center", color: "var(--muted)" }}>
                   No words yet.
                 </td>
               </tr>
             )}
             {words.map((w, i) => (
               <tr key={i}>
-                {COLS.map(([k]) => (
+                {cols.map(([k]) => (
                   <td key={k}>
                     <input
                       className="select-inline"
-                      style={{ width: k === "example" || k === "definitionEn" ? 220 : 120 }}
+                      style={{ width: k === "example" || k === "definitionEn" ? 220 : k === "context" ? 260 : 120 }}
                       value={w[k] || ""}
                       onChange={(e) => patch((d) => (d[i][k] = e.target.value))}
                     />

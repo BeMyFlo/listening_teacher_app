@@ -14,6 +14,7 @@
 - [PLAN-GRAMMAR-VOCAB-LESSONS.md](plans/PLAN-GRAMMAR-VOCAB-LESSONS.md): bài học Grammar & Vocabulary, flashcard, import
 - [PLAN-IELTS-QUESTION-TYPES.md](plans/PLAN-IELTS-QUESTION-TYPES.md): đủ dạng câu hỏi IELTS Reading/Listening + import CSV
 - [PLAN-MOCK-TEST-4-SKILLS.md](plans/PLAN-MOCK-TEST-4-SKILLS.md): Mock Test gộp 4 kỹ năng
+- [PLAN-UNIT-VOCAB-REVIEW.md](plans/PLAN-UNIT-VOCAB-REVIEW.md): Vocab Review theo từng skill Reading / Listening (AI + nhập tay)
 
 ## Multi-tenant (`plans/multi-tenant/`)
 

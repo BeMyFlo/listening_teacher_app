@@ -10,7 +10,7 @@
     "start": "next start",
     "dev:vercel": "vercel dev",
     "dev:legacy": "node server.js",
-    "test": "node --test tests/",
+    "test": "node --test tests/*.test.js",
     "review": "ocr review",
     "review:branch": "ocr review --from main",
     "review:scan": "ocr scan"
