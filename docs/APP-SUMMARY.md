@@ -171,5 +171,5 @@ and programs per teacher (V2) → whole teaching centers with several teachers, 
 
 Next.js (React) web app with API routes, MongoDB (Mongoose), JWT auth, Cloudinary for audio/images/
 recordings, Google Gemini for AI grading, Gmail SMTP for email, a small Socket.IO service for chat,
-hosted on Vercel with cron jobs. For anything deeper, see `PLAN-MULTI-TENANT.md` (architecture and
+hosted on Vercel with cron jobs. For anything deeper, see `docs/plans/multi-tenant/PLAN-MULTI-TENANT.md` (architecture and
 phase history) and the other `PLAN-*.md` files.

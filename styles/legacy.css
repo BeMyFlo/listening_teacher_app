@@ -3442,6 +3442,7 @@ tr:hover td { background: var(--pink-wash-2); }
   max-width: 420px;
   animation: ui-pop-in .16s ease;
 }
+.modal-box.ui-dialog.ui-dialog-wide { max-width: 560px; }
 .ui-dialog-body { padding: 22px 22px 8px; }
 .ui-dialog-title {
   display: flex; align-items: center; gap: 10px;

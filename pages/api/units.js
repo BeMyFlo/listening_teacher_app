@@ -55,6 +55,14 @@ function toPublicUnit(unit, cls) {
     sections: publicSections(ex.sections),
   });
 
+  // Chỉ reading/listening mới có Vocab Review (sanitizeVocabReview đảm bảo skill
+  // khác luôn enabled=false). Không gửi sourceHash/enabled — học sinh không cần.
+  const reviewFor = (c) => {
+    const vr = c.vocabReview;
+    if (!vr || !vr.enabled || !(vr.words || []).length) return null;
+    return { words: vr.words.map((w) => ({ ...(w.toObject ? w.toObject() : w) })) };
+  };
+
   const cid = cls && cls._id;
   const unitDue = resolveDeadline(unit, cid, null);
 
@@ -81,6 +89,7 @@ function toPublicUnit(unit, cls) {
           prompts: [],
           topics: [],
           groups: [],
+          vocabReview: null,
         };
       }
       const catDue = resolveDeadline(unit, cid, c.key);
@@ -99,6 +108,9 @@ function toPublicUnit(unit, cls) {
         resourceLabel: (c.theory && c.theory.resourceLabel) || ""
       },
       exercises: (c.exercises || []).map(publicExercise),
+      // Vocab Review chỉ gửi khi giáo viên bật + có từ. Khoá "Finish all exercises
+      // to unlock" tính ở client (danh sách từ không nhạy cảm như đáp án).
+      vocabReview: reviewFor(c),
       prompts: (c.prompts || []).map((p) => ({
         id: p._id,
         title: p.title,

@@ -116,7 +116,9 @@ function addNoteBlock(s, id) {
 
 // Trình soạn "section + câu hỏi" dùng chung cho Exercise (Unit) và Mock
 // Test. Controlled; markup khớp renderSectionsEditor của legacy.
-export default function SectionsEditor({ sections, subject, media, onChange }) {
+// showTranscript: hiện ô Transcript cho section Listening — chỉ bài tập trong Unit
+// (Vocab Review dùng), không bật ở builder đề thi.
+export default function SectionsEditor({ sections, subject, media, onChange, showTranscript = false }) {
   const [importing, setImporting] = useState(false);
 
   function patch(mut) {
@@ -137,6 +139,7 @@ export default function SectionsEditor({ sections, subject, media, onChange }) {
           si={si}
           subject={subject}
           media={media}
+          showTranscript={showTranscript}
           allSections={sections}
           patch={patch}
         />
@@ -171,7 +174,7 @@ export default function SectionsEditor({ sections, subject, media, onChange }) {
   );
 }
 
-function SectionCard({ sec, si, subject, media, allSections, patch }) {
+function SectionCard({ sec, si, subject, media, allSections, patch, showTranscript }) {
   const set = (k, v) => patch((d) => (d[si][k] = v));
   const formats = questionFormatsFor(subject);
   // true = đang hiện lưới chọn dạng bài (bấm "+ Add Question" mở ra, chọn
@@ -253,6 +256,18 @@ function SectionCard({ sec, si, subject, media, allSections, patch }) {
               </option>
             ))}
           </select>
+          {showTranscript && (
+            <>
+              <label style={{ marginTop: 10 }}>Transcript (optional — used by AI Vocab Review, hidden from students)</label>
+              <textarea
+                className="sec-transcript"
+                rows={4}
+                placeholder="Paste the listening transcript here..."
+                value={sec.transcript || ""}
+                onChange={(e) => set("transcript", e.target.value)}
+              />
+            </>
+          )}
         </div>
       )}
 

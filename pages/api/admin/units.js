@@ -8,6 +8,7 @@ const Image = require("../../../lib/models/Image");
 const { normalizeSections, validateSections } = require("../../../lib/testSections");
 const { sanitizeDoc } = require("../../../lib/tiptap/doc");
 const { sanitizeYouTube } = require("../../../lib/lessonImport");
+const { sanitizeVocabReview } = require("../../../lib/vocabReviewSource");
 const { announceDeadlines } = require("../../../lib/notifications/deadlineAssign");
 const { regradeUnitSubmissions } = require("../../../lib/teacher/regrade");
 
@@ -258,6 +259,13 @@ async function handler(req, res) {
             resourceLabel: String((cat.theory && cat.theory.resourceLabel) || "").trim()
           },
           exercises: normalizeTopicExercises(cat.exercises),
+          // Vocab Review (reading/listening). Phải map lại ở đây vì categories dựng
+          // lại từ body — thiếu dòng này thì mỗi lần Save sẽ xoá mất danh sách từ.
+          // Body không có field (tab editor mở từ trước khi deploy) -> giữ bản trong DB.
+          vocabReview: sanitizeVocabReview(
+            cat.key,
+            cat.vocabReview !== undefined ? cat.vocabReview : existing && existing.vocabReview
+          ),
           prompts: (cat.prompts || []).map((p) => ({
             _id: p._id || undefined,
             title: String(p.title || "").trim(),
