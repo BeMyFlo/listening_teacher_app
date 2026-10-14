@@ -1,6 +1,6 @@
 # Spec tái cấu trúc "IELTS with Ms Nhi" → Dashboard chuyên nghiệp
 
-> Tài liệu này viết cho một AI coding agent khác (không có lịch sử hội thoại này) đọc và code lại đúng. Đọc hết file này + `HANDOFF.md` trước khi code bất cứ dòng nào. Không tự ý đổi kiến trúc/quyết định đã chốt ở đây trừ khi thấy mâu thuẫn với code thật — nếu vậy, dừng lại và hỏi người dùng thay vì tự suy diễn.
+> Tài liệu này viết cho một AI coding agent khác (không có lịch sử hội thoại này) đọc và code lại đúng. Đọc hết file này + `docs/HANDOFF.md` trước khi code bất cứ dòng nào. Không tự ý đổi kiến trúc/quyết định đã chốt ở đây trừ khi thấy mâu thuẫn với code thật — nếu vậy, dừng lại và hỏi người dùng thay vì tự suy diễn.
 
 ## 0. Bối cảnh & nguyên tắc bắt buộc
 
@@ -21,7 +21,7 @@ api/tests.js
 ```
 Một commit trước đây (`Consolidate API routes to fit Vercel Hobby's 12-function limit`) đã cố ý gộp CRUD list+detail thành 1 file/resource, dispatch theo `req.method` + `req.query.id` (xem `api/admin/tests.js`, `api/admin/students.js` để thấy pattern). **TUYỆT ĐỐI không tạo file API mới nếu có thể gộp vào file đã có.** Spec dưới đây đã tính toán để cuối cùng chỉ dùng tối đa 11/12, còn dư đúng 1 slot — đừng phá vỡ con số này.
 
-**Nguyên tắc 2 — Tái dùng engine câu hỏi generic đã có, không tạo schema riêng cho từng dạng bài IELTS.** Xem `HANDOFF.md` mục "Quyết định thiết kế cốt lõi". Engine hiện tại (field `type: 'fill'|'choice'` + `selectCount` + `matchOptions` ở section) đã giải quyết được: điền từ, trắc nghiệm 1 đáp án, trắc nghiệm nhiều đáp án ("chọn HAI đáp án"), True/False/Not Given, các dạng ghép nối (matching headings/features/information/sentence-endings), điền nhãn sơ đồ/bản đồ (diagram/map labelling). Grammar/Vocabulary/Listening/Reading trong module Bài học sẽ **tái dùng y nguyên** engine này (xem §3.3). Writing/Speaking KHÔNG dùng engine này — đó là dạng nộp bài tự luận/ghi âm, giáo viên chấm tay.
+**Nguyên tắc 2 — Tái dùng engine câu hỏi generic đã có, không tạo schema riêng cho từng dạng bài IELTS.** Xem `docs/HANDOFF.md` mục "Quyết định thiết kế cốt lõi". Engine hiện tại (field `type: 'fill'|'choice'` + `selectCount` + `matchOptions` ở section) đã giải quyết được: điền từ, trắc nghiệm 1 đáp án, trắc nghiệm nhiều đáp án ("chọn HAI đáp án"), True/False/Not Given, các dạng ghép nối (matching headings/features/information/sentence-endings), điền nhãn sơ đồ/bản đồ (diagram/map labelling). Grammar/Vocabulary/Listening/Reading trong module Bài học sẽ **tái dùng y nguyên** engine này (xem §3.3). Writing/Speaking KHÔNG dùng engine này — đó là dạng nộp bài tự luận/ghi âm, giáo viên chấm tay.
 
 **Nguyên tắc 3 — Code hiện có phải tái dùng, không viết lại:**
 - `lib/grade.js` (`gradeSubmission`, `isCorrect`, `normalizeSet`) — chấm điểm tự động, chỉ đọc `{sections:[{fields:[...]}]}` một cách generic. Dùng lại y nguyên cho cả Test và Exercise trong Lesson.
@@ -427,7 +427,7 @@ Thêm comment cho `TEACHER_PASSWORD`: chỉ dùng 1 lần để bootstrap tài k
 7. Tạo thử 1 bài kiểm tra `level=2` — xác nhận học viên level 1 KHÔNG thấy bài này.
 8. Kiểm tra Network tab: `/api/auth/login`, `/api/auth/student` phải trả 404 (đã xoá file, route không còn tồn tại) — xác nhận không còn code nào gọi 2 endpoint cũ.
 9. Chạy `node scripts/migrate-add-level.js` nhắm vào DB thật (hoặc bản sao) một lần, xác nhận log ra đúng số bản ghi cũ được backfill `level:1`.
-10. Dọn sạch dữ liệu test (student/test tạo ra lúc verify) khỏi MongoDB thật sau khi xong — đúng lưu ý trong `HANDOFF.md`.
+10. Dọn sạch dữ liệu test (student/test tạo ra lúc verify) khỏi MongoDB thật sau khi xong — đúng lưu ý trong `docs/HANDOFF.md`.
 
 ---
 
