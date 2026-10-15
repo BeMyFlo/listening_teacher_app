@@ -1,20 +1,16 @@
 import "@/styles/landing.css";
+import Image from "next/image";
 import Icon from "@/components/Icon";
 import SessionCta from "./SessionCta";
 import LeadForm from "./LeadForm";
+import HeroRotator from "./HeroRotator";
+import Testimonials from "./Testimonials";
 import { PLATFORM_NAME, PLATFORM_LOGO } from "@/lib/platform";
 import { siteOrigin } from "@/lib/seo";
 import {
-  CONTACT, DEMO, TAGLINE, SCREENSHOTS, FEATURES, STEPS, FAQ, telHref, zaloHref, demoLoginUrl,
+  CONTACT, DEMO, HERO_PREFIX, HERO_ROTATE, HERO_LEAD, TESTIMONIALS, SHOTS, SKILLS_HEAD, SKILLS_DEFAULT, SKILL_TABS, ATTENDANCE_SPOTLIGHT,
+  FEATURES, STEPS, FAQ, telHref, zaloHref, demoLoginUrl,
 } from "@/lib/landing";
-
-const SKILLS = ["Listening", "Reading", "Writing", "Speaking"];
-const FLOW = [
-  { icon: "upload", label: "Giao bài cho lớp" },
-  { icon: "student", label: "Học viên làm online" },
-  { icon: "sparkles", label: "AI soạn nháp, giáo viên duyệt" },
-  { icon: "chart-bar", label: "Theo dõi tiến độ" },
-];
 
 // JSON-LD: chỉ những điều có thật. Không đánh giá, không giá.
 function jsonLd() {
@@ -44,15 +40,20 @@ function jsonLd() {
 
 export default function Landing() {
   const demoUrl = demoLoginUrl();
+  const { overview, attendance } = SHOTS;
   return (
     <div className="lp" lang="vi">
+      {/* Phông chữ tiêu đề (hỗ trợ tiếng Việt tốt). Nếu không tải được thì dùng phông hệ thống. */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700;800&display=swap" />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd() }} />
       <a className="lp-skip" href="#noi-dung">Bỏ qua điều hướng</a>
 
       <header className="lp-header">
         <div className="lp-wrap lp-header-in">
           <a className="lp-brand" href="/" aria-label={PLATFORM_NAME}>
-            <img src={PLATFORM_LOGO} alt="" width={36} height={36} />
+            <img src={PLATFORM_LOGO} alt="" width={40} height={40} />
             <span>{PLATFORM_NAME}</span>
           </a>
           <nav className="lp-nav" aria-label="Điều hướng chính">
@@ -71,75 +72,122 @@ export default function Landing() {
         <section className="lp-hero">
           <div className="lp-wrap lp-hero-in">
             <div className="lp-hero-copy">
-              <p className="lp-badge">Đang miễn phí trong giai đoạn thử nghiệm</p>
-              <h1>{TAGLINE}</h1>
-              <p className="lp-lead">
-                {PLATFORM_NAME} giúp giáo viên và trung tâm IELTS giao bài, chấm Writing và Speaking có AI hỗ trợ,
-                điểm danh và theo dõi từng học viên. Học viên làm bài luyện tập và thi thử online.
-              </p>
+              <HeroRotator prefix={HERO_PREFIX} items={HERO_ROTATE} />
+              <p className="lp-lead">{HERO_LEAD}</p>
               <div className="lp-actions">
-                <a className="lp-btn lp-btn-primary lp-btn-lg" href="#dang-ky">Đăng ký dùng thử</a>
-                {demoUrl && <a className="lp-btn lp-btn-outline lp-btn-lg" href="#demo">Xem demo</a>}
+                <a className="lp-btn lp-btn-primary lp-btn-lg" href="#dang-ky">
+                  Dùng thử miễn phí <Icon name="arrow-left" flip />
+                </a>
+                {demoUrl ? (
+                  <a className="lp-textlink" href="#demo">Hoặc xem bằng tài khoản demo</a>
+                ) : (
+                  <a className="lp-textlink" href="#cach-hoat-dong">Xem cách hoạt động</a>
+                )}
               </div>
-              <p className="lp-fineprint">Không cần thẻ thanh toán. Chúng tôi tạo workspace riêng cho bạn.</p>
+              <p className="lp-fineprint">Đang miễn phí trong giai đoạn thử nghiệm.</p>
             </div>
-            <div className="lp-hero-visual" aria-hidden="true">
-              <div className="lp-skills">
-                {SKILLS.map((s) => <span key={s} className="lp-chip">{s}</span>)}
+            <div className="lp-hero-visual">
+              <div className="lp-frame">
+                <div className="lp-frame-bar" aria-hidden="true">
+                  <i /><i /><i />
+                  <span>ten-trung-tam.bemyflo.com</span>
+                </div>
+                <Image
+                  src={overview.src} width={overview.width} height={overview.height} alt={overview.alt}
+                  priority quality={85} sizes="(max-width: 1000px) 100vw, 760px"
+                />
               </div>
-              <ol className="lp-flow">
-                {FLOW.map((f, i) => (
-                  <li key={f.label}>
-                    <span className="lp-flow-ico"><Icon name={f.icon} /></span>
-                    <span>{f.label}</span>
-                    {i < FLOW.length - 1 && <i className="lp-flow-line" />}
+            </div>
+          </div>
+        </section>
+
+        <section id="tinh-nang" className="lp-spot lp-tint">
+          <div className="lp-wrap">
+            <div className="lp-skills-head">
+              <h2>{SKILLS_HEAD.title}</h2>
+              <p className="lp-sub">{SKILLS_HEAD.sub}</p>
+            </div>
+            {/* Tab chỉ bằng CSS (không cần JS): nút radio ẩn + nhãn dạng viên thuốc, khung nội dung hiện theo :checked.
+                Radio cùng nhóm nên phím mũi tên chuyển tab. Xem styles/landing.css. */}
+            <fieldset className="lp-skills">
+              <legend className="lp-sr">Chọn kỹ năng</legend>
+              {SKILL_TABS.map((t) => (
+                <input
+                  key={t.key} type="radio" name="lp-skill" id={"lp-skill-" + t.key}
+                  className="lp-skill-radio" defaultChecked={t.key === SKILLS_DEFAULT}
+                />
+              ))}
+              <div className="lp-skill-tabs">
+                {SKILL_TABS.map((t) => (
+                  <label key={t.key} htmlFor={"lp-skill-" + t.key}>{t.label}</label>
+                ))}
+              </div>
+              <div className="lp-skill-panels">
+                {SKILL_TABS.map((t) => (
+                  <div key={t.key} className={"lp-skill-panel lp-skill-panel--" + t.key}>
+                    <figure className={"lp-spot-shot" + (t.key === "writing" ? " lp-shot-crop" : "")}>
+                      <Image
+                        src={t.shot.src} width={t.shot.width} height={t.shot.height} alt={t.shot.alt}
+                        quality={88} sizes="(max-width: 1000px) 100vw, 700px"
+                      />
+                    </figure>
+                    <div className="lp-spot-copy">
+                      <h3 className="lp-skill-title">{t.title}</h3>
+                      {t.lead && <p className="lp-lead">{t.lead}</p>}
+                      <ul className="lp-callouts">
+                        {t.callouts.map((c) => (
+                          <li key={c.title} className={"lp-callout lp-tone-" + c.tone}>
+                            <h4>{c.title}</h4>
+                            <p>{c.text}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </fieldset>
+          </div>
+        </section>
+
+        <section className="lp-spot lp-spot2">
+          <div className="lp-wrap">
+            <div className="lp-spot2-head">
+              <h2>{ATTENDANCE_SPOTLIGHT.title}</h2>
+              <p>{ATTENDANCE_SPOTLIGHT.text}</p>
+            </div>
+            <figure className="lp-spot2-shot">
+              <Image
+                src={attendance.src} width={attendance.width} height={attendance.height} alt={attendance.alt}
+                quality={88} sizes="(max-width: 1000px) 100vw, 1000px"
+              />
+            </figure>
+
+            <div className="lp-more">
+              <h3 className="lp-more-title">Và những gì còn lại</h3>
+              <ul className="lp-more-list">
+                {FEATURES.map((f) => (
+                  <li key={f.title}>
+                    <Icon name={f.icon} />
+                    <div>
+                      <h4>{f.title}</h4>
+                      <p>{f.text}</p>
+                    </div>
                   </li>
                 ))}
-              </ol>
+              </ul>
             </div>
           </div>
         </section>
 
-        <section id="tinh-nang" className="lp-section">
-          <div className="lp-wrap">
-            <h2>Mọi thứ một giáo viên IELTS cần, trong một nơi</h2>
-            <p className="lp-sub">Từ soạn bài đến chấm bài và theo dõi lớp, không phải chuyển qua lại giữa nhiều công cụ.</p>
-            <ul className="lp-grid">
-              {FEATURES.map((f) => (
-                <li key={f.title} className="lp-card">
-                  <span className="lp-card-ico"><Icon name={f.icon} /></span>
-                  <h3>{f.title}</h3>
-                  <p>{f.text}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        {SCREENSHOTS.length > 0 && (
-          <section className="lp-section lp-alt" aria-label="Giao diện thực tế">
-            <div className="lp-wrap">
-              <h2>Xem giao diện thực tế</h2>
-              <div className="lp-shots">
-                {SCREENSHOTS.map((s) => (
-                  <figure key={s.src}>
-                    <img src={s.src} alt={s.alt} width={s.width} height={s.height} loading="lazy" decoding="async" />
-                    <figcaption>{s.caption}</figcaption>
-                  </figure>
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
-
-        <section id="cach-hoat-dong" className="lp-section lp-alt">
+        <section id="cach-hoat-dong" className="lp-section lp-tint lp-howto">
           <div className="lp-wrap">
             <h2>Bắt đầu như thế nào</h2>
             <ol className="lp-steps">
               {STEPS.map((s, i) => (
                 <li key={s.title}>
-                  <span className="lp-step-n">{i + 1}</span>
-                  <h3>{s.title}</h3>
+                  <span className="lp-step-n" aria-hidden="true">{i + 1}</span>
+                  <h3><span className="lp-sr">Bước {i + 1}: </span>{s.title}</h3>
                   <p>{s.text}</p>
                 </li>
               ))}
@@ -151,11 +199,13 @@ export default function Landing() {
           <section id="demo" className="lp-section">
             <div className="lp-wrap lp-demo">
               <div>
-                <h2>Dùng thử ngay, không cần đăng ký</h2>
+                <h2>Xem thử bằng workspace demo</h2>
                 <p className="lp-sub">
                   Vào workspace demo bằng tài khoản dưới đây để xem BeMyFlo từ góc nhìn giáo viên hoặc học viên.
                 </p>
-                <a className="lp-btn lp-btn-primary" href={demoUrl} rel="noopener">Mở workspace demo</a>
+                <a className="lp-btn lp-btn-primary" href={demoUrl} rel="noopener">
+                  Mở workspace demo <Icon name="arrow-left" flip />
+                </a>
               </div>
               <div className="lp-creds">
                 <dl>
@@ -171,29 +221,34 @@ export default function Landing() {
           </section>
         )}
 
-        <section id="hoi-dap" className="lp-section lp-alt">
-          <div className="lp-wrap lp-narrow">
-            <h2>Hỏi đáp</h2>
-            {FAQ.map((f) => (
-              <details key={f.q} className="lp-faq">
-                <summary>{f.q}</summary>
-                <p>{f.a}</p>
-              </details>
-            ))}
+        {/* Chỉ hiện khi có lời nhận xét thật (xem lib/landing.js). */}
+        {TESTIMONIALS.length > 0 && <Testimonials items={TESTIMONIALS} />}
+
+        <section id="hoi-dap" className="lp-section lp-faq-sec">
+          <div className="lp-wrap lp-faq-in">
+            <h2>Câu hỏi thường gặp</h2>
+            <div className="lp-faq-list">
+              {FAQ.map((f) => (
+                <details key={f.q} className="lp-faq">
+                  <summary>{f.q}</summary>
+                  <p>{f.a}</p>
+                </details>
+              ))}
+            </div>
           </div>
         </section>
 
-        <section id="dang-ky" className="lp-section">
+        <section id="dang-ky" className="lp-section lp-signup-sec">
           <div className="lp-wrap lp-signup">
-            <div>
-              <h2>Đăng ký dùng thử miễn phí</h2>
+            <div className="lp-signup-copy">
+              <h2>Để lại thông tin, chúng tôi sẽ liên hệ</h2>
               <p className="lp-sub">
                 {PLATFORM_NAME} hiện miễn phí trong giai đoạn thử nghiệm, để chúng tôi có thêm giáo viên và trung tâm
                 dùng thử và góp ý. Để lại thông tin, chúng tôi sẽ tạo workspace riêng cho bạn và liên hệ lại.
               </p>
               <ul className="lp-contact">
-                <li><strong>Email:</strong> <a href={"mailto:" + CONTACT.email}>{CONTACT.email}</a></li>
-                <li><strong>Điện thoại:</strong> <a href={telHref(CONTACT.phone)}>{CONTACT.phone}</a> · <a href={zaloHref(CONTACT.phone)} rel="noopener" target="_blank">Zalo</a></li>
+                <li><span>Email</span> <a href={"mailto:" + CONTACT.email}>{CONTACT.email}</a></li>
+                <li><span>Điện thoại</span> <a href={telHref(CONTACT.phone)}>{CONTACT.phone}</a> · <a href={zaloHref(CONTACT.phone)} rel="noopener" target="_blank">Zalo</a></li>
               </ul>
             </div>
             <LeadForm />
