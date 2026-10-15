@@ -32,7 +32,7 @@ const OPTIONAL = ["tickets", "auditlogs", "ailogs"]; // có workspaceId, KHÔNG 
 //   workspaces      — chính nó LÀ tenant.
 //   workspacemembers — workspaceId là khoá, schema đã required nên luôn có.
 const PLATFORM = [
-  "users", "appsettings", "aiprompts", "aispends", "workspaces", "workspacemembers", "handoffcodes",
+  "users", "appsettings", "aiprompts", "aispends", "workspaces", "workspacemembers", "handoffcodes", "signuprequests",
 ];
 
 const STRICT = process.argv.includes("--strict");
