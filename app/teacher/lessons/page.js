@@ -15,12 +15,15 @@ function LessonsInner() {
   const search = useSearchParams();
   const levelParam = search.get("level");
   const level = levelParam ? Number(levelParam) : null;
-  const { programs, isMulti, loaded } = usePrograms();
+  const { programs, isMulti, loaded, levelLabel } = usePrograms();
   // Chỉ khi workspace dùng >= 2 chương trình mới có khái niệm "đang xem chương
   // trình nào" (Level 1 IELTS khác Level 1 TOEIC — C3). Link cũ không có
   // &program= được hiểu là IELTS. Workspace 1 chương trình: null = không lọc,
   // giữ nguyên hành vi cũ.
   const viewProgram = isMulti ? programParam(search) || DEFAULT_PROGRAM : null;
+
+  // Chương trình dùng để tra tên level: đang xem (nhiều chương trình) hoặc chương trình duy nhất.
+  const labelProgram = viewProgram || programs[0] || DEFAULT_PROGRAM;
 
   const [units, setUnits] = useState(null);
   const [classes, setClasses] = useState([]);
@@ -135,7 +138,7 @@ function LessonsInner() {
         >
           <div className="unit-list-num">{String(lvl).padStart(2, "0")}</div>
           <div className="unit-list-meta">
-            <h4>Level {lvl}</h4>
+            <h4>{levelLabel(p || labelProgram, lvl)}</h4>
             <p>
               <span className="meta-icon">
                 <svg className="icon"><use href="#icon-book-open" /></svg> {nUnits} unit{nUnits === 1 ? "" : "s"}
@@ -203,7 +206,9 @@ function LessonsInner() {
   }
 
   // ---------- Màn 2: unit của 1 level ----------
-  const levelTitle = viewProgram ? PROGRAMS[viewProgram].label + " · Level " + level : "Level " + level;
+  const levelTitle = viewProgram
+    ? PROGRAMS[viewProgram].label + " · " + levelLabel(viewProgram, level)
+    : levelLabel(labelProgram, level);
   const levelUnits = (units || []).filter((u) => u.level === level && (!viewProgram || programOf(u) === viewProgram));
   const filtered = levelUnits.filter((u) => {
     if (classFilter === "all") return true;

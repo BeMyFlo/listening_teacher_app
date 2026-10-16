@@ -5,6 +5,7 @@ const Student = require("../../lib/models/Student");
 const Test = require("../../lib/models/Test");
 const Class = require("../../lib/models/Class");
 const { PROGRAMS, programOf, programFilter } = require("../../lib/curriculum");
+const { levelNameFor } = require("../../lib/curriculumServer");
 
 function toPublicQuestionSkill(skill) {
   skill = skill || {};
@@ -54,7 +55,7 @@ function toPublicPromptSkill(skill) {
   };
 }
 
-function toPublicTest(test) {
+function toPublicTest(test, levelName) {
   // Kỹ năng ngoài testSkills của chương trình (vd TOEIC 8A: writing/speaking)
   // KHÔNG được gửi nội dung — giữ nguyên shape nhưng rỗng, để client cũ không
   // vỡ. IELTS có đủ 4 kỹ năng nên không đổi gì.
@@ -64,6 +65,8 @@ function toPublicTest(test) {
     id: test._id,
     title: test.title,
     unit: test.unit,
+    level: test.level,
+    levelName: levelName || "",
     program: programOf(test),
     opensAt: test.opensAt,
     closesAt: test.closesAt,
@@ -148,7 +151,7 @@ async function handler(req, res) {
     }
 
     await populateSkillMedia(test);
-    return res.status(200).json({ ok: true, locked: false, test: toPublicTest(test) });
+    return res.status(200).json({ ok: true, locked: false, test: toPublicTest(test, await levelNameFor(req.ws, programOf(test), test.level)) });
   }
 
   const tests = await Test.find(tenantFilter(req.ws, { status: "published", level, ...classFilter, ...progFilter })).sort({ createdAt: -1 }).lean();
@@ -162,6 +165,8 @@ async function handler(req, res) {
     return { present: count > 0, count };
   };
 
+  // Mọi đề trong danh sách cùng level + cùng chương trình của lớp -> 1 tên cho cả danh sách.
+  const levelName = await levelNameFor(req.ws, programOf(cls), level);
   const rows = tests.map((t) => {
     // Kỹ năng ngoài testSkills của chương trình -> báo không có nội dung.
     const allowed = PROGRAMS[programOf(t)].testSkills;
@@ -170,6 +175,8 @@ async function handler(req, res) {
       id: t._id,
       title: t.title,
       unit: t.unit,
+      level: t.level,
+      levelName,
       program: programOf(t),
       opensAt: t.opensAt,
       closesAt: t.closesAt,

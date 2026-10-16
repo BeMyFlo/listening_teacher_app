@@ -151,6 +151,7 @@ export default function UnitDetailPage() {
           <svg className="icon"><use href="#icon-arrow-left" /></svg> Back to lesson list
         </p>
         <h2>{unit.name}</h2>
+        {unit.levelName && <p className="page-sub" style={{ margin: "-4px 0 8px" }}>Level {unit.level} · {unit.levelName}</p>}
         <DeadlineBanner dueAt={unit.dueAt} />
 
         <div className="unit-cat-tabs">

@@ -262,7 +262,7 @@ export default function UnitEditorPage() {
   const [saveErr, setSaveErr] = useState("");
   const [stats, setStats] = useState(null);
   const [classes, setClasses] = useState([]);
-  const { isMulti, refresh: refreshPrograms } = usePrograms();
+  const { isMulti, refresh: refreshPrograms, levelLabel, levelName: levelNameOf } = usePrograms();
   const dialog = useDialog();
   const branding = useBranding();
   const vrAi = useVocabReviewAi();
@@ -364,6 +364,13 @@ export default function UnitEditorPage() {
     });
   }
 
+  // Tên level của Unit làm mặc định cho "Students level" của AI — chỉ khi ô còn trống
+  // (không đè giá trị giáo viên đã gõ / đã nhớ). Không bao giờ ghi mặc định này vào localStorage,
+  // để Unit level khác vẫn nhận mặc định riêng của nó.
+  const levelDefault = unit ? levelNameOf(programOf(unit), unit.level) : "";
+  const withLevelDefault = (o) => (o.studentLevel || !levelDefault ? o : { ...o, studentLevel: levelDefault });
+  const withoutLevelDefault = (o) => (levelDefault && o.studentLevel === levelDefault ? { ...o, studentLevel: "" } : o);
+
   function updateAiOptions(patch) {
     const next = { ...aiOptions, ...patch };
     setAiOptions(next);
@@ -401,7 +408,8 @@ export default function UnitEditorPage() {
   // Hộp thoại hỏi trước khi lưu. Trả tuỳ chọn AI nếu giáo viên chọn "Save & generate",
   // null nếu "Just save" (hoặc đóng hộp thoại).
   async function askGenerate(ask) {
-    const latest = { current: aiOptions };
+    const effective = withLevelDefault(aiOptions);
+    const latest = { current: effective };
     const names = ask.map((a) => a.label).join(" & ");
     const go = await dialog.confirm({
       title: ask.every((a) => a.state === "stale") ? `${names} changed — add new vocabulary?` : `Create Vocab Review for ${names}?`,
@@ -409,7 +417,7 @@ export default function UnitEditorPage() {
       cancelText: "Just save",
       wide: true,
       message: (
-        <VocabReviewSavePrompt items={ask} initial={aiOptions} onChange={(o) => (latest.current = o)} program={programOf(unit)} />
+        <VocabReviewSavePrompt items={ask} initial={effective} onChange={(o) => (latest.current = o)} program={programOf(unit)} />
       ),
     });
     if (!go) {
@@ -439,8 +447,9 @@ export default function UnitEditorPage() {
       setActiveTab("content");
       setCatKey(ask[0].key);
       setSubTab("vocab");
-      setAiOptions(genOpts);
-      saveAiOptions(aiScope, genOpts);
+      const remembered = withoutLevelDefault(genOpts);
+      setAiOptions(remembered);
+      saveAiOptions(aiScope, remembered);
       dialog.toast("Saved — writing vocabulary…");
       ask.forEach((a) =>
         vrAi.run(a.key, saved.categories.find((c) => c.key === a.key), { unitId, level: saved.level, unitName: saved.name, program: saved.program }, genOpts)
@@ -513,7 +522,8 @@ export default function UnitEditorPage() {
   // unit overview stats
   let ov = { totalStudents: 0, totalSubmissions: 0, avgCompletionPct: 0, avgScorePct: null };
   if (stats) {
-    const totalStudents = stats.students.filter((s) => s.level === unit.level).length;
+    // Cùng level VÀ cùng chương trình: Level 1 TOEIC không tính học sinh Level 1 IELTS (và ngược lại).
+    const totalStudents = stats.students.filter((s) => s.level === unit.level && (s.program || "ielts") === program).length;
     const unitSubs = stats.subs.filter(
       (s) => s.kind !== "test" && s.unitId && String(s.unitId) === String(unit._id)
     );
@@ -561,7 +571,7 @@ export default function UnitEditorPage() {
                   })}
                 </div>
                 <p className="unit-overview-meta">
-                  Level {unit.level} · Created {fmtDate(unit.createdAt)} · Updated {fmtDate(unit.updatedAt)} · {totalItems}{" "}
+                  {levelLabel(program, unit.level)} · Created {fmtDate(unit.createdAt)} · Updated {fmtDate(unit.updatedAt)} · {totalItems}{" "}
                   item(s)
                 </p>
                 {hiddenWithContent.length > 0 && (
@@ -766,7 +776,7 @@ export default function UnitEditorPage() {
             <GrammarTopicsEditor
               topics={cat.topics || []}
               media={media}
-              aiContext={{ unitId, level: unit.level, unitName: unit.name, program }}
+              aiContext={{ unitId, level: unit.level, unitName: unit.name, program, levelName: levelDefault }}
               program={program}
               onChange={(next) => updateCat((c) => (c.topics = next))}
             />
@@ -774,7 +784,7 @@ export default function UnitEditorPage() {
             <VocabGroupsEditor
               groups={cat.groups || []}
               media={media}
-              aiContext={{ unitId, level: unit.level, unitName: unit.name, program }}
+              aiContext={{ unitId, level: unit.level, unitName: unit.name, program, levelName: levelDefault }}
               program={program}
               onChange={(next) => updateCat((c) => (c.groups = next))}
             />
@@ -786,10 +796,10 @@ export default function UnitEditorPage() {
               onChange={(next) => updateCat((c) => (c.vocabReview = next))}
               status={reviewStates[catKey] || { state: "none", hash: "" }}
               ai={vrAi.states[catKey]}
-              aiOptions={aiOptions}
+              aiOptions={withLevelDefault(aiOptions)}
               onAiOptionsChange={updateAiOptions}
               onGenerate={() =>
-                vrAi.run(catKey, cat, { unitId, level: unit.level, unitName: unit.name, program }, aiOptions)
+                vrAi.run(catKey, cat, { unitId, level: unit.level, unitName: unit.name, program }, withLevelDefault(aiOptions))
               }
               program={program}
               onPicked={(p) => vrAi.setPicked(catKey, p)}

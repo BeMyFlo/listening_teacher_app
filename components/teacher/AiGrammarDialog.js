@@ -71,7 +71,8 @@ export default function AiGrammarDialog({ context, onAdd, onClose }) {
     level: context && context.level ? `Level ${context.level}` : "",
     unitName: (context && context.unitName) || "",
     topics: "",
-    studentLevel: "",
+    // Mặc định = tên level của Unit (nếu có); giáo viên sửa tự do.
+    studentLevel: (context && context.levelName) || "",
     language: "vi",
     notes: "",
   });

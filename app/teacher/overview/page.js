@@ -128,7 +128,7 @@ export default function OverviewPage() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [name, setName] = useState("");
-  const { isMulti } = usePrograms();
+  const { isMulti, levelName, levelLabel } = usePrograms();
 
   useEffect(() => {
     const sess = readSession("teacher");
@@ -214,7 +214,10 @@ export default function OverviewPage() {
                           {c.name}
                           <ProgramBadge program={c.program} isMulti={isMulti} />
                         </h4>
-                        <p>{c.studentCount} student{c.studentCount === 1 ? "" : "s"}</p>
+                        <p>
+                          {levelName(c.program, c.level) ? levelLabel(c.program, c.level) + " · " : ""}
+                          {c.studentCount} student{c.studentCount === 1 ? "" : "s"}
+                        </p>
                       </div>
                     </div>
                     <div className="dash-completion">

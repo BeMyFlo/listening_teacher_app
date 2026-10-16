@@ -13,6 +13,7 @@ const Submission = require("../../../lib/models/Submission");
 const { computeStreak } = require("../../../lib/student/streak");
 const { buildClassLeaderboard } = require("../../../lib/student/leaderboard");
 const { programOf, programFilter } = require("../../../lib/curriculum");
+const { levelNameFor } = require("../../../lib/curriculumServer");
 
 const EMPTY = {
   ok: true,
@@ -20,6 +21,7 @@ const EMPTY = {
   leaderboard: { rows: [], myRank: null, myPoints: 0 },
   className: null,
   classLevel: null,
+  classLevelName: "",
 };
 
 async function handler(req, res) {
@@ -71,6 +73,7 @@ async function handler(req, res) {
     leaderboard,
     className: cls.name,
     classLevel: cls.level,
+    classLevelName: await levelNameFor(req.ws, programOf(cls), cls.level),
   });
 }
 

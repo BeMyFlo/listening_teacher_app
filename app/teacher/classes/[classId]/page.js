@@ -6,8 +6,9 @@ import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
 import AttendanceTab from "@/components/teacher/AttendanceTab";
 import ProgramField from "@/components/teacher/ProgramField";
+import LevelField from "@/components/teacher/LevelField";
 import ProgramBadge from "@/components/ProgramBadge";
-import { DEFAULT_PROGRAM } from "@/lib/curriculum";
+import { DEFAULT_PROGRAM, programOf } from "@/lib/curriculum";
 import { usePrograms } from "@/lib/client/program";
 
 export default function ClassDetailPage() {
@@ -15,7 +16,7 @@ export default function ClassDetailPage() {
   const { classId } = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isMulti, refresh } = usePrograms();
+  const { isMulti, refresh, levelLabel } = usePrograms();
   const [tab, setTab] = useState(searchParams.get("tab") === "attendance" ? "attendance" : "students");
   const [cls, setCls] = useState(null);
   const [roster, setRoster] = useState([]);
@@ -119,7 +120,7 @@ export default function ClassDetailPage() {
         {back}
         <h2>{cls.name}</h2>
         <p className="page-sub" style={{ marginTop: -4 }}>
-          Level {cls.level} · {roster.length} student{roster.length === 1 ? "" : "s"}
+          {levelLabel(programOf(cls), cls.level)} · {roster.length} student{roster.length === 1 ? "" : "s"}
           <ProgramBadge program={cls.program} isMulti={isMulti} />
         </p>
 
@@ -153,10 +154,13 @@ export default function ClassDetailPage() {
                 onChange={setProgram}
                 locked={!!cls.programLocked}
               />
-              <div className="form-row" style={{ marginBottom: 0 }}>
-                <label>Level (applies to all students in this class)</label>
-                <input type="number" min="1" step="1" value={level} onChange={(e) => setLevel(e.target.value)} />
-              </div>
+              <LevelField
+                program={program}
+                value={level}
+                onChange={setLevel}
+                usedLevels={programOf(cls) === program ? [cls.level] : []}
+                label="Level (applies to all students in this class)"
+              />
             </div>
             <button type="button" className="btn" style={{ marginTop: 14 }} onClick={saveMeta}>
               Save

@@ -4,7 +4,7 @@ const { requireAuth } = require("../../../lib/auth");
 const { withTenant } = require("../../../lib/tenant");
 const Teacher = require("../../../lib/models/Teacher");
 const Workspace = require("../../../lib/models/Workspace");
-const { activePrograms } = require("../../../lib/curriculumServer");
+const { activePrograms, workspaceLevelNames } = require("../../../lib/curriculumServer");
 
 async function handler(req, res) {
   if (req.method !== "GET") {
@@ -27,6 +27,8 @@ async function handler(req, res) {
     membershipRole: req.ws.role,
     // Phase 8: chương trình workspace đang dùng, suy ra từ dữ liệu (không lưu).
     programs: await activePrograms(req.ws),
+    // Tên level (theo chương trình) để các trang gắn nhãn level mà không gọi thêm API.
+    levelNames: await workspaceLevelNames(req.ws),
   });
 }
 

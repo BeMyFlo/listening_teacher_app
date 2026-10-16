@@ -8,6 +8,7 @@ import { DEFAULT_PROGRAM, programOf } from "@/lib/curriculum";
 import { programParam, usePrograms } from "@/lib/client/program";
 import ProgramChips, { ProgramEmpty } from "@/components/teacher/ProgramChips";
 import ProgramField from "@/components/teacher/ProgramField";
+import LevelField from "@/components/teacher/LevelField";
 import ProgramBadge from "@/components/ProgramBadge";
 
 function ClassesInner() {
@@ -15,7 +16,7 @@ function ClassesInner() {
   const router = useRouter();
   const search = useSearchParams();
   const program = programParam(search); // null = All
-  const { isMulti, refresh } = usePrograms();
+  const { isMulti, refresh, levelLabel } = usePrograms();
   const [rows, setRows] = useState(null);
   const [listErr, setListErr] = useState("");
   const [name, setName] = useState("");
@@ -97,10 +98,12 @@ function ClassesInner() {
             <input type="text" placeholder="e.g. IELTS 6.0 – Evening A" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <ProgramField name="newClassProgram" value={formProgram} onChange={setFormProgram} />
-          <div className="form-row" style={{ marginBottom: 0 }}>
-            <label>Level</label>
-            <input type="number" min="1" step="1" value={level} onChange={(e) => setLevel(e.target.value)} />
-          </div>
+          <LevelField
+            program={formProgram}
+            value={level}
+            onChange={setLevel}
+            usedLevels={(rows || []).filter((c) => programOf(c) === formProgram).map((c) => c.level)}
+          />
         </div>
         <button type="button" className="btn" style={{ marginTop: 14 }} onClick={create}>
           <svg className="icon"><use href="#icon-plus" /></svg> Create Class
@@ -131,7 +134,7 @@ function ClassesInner() {
                   <ProgramBadge program={programOf(c)} isMulti={isMulti} />
                 </h4>
                 <p>
-                  Level {c.level} · {c.studentCount} student{c.studentCount === 1 ? "" : "s"}
+                  {levelLabel(programOf(c), c.level)} · {c.studentCount} student{c.studentCount === 1 ? "" : "s"}
                 </p>
               </div>
               <div className="actions">

@@ -15,6 +15,7 @@
 - [PLAN-IELTS-QUESTION-TYPES.md](plans/PLAN-IELTS-QUESTION-TYPES.md): đủ dạng câu hỏi IELTS Reading/Listening + import CSV
 - [PLAN-MOCK-TEST-4-SKILLS.md](plans/PLAN-MOCK-TEST-4-SKILLS.md): Mock Test gộp 4 kỹ năng
 - [PLAN-UNIT-VOCAB-REVIEW.md](plans/PLAN-UNIT-VOCAB-REVIEW.md): Vocab Review theo từng skill Reading / Listening (AI + nhập tay)
+- [PLAN-LEVEL-NAMES.md](plans/PLAN-LEVEL-NAMES.md): tên cho từng Level theo trung tâm và chương trình (Band 3.5–5.0, 300–450...)
 - [PLAN-LANDING-PAGE.md](plans/PLAN-LANDING-PAGE.md): Phase 11, trang giới thiệu www.bemyflo.com
 
 ## Multi-tenant (`plans/multi-tenant/`)

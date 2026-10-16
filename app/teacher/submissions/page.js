@@ -19,7 +19,7 @@ function SubmissionsLandingInner() {
   const router = useRouter();
   const searchP = useSearchParams();
   const program = programParam(searchP); // null = All
-  const { isMulti } = usePrograms();
+  const { isMulti, levelLabel } = usePrograms();
   const [tests, setTests] = useState(null);
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState("");
@@ -120,7 +120,7 @@ function SubmissionsLandingInner() {
                   <ProgramBadge program={programOf(t)} isMulti={isMulti} />
                 </h4>
                 <p>
-                  Level {t.level != null ? t.level : "-"} ·{" "}
+                  {t.level != null ? levelLabel(programOf(t), t.level) : "Level -"} ·{" "}
                   {stat ? (
                     <>
                       {stat.total} submission{stat.total === 1 ? "" : "s"} · {stat.students.size} student

@@ -67,6 +67,10 @@ export default function LessonsPage() {
       .catch((e) => setErr(e.message));
   }, []);
 
+  // Chỉ hiện khi giáo viên đã đặt tên cho level này; chưa đặt thì giữ nguyên chữ cũ.
+  const first = units && units[0];
+  const levelText = first && first.levelName ? `Level ${first.level} · ${first.levelName}` : "";
+
   const sorted = useMemo(() => {
     const arr = (units || []).slice();
     if (sort === "newest")
@@ -91,6 +95,7 @@ export default function LessonsPage() {
             <h1>Lessons</h1>
             <p className="page-sub">
               Units by level — Grammar, Vocabulary, Listening, Reading, Writing, Speaking
+              {levelText ? " · " + levelText : ""}
             </p>
           </div>
         </div>

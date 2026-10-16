@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
 import { programParam, usePrograms } from "@/lib/client/program";
+import { programOf } from "@/lib/curriculum";
 import ProgramChips, { ProgramEmpty } from "@/components/teacher/ProgramChips";
 import ProgramBadge from "@/components/ProgramBadge";
 
@@ -12,7 +13,7 @@ function StudentsInner() {
   const dialog = useDialog();
   const search = useSearchParams();
   const program = programParam(search); // null = All
-  const { isMulti } = usePrograms();
+  const { isMulti, levelLabel } = usePrograms();
   const [rows, setRows] = useState(null);
   const [classes, setClasses] = useState([]);
   const [listErr, setListErr] = useState("");
@@ -158,7 +159,7 @@ function StudentsInner() {
               <option value="">— Select a class —</option>
               {classes.map((c) => (
                 <option key={c._id} value={c._id}>
-                  {c.name} (Level {c.level})
+                  {c.name} ({levelLabel(programOf(c), c.level)})
                 </option>
               ))}
             </select>

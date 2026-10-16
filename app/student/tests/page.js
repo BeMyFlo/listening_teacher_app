@@ -67,7 +67,10 @@ export default function TestsPage() {
           <div className="page-head-icon"><svg className="icon"><use href="#icon-clipboard" /></svg></div>
           <div>
             <h1>Mock Tests</h1>
-            <p className="page-sub">Mock exams — {skillNames}</p>
+            <p className="page-sub">
+              Mock exams — {skillNames}
+              {rows && rows[0] && rows[0].levelName ? ` · Level ${rows[0].level} · ${rows[0].levelName}` : ""}
+            </p>
           </div>
         </div>
       </div>

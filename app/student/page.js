@@ -152,7 +152,8 @@ export default function StudentDashboard() {
           )}
 
           <div className="dash-stats">
-            <DashStat icon="book-open" value={home.stats.unitCount} label="Units for your level" />
+            <DashStat icon="book-open" value={home.stats.unitCount} label="Units for your level"
+              hint={extra && extra.classLevelName ? `Level ${extra.classLevel} · ${extra.classLevelName}` : undefined} />
             <DashStat icon="flame" value={streak.current} label="On-time streak" tone="amber"
               hint={streak.longest ? `Best: ${streak.longest}` : undefined} />
             <DashStat icon="trophy" value={lb.myRank ? "#" + lb.myRank : "—"} label="Class rank" tone="pink"

@@ -6,7 +6,7 @@ const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const Submission = require("../../../lib/models/Submission");
 const { buildTestOverview, buildStudentTestDetail } = require("../../../lib/teacher/testSubmissions");
-const { programOf } = require("../../../lib/curriculum");
+const { programOf, programFilter } = require("../../../lib/curriculum");
 const { collectFieldImageIds, testSectionLists, loadImageUrls } = require("../../../lib/fieldImages");
 
 const S = (v) => (v == null ? "" : String(v));
@@ -28,7 +28,11 @@ async function handler(req, res) {
   const assignedClassIds = (test.classIds || []).map(S);
   const scope = assignedClassIds.length ? "classes" : "level";
 
-  const classesAtLevel = await Class.find(tenantFilter(req.ws, { level: test.level })).sort({ name: 1 }).lean();
+  // Cùng level VÀ cùng chương trình (Level 1 IELTS khác Level 1 TOEIC) — không thì lớp
+  // chương trình kia lọt vào danh sách học sinh / số đếm của đề.
+  const classesAtLevel = await Class.find(tenantFilter(req.ws, { level: test.level, ...programFilter(programOf(test)) }))
+    .sort({ name: 1 })
+    .lean();
   const relevantClasses = scope === "classes"
     ? classesAtLevel.filter((c) => assignedClassIds.includes(S(c._id)))
     : classesAtLevel;

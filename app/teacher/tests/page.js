@@ -15,7 +15,7 @@ function TeacherTestsInner() {
   const router = useRouter();
   const search = useSearchParams();
   const program = programParam(search); // null = All
-  const { isMulti } = usePrograms();
+  const { isMulti, programs, levelLabel } = usePrograms();
   const [rows, setRows] = useState(null);
   const [classes, setClasses] = useState([]);
   const [listErr, setListErr] = useState("");
@@ -53,6 +53,11 @@ function TeacherTestsInner() {
     progClasses.forEach((c) => set.add(c.level));
     return [...set].filter((x) => x != null).sort((a, b) => a - b);
   }, [progRows, progClasses]);
+
+  // Nhãn level ở bộ lọc: theo chip đang chọn, hoặc chương trình duy nhất. Chip All + nhiều
+  // chương trình: một số level chung cho cả hai chương trình -> giữ "Level N" như cũ.
+  const labelProgram = program || (isMulti ? null : programs[0]);
+  const filterLabel = (l) => (labelProgram ? levelLabel(labelProgram, l) : "Level " + l);
 
   const filtered = progRows.filter((t) => {
     if (levelFilter !== "all" && t.level !== Number(levelFilter)) return false;
@@ -108,7 +113,7 @@ function TeacherTestsInner() {
             <option value="all">All levels</option>
             {levels.map((l) => (
               <option key={l} value={l}>
-                Level {l}
+                {filterLabel(l)}
               </option>
             ))}
           </select>
@@ -154,7 +159,7 @@ function TeacherTestsInner() {
                     <ProgramBadge program={programOf(t)} isMulti={isMulti} />
                   </h4>
                   <p>
-                    Level {t.level != null ? t.level : "-"} ·{" "}
+                    {t.level != null ? levelLabel(programOf(t), t.level) : "Level -"} ·{" "}
                     {assigned.length ? "Classes: " + assigned.join(", ") : "All students"} · Skills:{" "}
                     {skills.length ? skills.join(", ") : "none yet"}
                     {sched.length ? " · " + sched.join(" · ") : ""}

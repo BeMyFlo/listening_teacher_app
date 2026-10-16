@@ -7,6 +7,7 @@ const Class = require("../../lib/models/Class");
 const { resolveDeadline, isSkillLocked } = require("../../lib/deadlines");
 const { PROGRAMS, programOf, programFilter } = require("../../lib/curriculum");
 const { lessonSkillsOf } = require("../../lib/completion");
+const { levelNameFor } = require("../../lib/curriculumServer");
 
 const iso = (d) => (d ? new Date(d) : null);
 const overdue = (d) => !!d && Date.now() > new Date(d).getTime();
@@ -25,7 +26,7 @@ function earliestDeadline(unit, classId) {
 
 // Strips answer keys before a unit is sent to a student's browser — same
 // rule as toPublicTest in api/tests.js (kept local on purpose).
-function toPublicUnit(unit, cls) {
+function toPublicUnit(unit, cls, levelName) {
   const publicSections = (sections) =>
     (sections || []).map((s) => ({
       name: s.name,
@@ -75,6 +76,7 @@ function toPublicUnit(unit, cls) {
     id: unit._id,
     name: unit.name,
     level: unit.level,
+    levelName: levelName || "",
     program: programOf(unit),
     // Hạn chung cả Unit (cho banner ở đầu trang).
     dueAt: iso(unitDue),
@@ -203,7 +205,7 @@ async function handler(req, res) {
     if (!unit) {
       return res.status(404).json({ ok: false, error: "Lesson unit not found" });
     }
-    return res.status(200).json({ ok: true, unit: toPublicUnit(unit, cls) });
+    return res.status(200).json({ ok: true, unit: toPublicUnit(unit, cls, await levelNameFor(req.ws, programOf(unit), unit.level)) });
   }
 
   const units = await Unit.find(tenantFilter(req.ws, { status: "published", level, ...classFilter, ...progFilter }))
@@ -213,12 +215,16 @@ async function handler(req, res) {
   // Tóm tắt từng category (không lộ đáp án/nội dung câu hỏi) — đủ để trang
   // danh sách Lessons hiện badge kỹ năng + số lượng + tính % hoàn thành mà
   // không cần tải chi tiết từng Unit.
+  // Mọi Unit trong danh sách cùng level + cùng chương trình của lớp -> 1 tên cho cả danh sách.
+  const levelName = await levelNameFor(req.ws, programOf(cls), level);
   const rows = units.map((u) => {
     const dueAt = earliestDeadline(u, cls._id);
     const rowSkills = PROGRAMS[programOf(u)].lessonSkills;
     return {
       id: u._id,
       name: u.name,
+      level: u.level,
+      levelName,
       order: u.order,
       createdAt: u.createdAt,
       dueAt: iso(dueAt),
