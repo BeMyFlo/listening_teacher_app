@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
@@ -14,6 +14,9 @@ import { useTabSwitchGuard } from "@/components/student/useTabSwitchGuard";
 import { useDialog } from "@/components/ui/Dialog";
 import RubricResult from "@/components/RubricResult";
 import NotebookFab from "@/components/student/NotebookFab";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
+import { groupFieldsByPart } from "@/lib/partGroups";
 
 export default function TakeTestPage() {
   const { testId, skill } = useParams();
@@ -83,7 +86,9 @@ export default function TakeTestPage() {
         </div>
       </section>
     );
-  if (!tab) return <section><div className="card">{backLink}<p>Invalid skill.</p></div></section>;
+  // Kỹ năng ngoài testSkills của chương trình (vd Writing của đề TOEIC 8A) coi như không tồn tại.
+  const skillHidden = !!(test && test.program && !PROGRAMS[programOf(test)].testSkills.includes(skill));
+  if (!tab || skillHidden) return <section><div className="card">{backLink}<p>Invalid skill.</p></div></section>;
   if (!test)
     return (
       <section>
@@ -243,6 +248,8 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
   const [audioPhase, setAudioPhase] = useState({});
   const sections = skillData.sections || [];
   const isListening = skill === "listening";
+  // Đề TOEIC (thang quy đổi): tiêu đề Part + điểm ước tính. IELTS không đổi.
+  const toeic = usesToeicScale(programOf(test));
 
   const setSectionPhase = (si) => (p) =>
     setAudioPhase((prev) => (prev[si] === p ? prev : { ...prev, [si]: p }));
@@ -356,6 +363,21 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
                 / <span>{result.total}</span>
               </span>
             </div>
+            {toeic && (
+              <div className="toeic-estimate">
+                <div>{toeicResultLine(skill, result.score, result.total)}</div>
+                {(() => {
+                  const other = skill === "listening" ? "reading" : "listening";
+                  const mine = { score: result.score, total: result.total };
+                  const otherSub = latestExamSub(subs, test.id, other);
+                  const totalText = formatToeicTotalFromSubs(
+                    skill === "listening" ? mine : otherSub,
+                    skill === "listening" ? otherSub : mine
+                  );
+                  return totalText ? <div>Total (Listening + Reading): {totalText}</div> : null;
+                })()}
+              </div>
+            )}
             <p className="notice success" style={{ display: "inline-block" }}>
               <svg className="icon"><use href="#icon-check-circle" /></svg> Test results submitted to teacher
               successfully.
@@ -365,7 +387,10 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
             {sections.map((sec, si) => (
               <div key={si} style={{ marginBottom: 24 }}>
                 <div className="section-title">{sec.name}</div>
-                {(sec.fields || []).map((f) => {
+                {(toeic ? groupFieldsByPart(sec.fields) : [{ label: "", fields: sec.fields || [] }]).map((g, gi) => (
+                  <Fragment key={gi}>
+                {g.label && <h4 className="part-heading">{g.label}</h4>}
+                {g.fields.map((f) => {
                   const d = result.detailById[f.id];
                   if (!d) return null;
                   const shown = answerLabel(f, answersApi.getValue(f), sec) || "(blank)";
@@ -394,6 +419,8 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
                     </div>
                   );
                 })}
+                  </Fragment>
+                ))}
               </div>
             ))}
           </div>
@@ -445,6 +472,7 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
             skill={skill}
             answersApi={answersApi}
             examAudio={isListening}
+            partHeadings={toeic}
             audioPhase={audioPhase[activeSection] || "idle"}
             onAudioPhase={setSectionPhase(activeSection)}
             onReplay={() => setReplayCount((n) => n + 1)}

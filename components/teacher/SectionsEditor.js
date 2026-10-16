@@ -124,7 +124,8 @@ function addNoteBlock(s, id) {
 // (Vocab Review dùng), không bật ở builder đề thi.
 // program: "ielts" (mặc định) | "toeic" — quyết định danh sách dạng câu hỏi và ẩn
 // nút import spreadsheet với nội dung TOEIC (chưa có template, Phase 8 bước 5.6).
-export default function SectionsEditor({ sections, subject, media, onChange, showTranscript = false, program }) {
+// firstId: số câu đầu tiên của kỹ năng khi chưa có câu nào (TOEIC Reading = 101).
+export default function SectionsEditor({ sections, subject, media, onChange, showTranscript = false, program, firstId = 1 }) {
   const [importing, setImporting] = useState(false);
   const canImport = program !== "toeic";
 
@@ -149,6 +150,7 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
           showTranscript={showTranscript}
           allSections={sections}
           program={program}
+          firstId={firstId}
           patch={patch}
         />
       ))}
@@ -184,7 +186,7 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
   );
 }
 
-function SectionCard({ sec, si, subject, media, allSections, patch, showTranscript, program }) {
+function SectionCard({ sec, si, subject, media, allSections, patch, showTranscript, program, firstId = 1 }) {
   const set = (k, v) => patch((d) => (d[si][k] = v));
   const formats = questionFormatsFor(subject, program);
   // true = đang hiện lưới chọn dạng bài (bấm "+ Add Question" mở ra, chọn
@@ -198,7 +200,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
   // hướng dẫn UI — set đúng field.kind + tự bật/điền sẵn phần liên quan,
   // không đụng gì tới cách import CSV hay cách chấm điểm.
   function addQuestionWithFormat(fmt) {
-    const id = nextFieldId(allSections);
+    const id = nextFieldId(allSections, firstId);
     patch((d) => {
       const s = d[si];
       const field = emptyField(id);
@@ -221,7 +223,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
   }
 
   function addPlainQuestion() {
-    patch((d) => d[si].fields.push(emptyField(nextFieldId(allSections))));
+    patch((d) => d[si].fields.push(emptyField(nextFieldId(allSections, firstId))));
     setPickingFormat(false);
   }
 
@@ -230,7 +232,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
   const lastLetter = [...(sec.fields || [])].reverse().find(isLetterEditorField) || null;
   function addLetterQuestions(count) {
     if (!lastLetter) return;
-    const first = nextFieldId(allSections);
+    const first = nextFieldId(allSections, firstId);
     patch((d) => {
       const s = d[si];
       for (let k = 0; k < count; k++) {

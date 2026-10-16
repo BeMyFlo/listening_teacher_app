@@ -3,6 +3,8 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { usesToeicScale, estimateToeic, formatToeicTotal } from "@/lib/toeicScale";
 
 const SKILLS = [
   { key: "listening", label: "Listening" },
@@ -17,7 +19,8 @@ const STATUS = {
   needs_grading: { label: "Needs grading", cls: "pill-warn" },
 };
 
-function SkillCell({ s }) {
+// toeic: Mock Test TOEIC -> thêm điểm ước tính (chỉ hiển thị) dưới "đúng/tổng".
+function SkillCell({ s, skillKey, toeic }) {
   if (!s) return <td style={{ color: "var(--muted)" }}>—</td>;
   if (s.kind === "prompt") {
     if (s.itemsTotal === 0) return <td style={{ color: "var(--muted)" }}>—</td>;
@@ -26,9 +29,16 @@ function SkillCell({ s }) {
     return <td><b>{s.avgScore != null ? s.avgScore : "✓"}</b></td>;
   }
   if (!s.done) return <td style={{ color: "var(--muted)" }}>—</td>;
+  const est = toeic ? estimateToeic(skillKey, s.score, s.total) : null;
   return (
     <td>
       <b>{s.score}</b>/{s.total}
+      {est != null && (
+        <>
+          <br />
+          <span style={{ color: "var(--muted)", fontSize: ".8rem" }}>≈ {est} / 495 (est.)</span>
+        </>
+      )}
     </td>
   );
 }
@@ -148,6 +158,15 @@ function Inner() {
   }
 
   // ---------- Student list for a class ----------
+  const toeic = usesToeicScale(programOf(data.test));
+  const skillCols = SKILLS.filter((sk) => PROGRAMS[programOf(data.test)].testSkills.includes(sk.key));
+  // Tổng L+R ước tính của 1 học sinh (chỉ khi đã làm cả hai kỹ năng).
+  const totalCell = (s) => {
+    const l = s.skills.listening;
+    const r = s.skills.reading;
+    if (!l || !r || !l.done || !r.done) return "—";
+    return formatToeicTotal(estimateToeic("listening", l.score, l.total), estimateToeic("reading", r.score, r.total)) || "—";
+  };
   const cls = data.classes.find((c) => String(c._id) === String(classId));
   const students =
     classId === "__all__"
@@ -172,14 +191,15 @@ function Inner() {
             <thead>
               <tr>
                 <th>Student</th>
-                {SKILLS.map((s) => <th key={s.key}>{s.label}</th>)}
+                {skillCols.map((s) => <th key={s.key}>{s.label}</th>)}
+                {toeic && <th>Total (estimated)</th>}
                 <th>Status</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {students.length === 0 && (
-                <tr><td colSpan={SKILLS.length + 3} style={{ textAlign: "center", color: "var(--muted)" }}>No students</td></tr>
+                <tr><td colSpan={skillCols.length + (toeic ? 1 : 0) + 3} style={{ textAlign: "center", color: "var(--muted)" }}>No students</td></tr>
               )}
               {students.map((s) => {
                 const st = STATUS[s.status] || STATUS.not_started;
@@ -194,7 +214,8 @@ function Inner() {
                       <br />
                       <span style={{ color: "var(--muted)", fontSize: ".8rem" }}>{s.username}</span>
                     </td>
-                    {SKILLS.map((sk) => <SkillCell key={sk.key} s={s.skills[sk.key]} />)}
+                    {skillCols.map((sk) => <SkillCell key={sk.key} s={s.skills[sk.key]} skillKey={sk.key} toeic={toeic} />)}
+                    {toeic && <td style={{ fontSize: ".85rem" }}>{totalCell(s)}</td>}
                     <td><span className={"pill " + st.cls}>{st.label}</span></td>
                     <td><svg className="icon"><use href="#icon-chevron-right" /></svg></td>
                   </tr>

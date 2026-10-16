@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { LESSON_CATS } from "@/lib/student/constants";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
 import { unitProgress } from "@/lib/student/submissions";
+
+// Kỹ năng hiển thị của 1 Unit theo chương trình (IELTS: đủ 6 như cũ; TOEIC 8A: 4).
+const catsOf = (unit) => LESSON_CATS.filter((c) => PROGRAMS[programOf(unit)].lessonSkills.includes(c.key));
 
 // Chip hạn nộp cho lesson list. null nếu Unit không có hạn hoặc đã làm xong.
 function DeadlineChip({ dueAt, pct }) {
@@ -20,7 +24,7 @@ function DeadlineChip({ dueAt, pct }) {
 function CategoryBadges({ unit }) {
   return (
     <div className="unit-overview-badges">
-      {LESSON_CATS.map((cat) => {
+      {catsOf(unit).map((cat) => {
         const c = (unit.categories || []).find((x) => x.key === cat.key);
         const has = c && c.hasContent;
         if (c && c.locked) {
@@ -179,7 +183,7 @@ export default function LessonsPage() {
                       <p>
                         <span className="meta-icon">
                           <svg className="icon"><use href="#icon-headphones" /></svg> {skillsWithContent}/
-                          {LESSON_CATS.length} skills
+                          {catsOf(u).length} skills
                         </span>
                         <span className="meta-icon">
                           <svg className="icon"><use href="#icon-clipboard" /></svg> {p.totalItems} item(s)

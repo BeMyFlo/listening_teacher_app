@@ -6,6 +6,7 @@ import { api } from "@/lib/client/api";
 import { readSession } from "@/lib/client/session";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { buildStudentHome } from "@/lib/student/dashboard";
+import { skillBarValue } from "@/lib/student/skillBar";
 
 function greeting() {
   const h = new Date().getHours();
@@ -177,7 +178,7 @@ export default function StudentDashboard() {
                     <div className="progress-bar">
                       <div className="progress-bar-fill" style={{ width: s.pct + "%", background: barColor(s.pct) }} />
                     </div>
-                    <span className="skillbar-val">{s.band != null ? "Band " + s.band : s.pct + "%"}</span>
+                    <span className="skillbar-val">{skillBarValue(s, home.program)}</span>
                   </div>
                 ))
               )}

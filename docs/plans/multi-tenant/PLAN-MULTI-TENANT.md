@@ -25,7 +25,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☑ **XONG** (5A + 5B + 5C) | 2026-09-30. Code bởi Sonnet subagent, Opus thiết kế + review từng dòng — xem Nhật ký |
 | 6 | Onboarding + Workspace Settings + tuỳ chỉnh màu theo workspace (KHÔNG có tự đăng ký) | ☑ **XONG, đã merge vào `main`** (PR #9) | 2026-09-30. Đợt 2 (dọn 214 màu cứng) chưa làm |
 | 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ☑ **XONG, đã merge** (PR #10) | 2026-09-30. Tên nền tảng đã chốt **BeMyFlo** (2026-10-05) — xem Nhật ký |
-| 8 | Taxonomy Program + **TOEIC** (8A: Nghe/Đọc · 8B: Nói/Viết) + lọc chương trình theo trang | ◐ **plan chốt 2026-10-16**, chưa code — [PLAN-PHASE8-TOEIC.md](PLAN-PHASE8-TOEIC.md), branch `phase-8-toeic` | 2026-10-08. Chủ dự án chọn TOEIC làm chương trình đầu tiên |
+| 8 | Taxonomy Program + **TOEIC** (8A: Nghe/Đọc · 8B: Nói/Viết) + lọc chương trình theo trang | ◐ **8A code xong trên branch `phase-8-toeic` (bước 1–7), chưa kiểm bằng trình duyệt, chưa merge**; 8B chưa làm — [PLAN-PHASE8-TOEIC.md](PLAN-PHASE8-TOEIC.md) | 2026-10-16. Chủ dự án chọn TOEIC làm chương trình đầu tiên. Còn thiếu: bảng quy đổi điểm chính thức (D7), kiểm trình duyệt, backfill chưa chạy |
 | 9 | Tương lai: nhiều giáo viên / 1 workspace, enrollment nhiều lớp, Organization | ☐ chưa làm | không làm trong V1 |
 | 10 | **Subdomain theo workspace** (`<slug>.bemyflo.com`) | ☑ **XONG, đã merge** (PR #11) | 2026-10-05. DNS/Vercel đã xong (nameserver → Vercel, `*.bemyflo.com` có chứng chỉ). Plan chưa ghi kết quả kiểm thử trên `*.bemyflo.com` thật. Xem Nhật ký |
 | 10B | Tự chuyển phiên đăng nhập từ domain gốc sang subdomain | ☑ **XONG, đã merge** (PR #12) | 2026-10-05 |
@@ -2004,6 +2004,14 @@ xong. Rollback: gỡ `APP_BASE_DOMAIN` (tính năng tắt, mọi host về chế
 - Các quyết định C1–C10 (đã chốt 2026-10-16) và D6–D7 ghi ở PLAN-PHASE8-TOEIC.md mục 2,
   chủ dự án đã xác nhận.
 - Đính chính bảng 0.1: Phase 10 và 10B đã merge (PR #11, #12) từ trước, bảng ghi chưa merge là cũ.
+
+### 2026-10-16 — Phase 8A (TOEIC Listening & Reading): code xong trên branch, chưa merge ◐
+
+- Bước 1–7 của [PLAN-PHASE8-TOEIC.md](PLAN-PHASE8-TOEIC.md) đã code trên `phase-8-toeic` (registry `program`, server enforce, bộ lọc/nhãn cho giáo viên,
+  builder + dạng câu hỏi TOEIC Part 1–7, phía học sinh, cột chương trình ở admin). Chi tiết từng bước, các chỗ lệch plan và phần chưa kiểm chứng: mục 9
+  của file đó.
+- Trạng thái kiểm: `npm test` 101/101, `check-tenant-scope --strict` qua, `curl` trang 200 / API 401. **Chưa** kiểm bằng trình duyệt, **chưa** probe dev DB,
+  backfill `program` **chưa chạy ở đâu**, bảng quy đổi điểm TOEIC hiện là xấp xỉ tạm (chủ dự án phải chọn bảng công khai trước khi merge).
 
 ---
 

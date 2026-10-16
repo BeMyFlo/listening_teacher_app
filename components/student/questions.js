@@ -8,6 +8,7 @@ import HighlightText, { hashStr, clearHighlights } from "@/components/student/Hi
 import ExamAudioPlayer from "@/components/student/ExamAudioPlayer";
 import { blankIdsFromDoc } from "@/lib/tiptap/doc";
 import { isLetterOnlyField } from "@/lib/letterQuestion";
+import { groupFieldsByPart } from "@/lib/partGroups";
 
 // Highlightable static text in the question column. `base` scopes it to the
 // current section; `slot` + a hash of the text keep the localStorage key stable
@@ -291,6 +292,7 @@ export function SectionBlock({
   examAudio = false,
   audioPhase = "idle",
   onAudioPhase,
+  partHeadings = false,
 }) {
   const [replays, setReplays] = useState(0);
   const [hlNonce, setHlNonce] = useState(0);
@@ -314,7 +316,7 @@ export function SectionBlock({
   const noteBlankIds = hasNote ? noteBlankIdSet(section) : new Set();
   const standaloneFields = (section.fields || []).filter((f) => !noteBlankIds.has(Number(f.id)));
 
-  const fields = standaloneFields.map((f) => (
+  const renderField = (f) => (
     <QuestionField
       key={f.id}
       field={f}
@@ -324,7 +326,17 @@ export function SectionBlock({
       review={reviewById ? reviewById[f.id] : null}
       hlBase={hlBase}
     />
-  ));
+  );
+  // Mock Test TOEIC (partHeadings): câu liền nhau cùng formatLabel nằm dưới 1 tiêu đề
+  // "Part N — Name". Bài tập Lesson và IELTS không truyền cờ này -> danh sách phẳng như cũ.
+  const fields = partHeadings
+    ? groupFieldsByPart(standaloneFields).flatMap((g, gi) => [
+        g.label ? (
+          <h4 key={"part-" + gi} className="part-heading">{g.label}</h4>
+        ) : null,
+        ...g.fields.map(renderField),
+      ])
+    : standaloneFields.map(renderField);
 
   const body = hasNote ? (
     <>

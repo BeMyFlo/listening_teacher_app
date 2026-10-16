@@ -4244,3 +4244,10 @@ tr:hover td { background: var(--pink-wash-2); }
 .letter-btn:disabled { cursor: default; }
 .letter-btn.is-correct { border-color: var(--green); background: var(--teal-light); color: var(--green); }
 .letter-btn.is-wrong { border-color: var(--red); background: var(--red-light); color: var(--red); }
+
+
+/* Phase 8 bước 6 — Mock Test TOEIC: tiêu đề Part + điểm ước tính (chỉ hiển thị). */
+.part-heading { margin: 18px 0 8px; font-size: 1rem; color: var(--navy); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.part-heading:first-child { margin-top: 4px; }
+.toeic-estimate { margin: 6px 0 10px; font-weight: 600; color: var(--navy); }
+.toeic-estimate > div + div { margin-top: 2px; font-size: .95rem; color: var(--muted); }

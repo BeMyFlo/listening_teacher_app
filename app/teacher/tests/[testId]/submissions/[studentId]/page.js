@@ -7,7 +7,9 @@ import RubricGrader from "@/components/teacher/RubricGrader";
 import RubricResult from "@/components/RubricResult";
 import { useDialog } from "@/components/ui/Dialog";
 import { pollAiGrade } from "@/lib/client/aiGrade";
-import { TEST_SKILLS } from "@/lib/teacher/testBuilder";
+import { testSkillsFor } from "@/lib/teacher/testBuilder";
+import { programOf } from "@/lib/curriculum";
+import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
 
 function pct(score, total) {
   if (!total) return null;
@@ -264,7 +266,7 @@ function FormatStatsPanel({ stats }) {
   );
 }
 
-function AutoSkillPanel({ skill }) {
+function AutoSkillPanel({ skill, toeic }) {
   if (!skill.submissionId) {
     return <div className="empty-state">Student hasn't attempted this skill yet.</div>;
   }
@@ -284,6 +286,11 @@ function AutoSkillPanel({ skill }) {
           <h2 style={{ margin: "2px 0 8px" }}>
             {skill.score}/{skill.total} <span style={{ color: "var(--muted)", fontWeight: 600, fontSize: "1rem" }}>({pct(skill.score, skill.total)}%)</span>
           </h2>
+          {toeic && (
+            <p style={{ margin: "4px 0", fontWeight: 600 }}>
+              {toeicResultLine(skill.key, skill.score, skill.total)}
+            </p>
+          )}
           <p style={{ margin: "4px 0", color: "var(--muted)", fontSize: ".85rem" }}>
             <svg className="icon"><use href="#icon-calendar" /></svg> Submitted {fmtDateTime(skill.submittedAt)}
           </p>
@@ -524,17 +531,28 @@ function Inner() {
 
   const skillByKey = Object.fromEntries(data.skills.map((s) => [s.key, s]));
   const activeSkill = skillByKey[active];
+  const toeic = usesToeicScale(programOf(data.test));
+  const toeicTotal = toeic
+    ? formatToeicTotalFromSubs(
+        skillByKey.listening && skillByKey.listening.submissionId ? skillByKey.listening : null,
+        skillByKey.reading && skillByKey.reading.submissionId ? skillByKey.reading : null
+      )
+    : "";
 
   return (
     <div className="tab-panel active">
       {head}
       {back}
 
+      {toeicTotal && (
+        <p style={{ margin: "0 0 12px", fontWeight: 600 }}>Estimated total (Listening + Reading): {toeicTotal}</p>
+      )}
+
       <div className="subject-toggle skill-tabs" style={{ marginBottom: 14 }}>
         <button type="button" className={active === "stats" ? "active" : ""} onClick={() => setActive("stats")}>
           <svg className="icon"><use href="#icon-chart-bar" /></svg> Thống kê
         </button>
-        {TEST_SKILLS.map((s) => {
+        {testSkillsFor(data.test.program).map((s) => {
           const sk = skillByKey[s.key];
           const attempted = sk && (sk.kind === "auto" ? !!sk.submissionId : sk.submitted > 0);
           const needsGrading = sk && sk.kind === "prompt" && sk.submitted > sk.prompts.filter((p) => p.gradingStatus === "graded").length;
@@ -560,7 +578,7 @@ function Inner() {
       ) : (
         <div className="card">
           {activeSkill.kind === "auto" ? (
-            <AutoSkillPanel skill={activeSkill} />
+            <AutoSkillPanel skill={activeSkill} toeic={toeic} />
           ) : (
             <PromptSkillPanel skill={activeSkill} onGraded={load} />
           )}

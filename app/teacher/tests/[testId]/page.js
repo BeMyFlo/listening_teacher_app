@@ -287,6 +287,7 @@ function TestBuilderInner() {
                 sections={skill.sections}
                 subject={activeKey}
                 program={b.program || undefined}
+                firstId={b.program === "toeic" && activeKey === "reading" ? 101 : 1}
                 media={media}
                 onChange={(next) => updateSkill(activeKey, (s) => (s.sections = next))}
               />

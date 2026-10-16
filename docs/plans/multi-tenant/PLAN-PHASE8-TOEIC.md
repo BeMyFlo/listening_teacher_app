@@ -5,7 +5,7 @@
 >
 > **Người thi hành đọc kỹ mục 0 và mục 2 trước khi gõ dòng code đầu tiên.**
 
-Trạng thái: ☐ plan xong, chưa code · Ngày lập: 2026-10-08 · Sửa: 2026-10-16 (C4: bỏ nút bật chương trình) · Branch: `phase-8-toeic`
+Trạng thái: ◐ 8A code xong trên branch, chưa kiểm bằng trình duyệt, chưa merge · Ngày lập: 2026-10-08 · Sửa: 2026-10-16 (C4: bỏ nút bật chương trình) · Branch: `phase-8-toeic`
 Tiền đề: Phase 1–7 + 10/10B đã merge vào `main`. `Workspace.programs` có sẵn trong schema (default `["ielts"]`,
 chưa ai dùng) — **sau C4 không dùng field này nữa**, xem 2.1.
 
@@ -597,4 +597,91 @@ lúc đó sẽ hiện như IELTS (code cũ không biết `program`) — báo gi�
 
 > Người thi hành ghi vào đây sau mỗi bước: đã làm gì, lệch gì so với plan, kiểm chứng bằng gì.
 
-*(chưa có)*
+### 2026-10-16 — Bước 1: registry + schema + backfill
+
+- `lib/curriculum.js` (client-safe) + `lib/curriculumServer.js` (`activePrograms`, cần DB). `Class/Unit/Test/Submission` có
+  `program`; `FieldSchema.imageId`; `/api/teacher/me` trả `programs`. `scripts/backfill-program.js` + mục "missing program" trong
+  `scripts/check-orphans.js`.
+- **Lệch plan:** `program` có `default: "ielts"` nhưng **không** `required: true` (doc cũ chưa backfill vẫn lưu/đọc được; mọi chỗ đọc
+  đã qua `programOf`/`programFilter`). **Index cũ giữ nguyên**, index mới thêm bên cạnh (không thay) để không đụng dữ liệu live.
+- Kiểm: `tests/curriculum.test.js`. **Chưa kiểm:** chưa chạy backfill ở đâu (dev lẫn live), chưa chạy `check-orphans` sau backfill.
+
+### 2026-10-16 — Bước 2: server enforce
+
+- Lớp/Unit/Test nhận `program` (mặc định ielts, 400 nếu sai), đổi chương trình chỉ khi chưa giao/chưa có bài nộp (409), GET trả
+  `programLocked`. Sanitize lớp/deadline/skill-lock theo `(level, program)` **và theo workspace** (trước đây id lớp của workspace khác
+  lọt qua được). Học sinh chỉ lấy Unit/Test của chương trình lớp mình; category / test skill ngoài `lessonSkills`/`testSkills` không được
+  gửi. Bài nộp ghi `program`. Grading queue / submissions / dashboard / students nhận `?program=`. `/api/sysadmin/workspaces` trả
+  `programs`. `lib/completion.js`, `deadlines`, `streak`, nhắc hạn bỏ qua kỹ năng bị ẩn (5.1b, R9).
+- **Thêm ngoài plan:** (a) sửa `pages/api/teacher/me.js` thiếu `module.exports.default` (trả 500 trên dev); (b) bài nộp bị chặn nếu
+  Unit/Test không giao cho lớp của học sinh, sai chương trình hoặc kỹ năng không thuộc chương trình (trước đây chỉ kiểm tồn tại + level)
+  — vá ở bước 3–4 (`studentContentFilter`, `lessonSkillAllowed`, `testSkillAllowed`).
+- Kiểm: `tests/programEnforce.test.js` (25 test, gọi handler thật với model giả). `check-tenant-scope --strict` qua.
+  **Chưa kiểm:** script probe trên **dev DB** (danh sách kiểm của bước 2 chưa chạy với DB thật).
+
+### 2026-10-16 — Bước 3–4: khung UX + các trang giáo viên
+
+- `lib/client/program.js` (`usePrograms`), `ProgramChips`, `ProgramBadge`, `ProgramField`, token màu `--program-*` có dark mode. Ô Program
+  luôn có ở form tạo/sửa lớp (khoá khi `programLocked`). Lessons chia nhóm IELTS/TOEIC, Classes/Mock Tests/Students/Grading/Submissions có
+  chip + nhãn, Overview chỉ thêm nhãn. Tất cả chỉ hiện khi `isMulti`.
+- Kiểm: unit test + `curl` các trang (200) / API (401). **Chưa kiểm bằng trình duyệt** (chip, nhóm Lessons, ô Program, dark mode,
+  điện thoại, so `outerHTML` topbar của Ms Nhi trước/sau — R4).
+
+### 2026-10-16 — Bước 5: builder, dạng câu hỏi TOEIC, ảnh riêng từng câu, AI
+
+- Unit editor / Test builder theo `lessonSkills`/`testSkills`, thời lượng mặc định theo chương trình. 12 dạng TOEIC Part 1–7 trong
+  `questionFormatsFor(subject, program)`; dạng mới "Listen and choose — no printed question" (`lib/letterQuestion.js`, lưu như `choice` có
+  `label` rỗng, option "A".."D"). `field.imageId` đi trọn đường: normalize + kiểm workspace + trả `imageUrl` cho học sinh + hiện ở builder,
+  làm bài, xem lại và trang review của giáo viên. Prompt AI (grammar, vocab, vocab review) nhận `program`; nhánh IELTS giữ **nguyên từng
+  chữ** (ghim bằng hash trong `tests/aiProgram.test.js`). Import spreadsheet/lesson ẩn với TOEIC.
+- **Lệch plan:** (a) dạng letter chỉ thêm vào **danh sách IELTS Listening** (không thêm vào Reading) — plan 5.3a nói "cả IELTS lẫn TOEIC", Reading IELTS
+  không có Part nghe nên bỏ; (b) ô "Question image" hiện ở dòng `mcq` của **cả IELTS** (thu gọn, đúng như 5.4 "dùng chung") nên builder IELTS có
+  thêm 1 ô thu gọn — trái nhẹ bất biến 0.2, chủ dự án cần biết; (c) **tuỳ chọn AI nhớ riêng theo chương trình** (band IELTS không bị gửi sang prompt
+  TOEIC) — plan không nêu; (d) Vocab Review (C10): `feature/vocab-review` đã có trong cây nên làm luôn.
+- Kiểm: `tests/toeicBuilder.test.js` (12), `tests/aiProgram.test.js` (8). **Chưa kiểm:** chưa gọi AI thật với prompt TOEIC; chưa thử tạo đề TOEIC
+  bằng trình duyệt; chưa có ảnh thật qua Cloudinary.
+
+### 2026-10-16 — Bước 6: phía học sinh
+
+- **Tab theo registry:** trang Unit học sinh dựng tab từ `PROGRAMS[unit.program].lessonSkills` (không còn tab trống khi API bỏ category);
+  danh sách Lessons (`app/student/lessons/page.js`) cũng chỉ hiện badge/đếm kỹ năng của chương trình ("x/4 skills" cho TOEIC, "x/6" IELTS như cũ).
+  Danh sách Mock Test + trang làm bài lọc theo `testSkills`; vào thẳng kỹ năng bị ẩn → "Invalid skill". Vocab Review không đụng.
+- **Điểm ước tính (C5):** `lib/toeicScale.js` — **lệch plan về đường dẫn**: plan ghi `lib/curriculum/toeicScale.js` nhưng `lib/curriculum.js` đã là
+  file nên không tạo được thư mục cùng tên. API: `estimateToeic(skill, correct, total)` (total ≠ 100 → quy theo tỉ lệ rồi tra; tròn bội 5; kẹp 5–495;
+  total ≤ 0 / dữ liệu xấu → `null`), `estimateToeicTotal`, `toeicResultLine` ("38/50 correct · ≈ 385 / 495 (estimated)"), `formatToeicTotal`
+  ("≈ 785 / 990 (estimated)"). Hiện ở: kết quả sau khi nộp Mock Test, danh sách Mock Tests của học sinh, danh sách + trang chi tiết bài nộp Mock Test của
+  giáo viên (kèm cột "Total (estimated)" và ẩn cột Writing/Speaking với TOEIC). Bài tập Lesson **không** quy đổi. Chỉ chạy khi `PROGRAMS[p].scoring ===
+  "toeic-scaled"`. `/api/admin/test-submissions` trả thêm `program`.
+- **QUAN TRỌNG — nguồn bảng (D7) CHƯA có:** không có mạng để đối chiếu nguồn công khai nào, nên bảng trong file là **xấp xỉ đơn điệu tự dựng**
+  (piecewise-linear qua các mốc, 0→5 và 100→495; mốc giữa là ước lượng, KHÔNG sao chép từ bảng nào). Đã ghi rõ trong comment đầu file. **Chủ dự án
+  phải chọn một bảng công khai, thay mảng `ANCHORS`** (và ghi URL) trước khi cho học sinh dùng. Chỉ hiển thị, không lưu DB nên đổi bảng không cần migrate.
+- **Đánh số + tiêu đề Part (C9):** `lib/partGroups.js` (`groupFieldsByPart`) gom các câu liền nhau cùng `formatLabel`; `SectionBlock` nhận cờ `partHeadings`
+  (chỉ bật cho Mock Test TOEIC, cả lúc làm bài lẫn xem lại), bài Lesson và IELTS không đổi DOM. Builder: `nextFieldId(sections, start)` + prop
+  `firstId` của `SectionsEditor` → Reading của Mock Test TOEIC gợi ý câu đầu = **101**. Chỉ là gợi ý lúc thêm câu đầu tiên; câu đã có không bị đánh lại.
+- **Dashboard:** `lib/student/skillBar.js` — TOEIC chỉ hiện %, không bao giờ "Band"; kỹ năng ngoài `lessonSkills` bị lọc khỏi thanh. Chương trình của học
+  sinh suy từ `program` của các Unit đang giao (chưa có Unit → IELTS).
+- Kiểm: `tests/toeicStudent.test.js` (12 test: quy đổi, làm tròn, kẹp, null, nhóm Part, thanh kỹ năng). **Chưa kiểm bằng trình duyệt** (hiển thị điểm,
+  tiêu đề Part ở chế độ làm bài/xem lại, mobile, dark mode).
+
+### 2026-10-16 — Bước 7: admin nền tảng (chỉ đọc)
+
+- `/admin/workspaces`: cột "Programs" từ `programs` của API (đã có từ bước 2), pill màu theo chương trình. `/admin/classes`: cột "Program"; API
+  `/api/sysadmin/classes` thêm `program` (danh sách + chi tiết, chỉ đọc). Không có nút bật/tắt (C4).
+- Kiểm: `curl` các trang 200 / API 401. **Chưa kiểm bằng trình duyệt.**
+
+### 2026-10-16 — Bước 8: kiểm thử tổng — mới làm phần giấy tờ
+
+- Tổng hợp trạng thái: `npm test` 101/101 qua (19 aiGrade + 8 aiProgram + 11 curriculum + 25 programEnforce + 12 toeicBuilder + 12 toeicStudent +
+  14 vocabReview); `node scripts/check-tenant-scope.js --strict` qua; `curl` trang đã sửa trả 200, API trả 401.
+- **CHƯA làm:** không chạy `next build` (dev server của chủ dự án đang chạy — build ghi đè `.next`); không có test bằng trình duyệt; chưa có script probe
+  end-to-end trên dev DB (mục 8.1); backfill (`scripts/backfill-program.js`) **chưa chạy ở đâu cả**, kể cả dev; chưa thử trên workspace Ms Nhi (so topbar
+  trước/sau — R4); chưa có lớp + đề TOEIC mẫu trong `seed-demo-workspace.js`.
+- **Việc cần chủ dự án trước khi merge:** (1) chọn bảng quy đổi điểm (D7, xem bước 6); (2) bật dev server cho đợt kiểm bằng trình duyệt (mục 5 bước 8.2);
+  (3) duyệt các lệch plan ở bước 5 và `program` không `required` ở bước 1; (4) cho phép chạy backfill dev rồi live.
+
+### 2026-10-16 — Review của Opus sau bước 6: TẮT điểm quy đổi cho tới khi có bảng thật
+
+`lib/toeicScale.js` có `SCALE_SOURCE = ""`. Khi rỗng, `estimateToeic` trả `null` nên mọi chỗ chỉ hiện
+"x/y correct" — `ANCHORS` hiện tại là xấp xỉ tự đặt, chưa có nguồn, không được cho học sinh xem. Bật lại:
+thay `ANCHORS` bằng bảng công khai chủ dự án chọn (D7) và điền URL vào `SCALE_SOURCE`. Hai test định dạng
+hiển thị tự bỏ qua khi `SCALE_SOURCE` rỗng.
