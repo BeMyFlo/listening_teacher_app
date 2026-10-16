@@ -11,7 +11,30 @@ const BACK_ROWS = [
   ["synonyms", "Synonyms"],
 ];
 
-export function VocabFlashcards({ words }) {
+// Câu gốc trong bài, tô đậm từ đang học (kể cả dạng biến đổi: mitigate -> mitigating;
+// cụm nhiều từ thì tô từng thành phần). Không dùng lookbehind để chạy cả trên Safari cũ.
+function MarkedSentence({ text, word }) {
+  const stems = (String(word || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])
+    .filter((t) => t.length >= 3)
+    .map((t) => (t.length <= 3 ? t : t.slice(0, Math.max(4, t.length - 3))));
+  const parts = [];
+  let last = 0;
+  const re = /[\p{L}\p{N}]+/gu;
+  let m;
+  while ((m = re.exec(text))) {
+    const lw = m[0].toLowerCase();
+    if (stems.some((s) => lw.startsWith(s))) {
+      if (m.index > last) parts.push(text.slice(last, m.index));
+      parts.push(<b key={m.index}>{m[0]}</b>);
+      last = m.index + m[0].length;
+    }
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return <i>{parts}</i>;
+}
+
+// showContext: thêm dòng "In the text" (Vocab Review) — từ có `context`.
+export function VocabFlashcards({ words, showContext = false }) {
   const [i, setI] = useState(0);
   const [flipped, setFlipped] = useState(false);
   if (!words.length) return <div className="empty-state">This group has no words yet.</div>;
@@ -59,6 +82,11 @@ export function VocabFlashcards({ words }) {
                 </div>
               ) : null
             )}
+            {showContext && (w.context || "").trim() && (
+              <div style={{ marginBottom: 6 }}>
+                <b>In the text:</b> <MarkedSentence text={w.context} word={w.word} />
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -78,7 +106,7 @@ export function VocabFlashcards({ words }) {
   );
 }
 
-export function VocabWordList({ words }) {
+export function VocabWordList({ words, showContext = false }) {
   if (!words.length) return <div className="empty-state">This group has no words yet.</div>;
   return (
     <div className="table-wrap">
@@ -92,6 +120,7 @@ export function VocabWordList({ words }) {
             <th>Example</th>
             <th>Collocation</th>
             <th>Synonyms</th>
+            {showContext && <th>In the text</th>}
           </tr>
         </thead>
         <tbody>
@@ -104,6 +133,7 @@ export function VocabWordList({ words }) {
               <td>{w.example}</td>
               <td>{w.collocation}</td>
               <td>{w.synonyms}</td>
+              {showContext && <td>{w.context ? <MarkedSentence text={w.context} word={w.word} /> : null}</td>}
             </tr>
           ))}
         </tbody>

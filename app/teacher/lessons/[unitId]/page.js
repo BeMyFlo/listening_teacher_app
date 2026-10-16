@@ -1,10 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { getTeacherToken } from "@/lib/client/session";
 import { useMediaLibraries } from "@/lib/teacher/useMediaLibraries";
+import useVocabReviewAi from "@/lib/teacher/useVocabReviewAi";
+import {
+  REVIEW_SKILLS,
+  isReviewSkill,
+  reviewState,
+  reviewSourceCat,
+  emptyReview,
+  DEFAULT_AI_OPTIONS,
+  loadAiOptions,
+  saveAiOptions,
+} from "@/lib/teacher/vocabReviewClient";
+import { useBranding } from "@/lib/client/branding";
 import { sectionsToEditor, sectionsToPayload, refId } from "@/lib/teacher/sectionTransforms";
 import { toDatetimeLocal } from "@/lib/teacher/testBuilder";
 import { LESSON_CATS, PROMPT_CATS } from "@/lib/student/constants";
@@ -14,6 +26,9 @@ import TheoryEditor from "@/components/teacher/TheoryEditor";
 import TheoryResource from "@/components/teacher/TheoryResource";
 import GrammarTopicsEditor from "@/components/teacher/GrammarTopicsEditor";
 import VocabGroupsEditor from "@/components/teacher/VocabGroupsEditor";
+import VocabReviewEditor from "@/components/teacher/VocabReviewEditor";
+import VocabReviewSavePrompt from "@/components/teacher/VocabReviewSavePrompt";
+import { emptyWord } from "@/components/teacher/VocabWordTable";
 import { useDialog } from "@/components/ui/Dialog";
 
 // Grammar & Vocabulary dùng danh sách chủ điểm / nhóm từ thay cho
@@ -23,6 +38,15 @@ const LESSON_LIST_CATS = ["grammar", "vocabulary"];
 const CAT_LABELS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.label]));
 const CAT_ICONS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.icon]));
 const CAT_COLORS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.color]));
+
+// Vocab Review của 1 skill: dòng từ cũ thiếu cột nào thì bù rỗng để bảng nhập không lỗi.
+function toEditorReview(vr) {
+  return {
+    enabled: !!(vr && vr.enabled),
+    words: ((vr && vr.words) || []).map((w) => ({ ...emptyWord(), context: "", ...w })),
+    sourceHash: (vr && vr.sourceHash) || "",
+  };
+}
 
 function toEditorUnit(u) {
   const editor = {
@@ -71,6 +95,7 @@ function toEditorUnit(u) {
         title: ex.title || "",
         _sections: sectionsToEditor(ex.sections),
       })),
+      vocabReview: toEditorReview(c.vocabReview),
       prompts: (c.prompts || []).map((p) => ({
         _id: p._id,
         title: p.title || "",
@@ -116,6 +141,7 @@ function toEditorUnit(u) {
         key: c.key,
         theory: { html: "", doc: null, audioId: "", imageId: "", resourceUrl: "", resourceLabel: "" },
         exercises: [],
+        vocabReview: emptyReview(),
         prompts: [],
         topics: [],
         groups: [],
@@ -170,6 +196,7 @@ function toPayload(unit, status) {
         title: ex.title,
         sections: sectionsToPayload(ex._sections, cat.key),
       })),
+      vocabReview: cat.vocabReview || emptyReview(),
       prompts: cat.prompts.map((p) => ({
         _id: p._id,
         title: p.title,
@@ -220,6 +247,30 @@ export default function UnitEditorPage() {
   const [saveErr, setSaveErr] = useState("");
   const [stats, setStats] = useState(null);
   const [classes, setClasses] = useState([]);
+  const dialog = useDialog();
+  const branding = useBranding();
+  const vrAi = useVocabReviewAi();
+  // Tuỳ chọn AI Vocab Review (nhớ lần dùng trước, theo workspace).
+  const [aiOptions, setAiOptions] = useState(DEFAULT_AI_OPTIONS);
+  // skill -> hash lúc giáo viên bấm "Just save": không hỏi lại tới khi bài đổi tiếp.
+  const declinedRef = useRef({});
+  const savingRef = useRef(false);
+
+  useEffect(() => {
+    setAiOptions(loadAiOptions(branding.slug));
+  }, [branding.slug]);
+
+  // Trạng thái Vocab Review (none/empty/stale/fresh + hash) của Reading & Listening,
+  // tính lại khi nội dung đổi — dùng cho chấm báo trên sub-tab và hộp thoại sau Save.
+  const reviewStates = useMemo(() => {
+    const out = {};
+    if (!unit) return out;
+    for (const k of REVIEW_SKILLS) {
+      const c = unit.categories.find((x) => x.key === k);
+      if (c) out[k] = reviewState(reviewSourceCat(c));
+    }
+    return out;
+  }, [unit && unit.categories]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     api.teacher
@@ -272,17 +323,92 @@ export default function UnitEditorPage() {
     });
   }
 
-  async function save(status) {
+  function updateAiOptions(patch) {
+    const next = { ...aiOptions, ...patch };
+    setAiOptions(next);
+    saveAiOptions(branding.slug, next);
+  }
+
+  function checkBeforeSave(status) {
     if (!unit.name.trim()) {
       setActiveTab("settings");
       setSaveErr("Please enter a Unit name.");
-      return;
+      return false;
     }
     if (status === "published" && !(unit.classIds || []).length) {
       setActiveTab("settings");
       setSaveErr("Chọn ít nhất 1 lớp trước khi Publish — không tick lớp nào thì không học sinh nào thấy Unit này.");
-      return;
+      return false;
     }
+    return true;
+  }
+
+  // Skill Reading/Listening nên được hỏi "tạo Vocab Review?": có bài mà chưa có từ,
+  // hoặc bài đã đổi so với lúc tạo từ. Bỏ qua skill đang chạy AI / còn bản nháp chưa
+  // thêm, và skill giáo viên đã bấm "Just save" với đúng nội dung này.
+  function reviewAskList() {
+    return REVIEW_SKILLS.map((k) => ({ key: k, label: CAT_LABELS[k], ...(reviewStates[k] || { state: "none", hash: "" }) })).filter((r) => {
+      const ai = vrAi.states[r.key];
+      return (
+        (r.state === "empty" || r.state === "stale") &&
+        declinedRef.current[r.key] !== r.hash &&
+        !(ai && (ai.busy || ai.draft))
+      );
+    });
+  }
+
+  // Hộp thoại hỏi trước khi lưu. Trả tuỳ chọn AI nếu giáo viên chọn "Save & generate",
+  // null nếu "Just save" (hoặc đóng hộp thoại).
+  async function askGenerate(ask) {
+    const latest = { current: aiOptions };
+    const names = ask.map((a) => a.label).join(" & ");
+    const go = await dialog.confirm({
+      title: ask.every((a) => a.state === "stale") ? `${names} changed — add new vocabulary?` : `Create Vocab Review for ${names}?`,
+      confirmText: "Save & generate",
+      cancelText: "Just save",
+      wide: true,
+      message: <VocabReviewSavePrompt items={ask} initial={aiOptions} onChange={(o) => (latest.current = o)} />,
+    });
+    if (!go) {
+      ask.forEach((a) => (declinedRef.current[a.key] = a.hash));
+      return null;
+    }
+    return latest.current;
+  }
+
+  async function save(status) {
+    if (savingRef.current) return;
+    if (!checkBeforeSave(status)) return;
+    savingRef.current = true;
+    try {
+      const ask = reviewAskList();
+      const genOpts = ask.length ? await askGenerate(ask) : null;
+      const res = await sendSave(status);
+      if (!res) return;
+      if (!genOpts) {
+        router.push("/teacher/lessons");
+        return;
+      }
+      // "Save & generate": ở lại trang, nạp lại Unit vừa lưu (để exercise mới có _id
+      // thật cho lần Save sau), sang tab Vocab Review và chạy AI ngay.
+      const saved = toEditorUnit(res.unit);
+      setUnit(saved);
+      setActiveTab("content");
+      setCatKey(ask[0].key);
+      setSubTab("vocab");
+      setAiOptions(genOpts);
+      saveAiOptions(branding.slug, genOpts);
+      dialog.toast("Saved — writing vocabulary…");
+      ask.forEach((a) =>
+        vrAi.run(a.key, saved.categories.find((c) => c.key === a.key), { unitId, level: saved.level, unitName: saved.name }, genOpts)
+      );
+    } finally {
+      savingRef.current = false;
+    }
+  }
+
+  // Gọi API lưu; trả response, hoặc null (đã hiện lỗi) nếu thất bại.
+  async function sendSave(status) {
     setSaveErr("");
     try {
       const res = await api.teacher.updateUnit(unit._id, toPayload(unit, status));
@@ -304,9 +430,10 @@ export default function UnitEditorPage() {
           /* bỏ qua — cron sẽ gửi nốt */
         }
       }
-      router.push("/teacher/lessons");
+      return res;
     } catch (e) {
       setSaveErr(e.message);
+      return null;
     }
   }
 
@@ -525,6 +652,16 @@ export default function UnitEditorPage() {
                 >
                   {isPrompt ? "Prompts" : "Exercises"}
                 </button>
+                {isReviewSkill(catKey) && (
+                  <button
+                    type="button"
+                    className={"unit-subtab" + (subTab === "vocab" ? " active" : "")}
+                    onClick={() => setSubTab("vocab")}
+                  >
+                    Vocab Review
+                    <ReviewDot state={(reviewStates[catKey] || {}).state} />
+                  </button>
+                )}
               </div>
             )}
 
@@ -548,6 +685,23 @@ export default function UnitEditorPage() {
               media={media}
               aiContext={{ unitId, level: unit.level, unitName: unit.name }}
               onChange={(next) => updateCat((c) => (c.groups = next))}
+            />
+          ) : subTab === "vocab" && isReviewSkill(catKey) ? (
+            <VocabReviewEditor
+              skill={catKey}
+              skillLabel={CAT_LABELS[catKey]}
+              review={cat.vocabReview}
+              onChange={(next) => updateCat((c) => (c.vocabReview = next))}
+              status={reviewStates[catKey] || { state: "none", hash: "" }}
+              ai={vrAi.states[catKey]}
+              aiOptions={aiOptions}
+              onAiOptionsChange={updateAiOptions}
+              onGenerate={() =>
+                vrAi.run(catKey, cat, { unitId, level: unit.level, unitName: unit.name }, aiOptions)
+              }
+              onPicked={(p) => vrAi.setPicked(catKey, p)}
+              onDiscard={() => vrAi.clear(catKey)}
+              hasTranscript={cat.exercises.some((ex) => (ex._sections || []).some((s) => (s.transcript || "").trim()))}
             />
           ) : subTab === "theory" ? (
             <TheoryEditor
@@ -584,6 +738,25 @@ export default function UnitEditorPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Chấm nhỏ trên sub-tab Vocab Review: xám = có bài nhưng chưa có từ, cam = bài đã đổi
+// kể từ lần tạo từ. Không hiện khi mọi thứ đã khớp.
+function ReviewDot({ state }) {
+  if (state !== "empty" && state !== "stale") return null;
+  return (
+    <span
+      title={state === "stale" ? "Exercises changed since the words were made" : "No words yet"}
+      style={{
+        display: "inline-block",
+        width: 8,
+        height: 8,
+        borderRadius: "50%",
+        marginLeft: 6,
+        background: state === "stale" ? "var(--accent)" : "var(--muted)",
+      }}
+    />
   );
 }
 
@@ -689,6 +862,7 @@ function ExercisesEditor({ cat, media, onChange }) {
               sections={ex._sections}
               subject={cat.key}
               media={media}
+              showTranscript
               onChange={(next) => patch((d) => (d[i]._sections = next))}
             />
           </div>

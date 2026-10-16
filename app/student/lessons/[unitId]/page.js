@@ -20,6 +20,7 @@ import NotebookFab from "@/components/student/NotebookFab";
 import SubmissionResultModal from "@/components/student/SubmissionResultModal";
 import GrammarTopicView from "@/components/student/GrammarTopicView";
 import { VocabFlashcards, VocabWordList } from "@/components/student/VocabFlashcards";
+import VocabReviewPane from "@/components/student/VocabReviewPane";
 
 const LESSON_LIST_CATS = ["grammar", "vocabulary"];
 
@@ -131,6 +132,8 @@ export default function UnitDetailPage() {
   const catMeta = LESSON_CATS.find((c) => c.key === catKey);
   const isPrompt = PROMPT_CATS.includes(catKey);
   const stats = cat ? categoryStats(cat, subs) : { topics: 0, completed: 0, avgScorePct: null };
+  // Vocab Review (Reading/Listening): mở khi đã làm xong mọi bài của skill.
+  const reviewUnlocked = stats.completed >= stats.topics;
 
   return (
     <section className="unit-detail-page">
@@ -216,10 +219,26 @@ export default function UnitDetailPage() {
                   >
                     <svg className="icon"><use href="#icon-edit" /></svg> Practice
                   </button>
+                  {cat.vocabReview && (
+                    <button
+                      type="button"
+                      className={"lesson-subtab" + (subTab === "review" ? " active" : "")}
+                      onClick={() => setSubTab("review")}
+                    >
+                      <svg className="icon"><use href={"#icon-" + (reviewUnlocked ? "vocabulary" : "lock")} /></svg> Review
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {subTab === "learn" ? (
+              {subTab === "review" && cat.vocabReview ? (
+                <VocabReviewPane
+                  words={cat.vocabReview.words}
+                  done={stats.completed}
+                  total={stats.topics}
+                  skillLabel={catMeta.label}
+                />
+              ) : subTab === "learn" ? (
                 <TheoryView
                   theory={cat.theory}
                   noteSource={{
@@ -234,7 +253,19 @@ export default function UnitDetailPage() {
               ) : isPrompt ? (
                 <PromptList unitId={unit.id} cat={cat} subs={subs} onSubmitted={refresh} />
               ) : (
-                <ExerciseList unitId={unit.id} unitName={unit.name} cat={cat} subs={subs} onSubmitted={refresh} />
+                <>
+                  {cat.vocabReview && reviewUnlocked && (
+                    <div className="notice success" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                      <span>
+                        <svg className="icon"><use href="#icon-check-circle" /></svg> Vocab Review unlocked — revisit the key words from these exercises.
+                      </span>
+                      <button type="button" className="btn secondary" style={{ padding: "6px 12px" }} onClick={() => setSubTab("review")}>
+                        Review now
+                      </button>
+                    </div>
+                  )}
+                  <ExerciseList unitId={unit.id} unitName={unit.name} cat={cat} subs={subs} onSubmitted={refresh} />
+                </>
               )}
             </>
           )}

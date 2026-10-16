@@ -4,28 +4,7 @@ import { useState } from "react";
 import { api } from "@/lib/client/api";
 import { sectionsToEditor } from "@/lib/teacher/sectionTransforms";
 import { emptyWord } from "./VocabWordTable";
-
-const LEVEL_SUGGESTIONS = [
-  "3.0", "3.5", "4.0", "4.5", "5.0", "5.5", "6.0", "6.5", "7.0", "7.5", "8.0",
-  "A1", "A2", "B1", "B2", "C1",
-];
-
-const LANGUAGES = [
-  ["vi", "Vietnamese meanings & explanations"],
-  ["bilingual", "Vietnamese meanings, bilingual explanations"],
-  ["en", "English only"],
-];
-
-// Cột của bảng từ (cột Word luôn có).
-const COLUMNS = [
-  ["partOfSpeech", "Part of speech"],
-  ["ipa", "IPA"],
-  ["meaning", "Meaning"],
-  ["definitionEn", "Definition (EN)"],
-  ["example", "Example"],
-  ["collocation", "Collocation"],
-  ["synonyms", "Synonyms"],
-];
+import { COLUMNS, Check, toggle, LevelLanguageFields, ColumnChecks, NotesField } from "./AiVocabOptions";
 
 const EXERCISE_TYPES = [
   ["context", "Choose the word for the gap"],
@@ -35,15 +14,6 @@ const EXERCISE_TYPES = [
 
 const WORD_COUNTS = [8, 10, 12];
 const QUESTION_COUNTS = [5, 8, 10];
-
-function Check({ checked, onChange, children }) {
-  return (
-    <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: ".88rem", marginRight: 14 }}>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      {children}
-    </label>
-  );
-}
 
 function SectionPreview({ s }) {
   const box = s.matchOptions || [];
@@ -124,8 +94,6 @@ export default function AiVocabDialog({ context, existingWords, onAdd, onClose }
   const [picked, setPicked] = useState([]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const toggle = (setList, key) => (on) =>
-    setList((cur) => (on ? [...new Set([...cur, key])] : cur.filter((x) => x !== key)));
   const withWords = parts.includes("words");
   const withExercises = parts.includes("exercises");
 
@@ -209,31 +177,11 @@ export default function AiVocabDialog({ context, existingWords, onAdd, onClose }
                   onChange={set("topics")}
                 />
               </div>
-              <div className="builder-2col" style={{ marginBottom: 12 }}>
-                <div className="form-row" style={{ marginBottom: 0 }}>
-                  <label>Students&apos; level (IELTS band or CEFR)</label>
-                  <input
-                    type="text"
-                    list="ai-vocab-level-suggestions"
-                    placeholder="e.g. 6.5, 5.0–5.5, B1"
-                    value={form.studentLevel}
-                    onChange={set("studentLevel")}
-                  />
-                  <datalist id="ai-vocab-level-suggestions">
-                    {LEVEL_SUGGESTIONS.map((v) => (
-                      <option key={v} value={v} />
-                    ))}
-                  </datalist>
-                </div>
-                <div className="form-row" style={{ marginBottom: 0 }}>
-                  <label>Language</label>
-                  <select value={form.language} onChange={set("language")}>
-                    {LANGUAGES.map(([v, l]) => (
-                      <option key={v} value={v}>{l}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <LevelLanguageFields
+                studentLevel={form.studentLevel}
+                language={form.language}
+                onChange={(k, v) => setForm((f) => ({ ...f, [k]: v }))}
+              />
 
               <div className="form-row" style={{ marginBottom: 12 }}>
                 <label>What should the AI write?</label>
@@ -253,12 +201,7 @@ export default function AiVocabDialog({ context, existingWords, onAdd, onClose }
                   </div>
                   {withWords && (
                     <div style={{ paddingLeft: 22, margin: "4px 0 8px" }}>
-                      <span style={{ fontSize: ".82rem", color: "var(--muted)", marginRight: 10 }}>Word +</span>
-                      {COLUMNS.map(([k, l]) => (
-                        <Check key={k} checked={columns.includes(k)} onChange={toggle(setColumns, k)}>
-                          {l}
-                        </Check>
-                      ))}
+                      <ColumnChecks columns={columns} onToggle={(k) => toggle(setColumns, k)} />
                     </div>
                   )}
                   <div style={{ fontWeight: 600, fontSize: ".82rem", marginTop: 4 }}>
@@ -292,15 +235,11 @@ export default function AiVocabDialog({ context, existingWords, onAdd, onClose }
                 </div>
               </div>
 
-              <div className="form-row" style={{ marginBottom: 0 }}>
-                <label>Extra requests (optional)</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Focus on collocations for IELTS Writing Task 2; include some phrasal verbs."
-                  value={form.notes}
-                  onChange={set("notes")}
-                />
-              </div>
+              <NotesField
+                value={form.notes}
+                onChange={(v) => setForm((f) => ({ ...f, notes: v }))}
+                placeholder="e.g. Focus on collocations for IELTS Writing Task 2; include some phrasal verbs."
+              />
               {err && <div className="notice error" style={{ marginTop: 14 }}>{err}</div>}
               <div style={{ marginTop: 16, textAlign: "right" }}>
                 <button type="button" className="btn" disabled={busy} onClick={generate}>

@@ -49,8 +49,8 @@ export function DialogProvider({ children }) {
     return {
       alert: ({ title, message, tone = "info", okText = "OK" } = {}) =>
         push({ kind: "alert", title, message, tone, okText }),
-      confirm: ({ title, message, confirmText = "Confirm", cancelText = "Cancel", danger = false } = {}) =>
-        push({ kind: "confirm", title, message, confirmText, cancelText, danger }),
+      confirm: ({ title, message, confirmText = "Confirm", cancelText = "Cancel", danger = false, wide = false } = {}) =>
+        push({ kind: "confirm", title, message, confirmText, cancelText, danger, wide }),
       confirmDelete: (message, title = "Delete") =>
         push({ kind: "confirm", title, message, confirmText: "Delete", cancelText: "Cancel", danger: true }),
       prompt: ({ title, message, label, placeholder, type = "text", initialValue = "", validate } = {}) =>
@@ -102,7 +102,7 @@ export function DialogProvider({ children }) {
 }
 
 function DialogView({ spec, onClose }) {
-  const { kind, title, message, tone, okText, confirmText, cancelText, danger, label, placeholder, type, initialValue, validate } = spec;
+  const { kind, title, message, tone, okText, confirmText, cancelText, danger, wide, label, placeholder, type, initialValue, validate } = spec;
   const [value, setValue] = useState(initialValue || "");
   const [err, setErr] = useState("");
   const primaryRef = useRef(null);
@@ -149,7 +149,7 @@ function DialogView({ spec, onClose }) {
       role="dialog"
       aria-modal="true"
     >
-      <div className="modal-box ui-dialog">
+      <div className={"modal-box ui-dialog" + (wide ? " ui-dialog-wide" : "")}>
         <div className="ui-dialog-body">
           {title && (
             <div className="ui-dialog-title">
@@ -161,7 +161,12 @@ function DialogView({ spec, onClose }) {
               <span>{title}</span>
             </div>
           )}
-          {message && <p className="ui-dialog-msg">{message}</p>}
+          {message && (typeof message === "string" ? (
+            <p className="ui-dialog-msg">{message}</p>
+          ) : (
+            // Nội dung React (form nhỏ trong popup) — <div> thay vì <p> để lồng được khối.
+            <div className="ui-dialog-msg">{message}</div>
+          ))}
           {kind === "prompt" && (
             <div className="ui-dialog-field">
               {label && <label>{label}</label>}

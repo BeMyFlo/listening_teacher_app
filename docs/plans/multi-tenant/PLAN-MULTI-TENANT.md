@@ -1126,7 +1126,7 @@ Cô lập dữ liệu là thứ duy nhất mà làm sai sẽ gây sự cố vớ
 - Kết luận: app hiện là single-tenant. Không model nội dung nào có chủ sở hữu.
   `lib/teacherScope.js` (chưa commit) mới scope theo LỚP trên 4/18 route giáo viên.
 - Xác nhận giả định single-teacher đã được ghi rõ trong
-  `PLAN-DASHBOARD-RESTRUCTURE.md:769`: "Không cho phép nhiều giáo viên với phân quyền
+  `docs/plans/PLAN-DASHBOARD-RESTRUCTURE.md:769`: "Không cho phép nhiều giáo viên với phân quyền
   khác nhau (mọi Teacher đều toàn quyền như nhau)."
 - Lập file này. **Chưa sửa dòng code nào.**
 - Số liệu baseline: *(chưa đo — việc đầu tiên của Phase 0)*
