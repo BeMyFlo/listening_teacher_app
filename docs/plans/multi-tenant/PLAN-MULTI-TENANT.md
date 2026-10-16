@@ -25,7 +25,7 @@ Trạng thái tổng: **Phase 0 — chưa bắt đầu code. Mới có audit.**
 | 5 | Tách Platform Admin vs Teacher (phân quyền thật) | ☑ **XONG** (5A + 5B + 5C) | 2026-09-30. Code bởi Sonnet subagent, Opus thiết kế + review từng dòng — xem Nhật ký |
 | 6 | Onboarding + Workspace Settings + tuỳ chỉnh màu theo workspace (KHÔNG có tự đăng ký) | ☑ **XONG, đã merge vào `main`** (PR #9) | 2026-09-30. Đợt 2 (dọn 214 màu cứng) chưa làm |
 | 7 | Gỡ branding cứng (app, email, Cloudinary folder) | ☑ **XONG, đã merge** (PR #10) | 2026-09-30. Tên nền tảng đã chốt **BeMyFlo** (2026-10-05) — xem Nhật ký |
-| 8 | Taxonomy Program + **TOEIC** (8A: Nghe/Đọc · 8B: Nói/Viết) + nút chuyển chương trình | ◐ **plan xong**, chưa code — [PLAN-PHASE8-TOEIC.md](PLAN-PHASE8-TOEIC.md), branch `phase-8-toeic` | 2026-10-08. Chủ dự án chọn TOEIC làm chương trình đầu tiên |
+| 8 | Taxonomy Program + **TOEIC** (8A: Nghe/Đọc · 8B: Nói/Viết) + lọc chương trình theo trang | ◐ **plan chốt 2026-10-16**, chưa code — [PLAN-PHASE8-TOEIC.md](PLAN-PHASE8-TOEIC.md), branch `phase-8-toeic` | 2026-10-08. Chủ dự án chọn TOEIC làm chương trình đầu tiên |
 | 9 | Tương lai: nhiều giáo viên / 1 workspace, enrollment nhiều lớp, Organization | ☐ chưa làm | không làm trong V1 |
 | 10 | **Subdomain theo workspace** (`<slug>.bemyflo.com`) | ☑ **XONG, đã merge** (PR #11) | 2026-10-05. DNS/Vercel đã xong (nameserver → Vercel, `*.bemyflo.com` có chứng chỉ). Plan chưa ghi kết quả kiểm thử trên `*.bemyflo.com` thật. Xem Nhật ký |
 | 10B | Tự chuyển phiên đăng nhập từ domain gốc sang subdomain | ☑ **XONG, đã merge** (PR #12) | 2026-10-05 |
@@ -2001,8 +2001,8 @@ xong. Rollback: gỡ `APP_BASE_DOMAIN` (tính năng tắt, mọi host về chế
 - Phát hiện khi soát code: học sinh chỉ thấy bài khi được giao **đúng lớp** (`classIds`), nên không tự lộ chéo
   chương trình. Nhưng ô chọn lớp và các hàm `sanitize*` ở `admin/units.js`/`admin/tests.js` chỉ so `level` →
   vẫn giao nhầm được. Plan chặn ở server bằng `(level, program)`.
-- Các mặc định D1–D6 (ai bật chương trình, chế độ All, cách hiện điểm...) ghi ở PLAN-PHASE8-TOEIC.md mục 2.2,
-  chờ chủ dự án xác nhận.
+- Các quyết định C1–C10 (đã chốt 2026-10-16) và D6–D7 ghi ở PLAN-PHASE8-TOEIC.md mục 2,
+  chủ dự án đã xác nhận.
 - Đính chính bảng 0.1: Phase 10 và 10B đã merge (PR #11, #12) từ trước, bảng ghi chưa merge là cũ.
 
 ---
