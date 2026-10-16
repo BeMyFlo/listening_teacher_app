@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
 import { DEFAULT_PROGRAM, programOf } from "@/lib/curriculum";
@@ -9,18 +9,21 @@ import { programParam, usePrograms } from "@/lib/client/program";
 import ProgramChips, { ProgramEmpty } from "@/components/teacher/ProgramChips";
 import ProgramField from "@/components/teacher/ProgramField";
 import LevelField from "@/components/teacher/LevelField";
+import LevelsManager from "@/components/teacher/LevelsManager";
 import ProgramBadge from "@/components/ProgramBadge";
 
 function ClassesInner() {
   const dialog = useDialog();
   const router = useRouter();
+  const pathname = usePathname();
   const search = useSearchParams();
+  const tab = search.get("tab") === "levels" ? "levels" : "classes"; // ?tab=levels = link thẳng tới tab Levels
   const program = programParam(search); // null = All
   const { isMulti, refresh, levelLabel } = usePrograms();
   const [rows, setRows] = useState(null);
   const [listErr, setListErr] = useState("");
   const [name, setName] = useState("");
-  const [level, setLevel] = useState(1);
+  const [level, setLevel] = useState(null); // LevelField tự chọn level đầu tiên; null = chưa có level nào để chọn
   // Program của lớp mới: mặc định = chip đang lọc, không có thì IELTS.
   const [formProgram, setFormProgram] = useState(program || DEFAULT_PROGRAM);
   const [status, setStatus] = useState(null);
@@ -37,17 +40,29 @@ function ClassesInner() {
   }
   useEffect(load, []);
 
+  function switchTab(next) {
+    const p = new URLSearchParams(search ? search.toString() : "");
+    if (next === "levels") p.set("tab", "levels");
+    else p.delete("tab");
+    const qs = p.toString();
+    router.replace(pathname + (qs ? "?" + qs : ""), { scroll: false });
+  }
+
   async function create() {
     if (!name.trim()) {
       setStatus({ cls: "error", msg: "Please enter a class name." });
       return;
     }
+    if (!level) {
+      setStatus({ cls: "error", msg: "Please choose a level (create one first if there are none)." });
+      return;
+    }
     setStatus(null);
     try {
-      await api.teacher.createClass({ name: name.trim(), level: Number(level) || 1, program: formProgram });
+      await api.teacher.createClass({ name: name.trim(), level: Number(level), program: formProgram });
       setStatus({ cls: "success", msg: "Class created." });
       setName("");
-      setLevel(1);
+      setLevel(null);
       setFormProgram(program || DEFAULT_PROGRAM);
       load();
       refresh(); // lớp TOEIC đầu tiên -> chip/nhãn TOEIC hiện ngay
@@ -88,6 +103,19 @@ function ClassesInner() {
         </div>
       </div>
 
+      <div className="unit-subtabs" style={{ marginBottom: 14 }}>
+        <button type="button" className={"unit-subtab" + (tab === "classes" ? " active" : "")} onClick={() => switchTab("classes")}>
+          Classes
+        </button>
+        <button type="button" className={"unit-subtab" + (tab === "levels" ? " active" : "")} onClick={() => switchTab("levels")}>
+          Levels
+        </button>
+      </div>
+
+      {tab === "levels" ? (
+        <LevelsManager />
+      ) : (
+      <>
       <ProgramChips />
 
       <div className="card">
@@ -98,14 +126,9 @@ function ClassesInner() {
             <input type="text" placeholder="e.g. IELTS 6.0 – Evening A" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <ProgramField name="newClassProgram" value={formProgram} onChange={setFormProgram} />
-          <LevelField
-            program={formProgram}
-            value={level}
-            onChange={setLevel}
-            usedLevels={(rows || []).filter((c) => programOf(c) === formProgram).map((c) => c.level)}
-          />
+          <LevelField program={formProgram} value={level} onChange={setLevel} />
         </div>
-        <button type="button" className="btn" style={{ marginTop: 14 }} onClick={create}>
+        <button type="button" className="btn" style={{ marginTop: 14 }} onClick={create} disabled={!level}>
           <svg className="icon"><use href="#icon-plus" /></svg> Create Class
         </button>
         {status && (
@@ -154,6 +177,8 @@ function ClassesInner() {
           ))}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

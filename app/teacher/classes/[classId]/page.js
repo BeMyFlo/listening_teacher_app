@@ -24,7 +24,7 @@ export default function ClassDetailPage() {
   const [err, setErr] = useState("");
   const [addId, setAddId] = useState("");
   const [name, setName] = useState("");
-  const [level, setLevel] = useState(1);
+  const [level, setLevel] = useState(null);
   const [program, setProgram] = useState(DEFAULT_PROGRAM);
   const [saveMsg, setSaveMsg] = useState(null);
 
@@ -52,7 +52,7 @@ export default function ClassDetailPage() {
     setSaveMsg(null);
     try {
       // Chỉ gửi program khi thật sự đổi (server trả 409 nếu lớp đã có bài giao).
-      const body = { name: name.trim(), level: Number(level) || 1 };
+      const body = { name: name.trim(), level: Number(level) };
       if (program !== (cls.program || DEFAULT_PROGRAM)) body.program = program;
       await api.teacher.updateClass(classId, body);
       setSaveMsg({ cls: "success", msg: "Saved." });
@@ -158,11 +158,11 @@ export default function ClassDetailPage() {
                 program={program}
                 value={level}
                 onChange={setLevel}
-                usedLevels={programOf(cls) === program ? [cls.level] : []}
+                keepLevels={programOf(cls) === program ? [cls.level] : []}
                 label="Level (applies to all students in this class)"
               />
             </div>
-            <button type="button" className="btn" style={{ marginTop: 14 }} onClick={saveMeta}>
+            <button type="button" className="btn" style={{ marginTop: 14 }} onClick={saveMeta} disabled={!level || !name.trim()}>
               Save
             </button>
             {saveMsg && (

@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
@@ -116,6 +117,9 @@ function LessonsInner() {
               : "Units by level — Grammar, Vocabulary, Listening, Reading, Writing, Speaking"}
           </p>
         </div>
+      </div>
+      <div className="page-head-actions">
+        <Link href="/teacher/classes?tab=levels" className="btn secondary sm" style={{ textDecoration: "none" }}>Manage levels</Link>
       </div>
     </div>
   );

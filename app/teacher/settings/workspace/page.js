@@ -7,9 +7,6 @@ import { applyTheme, cacheTheme, cacheBranding } from "@/components/ThemeLoader"
 import { setBranding } from "@/lib/client/branding";
 import { PLATFORM_LOGO } from "@/lib/platform";
 import { THEME_VARS, resolveTheme, themeWarnings } from "@/lib/theme";
-import { PROGRAMS, PROGRAM_KEYS } from "@/lib/curriculum";
-import { LEVEL_MAX, NAME_MAX } from "@/lib/levelNames";
-import { usePrograms } from "@/lib/client/program";
 
 const LOCALES = [
   { value: "vi", label: "Vietnamese" },
@@ -17,36 +14,6 @@ const LOCALES = [
 ];
 const GROUPS = ["Brand", "Surface", "Text", "Status"];
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
-const LEVEL_PLACEHOLDERS = { ielts: "e.g. Band 3.5–5.0", toeic: "e.g. 300–450" };
-
-// { program: [{ level, name, used }] } từ levelNames đã lưu + các level đang được Lớp/Unit/Test dùng.
-function buildLevelRows(levelNames, usedLevels) {
-  const out = {};
-  for (const k of PROGRAM_KEYS) {
-    const byLevel = new Map();
-    for (const lv of (usedLevels && usedLevels[k]) || []) byLevel.set(lv, { level: lv, name: "", used: true });
-    for (const x of levelNames || []) {
-      if (x.program !== k) continue;
-      const prev = byLevel.get(x.level);
-      byLevel.set(x.level, { level: x.level, name: x.name, used: !!(prev && prev.used) });
-    }
-    out[k] = [...byLevel.values()].sort((a, b) => a.level - b.level);
-  }
-  return out;
-}
-
-// Payload gửi server: mọi dòng đã có tên (server bỏ tên rỗng, gộp trùng).
-function levelPayload(rows, programs) {
-  const out = [];
-  for (const k of PROGRAM_KEYS) {
-    if (!programs.includes(k)) continue;
-    for (const r of rows[k] || []) {
-      const name = r.name.trim();
-      if (name) out.push({ program: k, level: r.level, name });
-    }
-  }
-  return out;
-}
 
 // Cập nhật thanh bên + cache ngay sau khi lưu, không cần tải lại trang.
 function pushBranding(ws) {
@@ -99,11 +66,6 @@ export default function WorkspaceSettingsPage() {
   const [draft, setDraft] = useState({}); // chỉ các màu đã đổi
   const [savingGeneral, setSavingGeneral] = useState(false);
   const [savingTheme, setSavingTheme] = useState(false);
-  const { programs, loaded: programsLoaded, refresh: refreshPrograms } = usePrograms();
-  const [levelRows, setLevelRows] = useState({});
-  const [hiddenNames, setHiddenNames] = useState([]); // tên đã lưu (mọi chương trình) — phần của chương trình không hiện thì giữ nguyên khi lưu
-  const savedLevels = useRef("[]");
-  const [savingLevels, setSavingLevels] = useState(false);
   const savedTheme = useRef({});
   const themeLoaded = useRef(false);
 
@@ -114,9 +76,6 @@ export default function WorkspaceSettingsPage() {
         setGeneral({ name: d.workspace.name, locale: d.workspace.locale, timezone: d.workspace.timezone });
         setLogo({ url: d.workspace.logoUrl || "", slug: d.workspace.slug });
         setDraft(d.theme || {});
-        setLevelRows(buildLevelRows(d.levelNames, d.usedLevels));
-        savedLevels.current = JSON.stringify(d.levelNames || []);
-        setHiddenNames(d.levelNames || []);
         savedTheme.current = d.theme || {};
         themeLoaded.current = true;
         setCanEdit(d.canEdit);
@@ -130,65 +89,6 @@ export default function WorkspaceSettingsPage() {
       if (themeLoaded.current) applyTheme(savedTheme.current);
     };
   }, []);
-
-  // Cuộn tới thẻ Levels khi vào từ link "Edit level names" (#levels) — nội dung chỉ có sau khi tải xong.
-  useEffect(() => {
-    if (loaded && programsLoaded && window.location.hash === "#levels") {
-      const el = document.getElementById("levels");
-      if (el) el.scrollIntoView();
-    }
-  }, [loaded, programsLoaded]);
-
-  const shownPrograms = PROGRAM_KEYS.filter((k) => programs.includes(k));
-  // Cùng thứ tự với server (program A-Z, level tăng dần) để so sánh "đã đổi chưa" không báo nhầm.
-  const levelsPayload = [
-    ...hiddenNames.filter((x) => !shownPrograms.includes(x.program)),
-    ...levelPayload(levelRows, shownPrograms),
-  ].sort((a, b) => (a.program === b.program ? a.level - b.level : a.program < b.program ? -1 : 1));
-  const levelsDirty = JSON.stringify(levelsPayload) !== savedLevels.current;
-
-  function setLevelName(k, level, name) {
-    setLevelRows((r) => ({ ...r, [k]: r[k].map((x) => (x.level === level ? { ...x, name } : x)) }));
-  }
-  function removeLevel(k, level) {
-    // Level đang được Lớp/Unit/Test dùng thì không biến mất — chỉ xoá tên.
-    setLevelRows((r) => ({
-      ...r,
-      [k]: r[k].flatMap((x) => (x.level !== level ? [x] : x.used ? [{ ...x, name: "" }] : [])),
-    }));
-  }
-  function addLevel(k) {
-    setLevelRows((r) => {
-      const rows = r[k] || [];
-      const next = rows.length ? Math.max(...rows.map((x) => x.level)) + 1 : 1;
-      return { ...r, [k]: [...rows, { level: next, name: "", used: false }] };
-    });
-  }
-  async function saveLevels() {
-    setSavingLevels(true);
-    try {
-      const d = await api.teacher.saveWorkspaceSettings({ levelNames: levelsPayload });
-      savedLevels.current = JSON.stringify(d.levelNames || []);
-      setHiddenNames(d.levelNames || []);
-      // Giữ các dòng đang hiện (kể cả dòng mới chưa đặt tên), chỉ chuẩn hoá tên theo server.
-      setLevelRows((r) => {
-        const out = { ...r };
-        for (const k of PROGRAM_KEYS) {
-          out[k] = (r[k] || []).map((x) => {
-            const hit = (d.levelNames || []).find((n) => n.program === k && n.level === x.level);
-            return { ...x, name: hit ? hit.name : "" };
-          });
-        }
-        return out;
-      });
-      refreshPrograms(); // nhãn level ở các trang khác cập nhật ngay
-      dialog.toast("Level names saved");
-    } catch (e) {
-      dialog.alert({ tone: "error", title: "Could not save level names", message: e.message });
-    } finally {
-      setSavingLevels(false);
-    }
-  }
 
   const effective = useMemo(() => resolveTheme(draft), [draft]);
   const warnings = useMemo(() => themeWarnings(draft), [draft]);
@@ -359,76 +259,6 @@ export default function WorkspaceSettingsPage() {
                 </div>
               )}
             </form>
-          </div>
-
-          <div className="card" id="levels" style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <h3 style={{ margin: 0 }}>Levels</h3>
-              {canEdit && (
-                <button type="button" className="btn" disabled={savingLevels || !levelsDirty} onClick={saveLevels}>
-                  {savingLevels ? "Saving…" : "Save level names"}
-                </button>
-              )}
-            </div>
-            <p className="page-sub" style={{ margin: "6px 0 14px" }}>
-              Give each level a name your teachers and students recognise, such as a band or score range.
-              The number still decides the order; the name is only a label.
-            </p>
-            {!programsLoaded && <div className="notice info">Loading…</div>}
-            {programsLoaded && shownPrograms.map((k) => {
-              const rows = levelRows[k] || [];
-              const lastLevel = rows.length ? Math.max(...rows.map((x) => x.level)) : 0;
-              return (
-                <div key={k} style={{ marginBottom: 14 }}>
-                  {shownPrograms.length > 1 && (
-                    <h4 style={{ margin: "10px 0 6px", color: "var(--muted)", fontSize: ".78rem", letterSpacing: ".05em" }}>
-                      {PROGRAMS[k].label.toUpperCase()}
-                    </h4>
-                  )}
-                  {rows.length === 0 && <p className="page-sub" style={{ margin: "4px 0 8px" }}>No levels yet.</p>}
-                  {rows.length > 0 && (
-                    <table className="data-table" style={{ maxWidth: 560 }}>
-                      <thead>
-                        <tr><th style={{ width: 90 }}>Level</th><th>Name</th>{canEdit && <th style={{ width: 50 }} />}</tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((r) => (
-                          <tr key={r.level}>
-                            <td>Level {r.level}</td>
-                            <td>
-                              <input
-                                type="text" value={r.name} maxLength={NAME_MAX} disabled={!canEdit}
-                                placeholder={LEVEL_PLACEHOLDERS[k] || "e.g. Beginner"}
-                                aria-label={(shownPrograms.length > 1 ? PROGRAMS[k].label + " " : "") + "Level " + r.level + " name"}
-                                onChange={(e) => setLevelName(k, r.level, e.target.value)}
-                                style={{ width: "100%" }}
-                              />
-                            </td>
-                            {canEdit && (
-                              <td>
-                                <button
-                                  type="button" className="icon-btn danger"
-                                  title={r.used ? "Clear name (level is in use)" : "Remove level"}
-                                  onClick={() => removeLevel(k, r.level)}
-                                >
-                                  <svg className="icon"><use href="#icon-trash" /></svg>
-                                </button>
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                  {canEdit && (
-                    <button type="button" className="btn secondary sm" style={{ marginTop: 8 }}
-                      disabled={lastLevel >= LEVEL_MAX} onClick={() => addLevel(k)}>
-                      <svg className="icon"><use href="#icon-plus" /></svg> Add level
-                    </button>
-                  )}
-                </div>
-              );
-            })}
           </div>
 
           <div className="card">

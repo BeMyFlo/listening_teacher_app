@@ -2,13 +2,8 @@
 // Mọi giáo viên xem được; chỉ owner của workspace được sửa.
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
-const { withTenant, tenantFilter } = require("../../../lib/tenant");
+const { withTenant } = require("../../../lib/tenant");
 const Workspace = require("../../../lib/models/Workspace");
-const Class = require("../../../lib/models/Class");
-const Unit = require("../../../lib/models/Unit");
-const Test = require("../../../lib/models/Test");
-const { PROGRAM_KEYS, programFilter } = require("../../../lib/curriculum");
-const { sanitizeLevelNames } = require("../../../lib/levelNames");
 const { sanitizeTheme } = require("../../../lib/theme");
 const { isCloudinaryUrl } = require("../../../lib/validate");
 
@@ -23,29 +18,9 @@ function validTimezone(tz) {
   }
 }
 
-const plainLevelNames = (ws) =>
-  (ws.levelNames || []).map((x) => ({ program: x.program, level: x.level, name: x.name }));
-
-// Các level đang được Lớp / Unit / Test dùng, theo chương trình — để trang cài đặt
-// hiện đủ mọi level đang có kể cả khi chưa đặt tên. { ielts: [1,2], toeic: [1] }
-async function usedLevels(ws) {
-  const out = {};
-  for (const p of PROGRAM_KEYS) {
-    const set = new Set();
-    for (const M of [Class, Unit, Test]) {
-      for (const lv of await M.distinct("level", tenantFilter(ws, programFilter(p)))) {
-        if (Number.isInteger(lv) && lv >= 1) set.add(lv);
-      }
-    }
-    out[p] = [...set].sort((a, b) => a - b);
-  }
-  return out;
-}
-
 function view(ws, role) {
   const { theme } = sanitizeTheme(ws.settings && ws.settings.theme);
   return {
-    levelNames: plainLevelNames(ws),
     workspace: { _id: ws._id, name: ws.name, slug: ws.slug, logoUrl: ws.logoUrl || "", locale: ws.locale, timezone: ws.timezone },
     theme: theme || {},
     canEdit: role === "owner",
@@ -58,14 +33,14 @@ async function handler(req, res) {
   if (!ws) return res.status(404).json({ ok: false, error: "Workspace not found" });
 
   if (req.method === "GET") {
-    return res.status(200).json({ ok: true, ...view(ws, req.ws.role), usedLevels: await usedLevels(req.ws) });
+    return res.status(200).json({ ok: true, ...view(ws, req.ws.role) });
   }
 
   if (req.method === "PUT") {
     if (req.ws.role !== "owner") {
       return res.status(403).json({ ok: false, error: "Only the workspace owner can change these settings" });
     }
-    const { name, locale, timezone, theme, logoUrl, levelNames } = req.body || {};
+    const { name, locale, timezone, theme, logoUrl } = req.body || {};
 
     // Kiểm tra hết trước, rồi mới ghi.
     if (name != null) {
@@ -100,12 +75,6 @@ async function handler(req, res) {
       else delete settings.theme;
       ws.settings = settings;
       ws.markModified("settings");
-    }
-
-    if (levelNames !== undefined) {
-      const r = sanitizeLevelNames(levelNames);
-      if (r.error) return res.status(400).json({ ok: false, error: r.error });
-      ws.levelNames = r.levelNames;
     }
 
     await ws.save();
