@@ -7,6 +7,9 @@ const {
   isProgram,
   programOf,
   programFilter,
+  studentContentFilter,
+  lessonSkillAllowed,
+  testSkillAllowed,
 } = require("../lib/curriculum");
 const { activePrograms } = require("../lib/curriculumServer");
 
@@ -98,4 +101,37 @@ test("activePrograms: gộp Class+Unit+Test, theo thứ tự PROGRAM_KEYS", asyn
 test("activePrograms: giá trị lạ bị bỏ qua, không còn gì hợp lệ -> ['ielts']", async () => {
   const r = await activePrograms(WS, [fakeModel(["abc"], []), fakeModel([], []), fakeModel([], [])]);
   assert.deepEqual(r, ["ielts"]);
+});
+
+// ------------------------------------------- guard của route nộp bài (submissions.js)
+
+test("studentContentFilter: level + được giao cho lớp + đúng chương trình của lớp", () => {
+  assert.deepEqual(studentContentFilter({ _id: "c1", level: 2, program: "toeic" }), {
+    level: 2,
+    classIds: "c1",
+    program: "toeic",
+  });
+  // Lớp IELTS (kể cả doc cũ thiếu field) khớp cả nội dung cũ thiếu program.
+  const expected = { level: 1, classIds: "c2", program: { $in: ["ielts", null] } };
+  assert.deepEqual(studentContentFilter({ _id: "c2", level: 1, program: "ielts" }), expected);
+  assert.deepEqual(studentContentFilter({ _id: "c2", level: 1 }), expected);
+  // classIds là điều kiện BẮT BUỘC: không bao giờ rút gọn thành "mọi lớp cùng level".
+  assert.ok("classIds" in studentContentFilter({ _id: "c3", level: 1 }));
+});
+
+test("lessonSkillAllowed / testSkillAllowed đọc registry theo chương trình của Unit/Test", () => {
+  for (const k of PROGRAMS.ielts.lessonSkills) assert.equal(lessonSkillAllowed({ program: "ielts" }, k), true, k);
+  for (const k of PROGRAMS.ielts.testSkills) assert.equal(testSkillAllowed({ program: "ielts" }, k), true, k);
+  // Doc cũ thiếu program = IELTS: giữ nguyên hành vi cũ.
+  assert.equal(lessonSkillAllowed({}, "writing"), true);
+  assert.equal(testSkillAllowed({}, "speaking"), true);
+  // TOEIC 8A không có Writing/Speaking.
+  assert.equal(lessonSkillAllowed({ program: "toeic" }, "listening"), true);
+  assert.equal(lessonSkillAllowed({ program: "toeic" }, "writing"), false);
+  assert.equal(lessonSkillAllowed({ program: "toeic" }, "speaking"), false);
+  assert.equal(testSkillAllowed({ program: "toeic" }, "reading"), true);
+  assert.equal(testSkillAllowed({ program: "toeic" }, "writing"), false);
+  // Khoá lạ / thiếu -> không cho.
+  assert.equal(lessonSkillAllowed({ program: "toeic" }, undefined), false);
+  assert.equal(testSkillAllowed({ program: "ielts" }, "constructor"), false);
 });

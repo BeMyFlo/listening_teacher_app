@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { PROGRAMS, PROGRAM_KEYS, programOf } from "@/lib/curriculum";
+import { programParam, usePrograms } from "@/lib/client/program";
+import ProgramBadge from "@/components/ProgramBadge";
 import { useMediaLibraries } from "@/lib/teacher/useMediaLibraries";
 import {
   TEST_SKILLS,
@@ -14,10 +17,13 @@ import {
 import SectionsEditor from "@/components/teacher/SectionsEditor";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
 
-export default function TestBuilderPage() {
+function TestBuilderInner() {
   const { testId } = useParams();
   const router = useRouter();
+  const search = useSearchParams();
+  const { isMulti, loaded } = usePrograms();
   const isNew = testId === "new";
+  const paramProgram = programParam(search);
   const media = useMediaLibraries();
 
   const [b, setB] = useState(isNew ? emptyBuilder() : null);
@@ -35,6 +41,18 @@ export default function TestBuilderPage() {
       .then((d) => setB(testToBuilder(d.test)))
       .catch((e) => setErr(e.message));
   }, [testId, isNew]);
+
+  // Đề mới + workspace nhiều chương trình: lấy chương trình từ chip của trang
+  // Mock Tests (?program=). Đang ở "All" thì để trống, giáo viên phải chọn.
+  useEffect(() => {
+    if (!isNew || !loaded || !isMulti || !paramProgram) return;
+    setB((p) => (p && !p.program ? { ...p, program: paramProgram } : p));
+  }, [isNew, loaded, isMulti, paramProgram]);
+
+  function chooseProgram(k) {
+    // Lớp đã tick thuộc chương trình cũ -> bỏ, tránh giao nhầm.
+    setB((p) => ({ ...p, program: k, classIds: [] }));
+  }
 
   function toggleClass(id) {
     setB((prev) => {
@@ -59,6 +77,10 @@ export default function TestBuilderPage() {
       setSaveErr("Please enter a test title.");
       return;
     }
+    if (isNew && isMulti && !b.program) {
+      setSaveErr("Please choose a program for this test.");
+      return;
+    }
     if (b.opensAt && b.closesAt && new Date(b.opensAt) >= new Date(b.closesAt)) {
       setSaveErr("Opening time must be before closing time.");
       return;
@@ -71,6 +93,8 @@ export default function TestBuilderPage() {
     setSaveErr("");
     try {
       const payload = builderToPayload(b);
+      // Workspace 1 chương trình: không gửi gì, đề là IELTS như trước.
+      if (isNew && isMulti && b.program) payload.program = b.program;
       const saved = isNew ? await api.teacher.createTest(payload) : await api.teacher.updateTest(testId, payload);
       const id = isNew ? saved.test._id : testId;
       await api.teacher.updateTest(id, { status });
@@ -96,6 +120,10 @@ export default function TestBuilderPage() {
     );
   if (!b) return <div className="tab-panel active"><div className="notice info">Loading...</div></div>;
 
+  // Lớp hiện trong ô "Assign": cùng level, và cùng chương trình khi đã biết chương trình.
+  const levelClasses = classes.filter(
+    (c) => c.level === Number(b.level) && (!b.program || programOf(c) === b.program)
+  );
   const skillMeta = TEST_SKILLS.find((s) => s.key === active);
   const skill = b.skills[active];
 
@@ -103,8 +131,31 @@ export default function TestBuilderPage() {
     <div className="tab-panel active">
       <div className="card" id="testBuilder">
         <div className="builder-toolbar">
-          <h3 id="builderHeading">{isNew ? "Create New Test" : "Edit Mock Test"}</h3>
+          <h3 id="builderHeading">
+            {isNew ? "Create New Test" : "Edit Mock Test"}
+            {!isNew && <ProgramBadge program={b.program} isMulti={isMulti} />}
+          </h3>
         </div>
+
+        {isNew && isMulti && (
+          <div className="form-row">
+            <label>Program (required)</label>
+            <div className="program-radios" role="radiogroup" aria-label="Program">
+              {PROGRAM_KEYS.map((k) => (
+                <label key={k}>
+                  <input
+                    type="radio"
+                    name="testProgram"
+                    value={k}
+                    checked={b.program === k}
+                    onChange={() => chooseProgram(k)}
+                  />
+                  {PROGRAMS[k].label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="form-row">
           <label>Test Title</label>
@@ -128,14 +179,13 @@ export default function TestBuilderPage() {
 
         <div className="form-row">
           <label>Assign to classes (required — không tick lớp nào thì không học sinh nào thấy bài)</label>
-          {classes.filter((c) => c.level === Number(b.level)).length === 0 ? (
+          {levelClasses.length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: ".85rem", margin: 0 }}>
               No classes at Level {b.level}.
             </p>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-              {classes
-                .filter((c) => c.level === Number(b.level))
+              {levelClasses
                 .map((c) => (
                   <label key={c._id} style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
                     <input
@@ -251,5 +301,13 @@ export default function TestBuilderPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TestBuilderPage() {
+  return (
+    <Suspense fallback={<div className="tab-panel active"><div className="notice info">Loading...</div></div>}>
+      <TestBuilderInner />
+    </Suspense>
   );
 }

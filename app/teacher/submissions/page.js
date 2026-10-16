@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { programOf } from "@/lib/curriculum";
+import { programParam, usePrograms } from "@/lib/client/program";
+import ProgramChips, { ProgramEmpty } from "@/components/teacher/ProgramChips";
+import ProgramBadge from "@/components/ProgramBadge";
 
 // This page is just a "pick a mock test" landing — the real review flow lives
 // under /teacher/tests/[testId]/submissions (class -> student -> per-skill
@@ -11,8 +15,11 @@ import { api } from "@/lib/client/api";
 // date, with a meaningless "average score" mixing raw points and IELTS bands —
 // this instead groups by test so a teacher can see, per test, who's done and
 // who still needs grading.
-export default function SubmissionsLandingPage() {
+function SubmissionsLandingInner() {
   const router = useRouter();
+  const searchP = useSearchParams();
+  const program = programParam(searchP); // null = All
+  const { isMulti } = usePrograms();
   const [tests, setTests] = useState(null);
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState("");
@@ -21,14 +28,14 @@ export default function SubmissionsLandingPage() {
   function load() {
     setTests(null);
     setRows(null);
-    Promise.all([api.teacher.listTests(), api.teacher.listSubmissions()])
+    Promise.all([api.teacher.listTests(), api.teacher.listSubmissions(program ? { program } : undefined)])
       .then(([t, s]) => {
         setTests(t.rows || []);
         setRows(s.rows || []);
       })
       .catch((e) => setErr(e.message));
   }
-  useEffect(load, []);
+  useEffect(load, [program]);
 
   const statsByTest = useMemo(() => {
     const m = {};
@@ -50,6 +57,7 @@ export default function SubmissionsLandingPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (tests || [])
+      .filter((t) => !program || programOf(t) === program)
       .filter((t) => !q || (t.title + " " + (t.unit || "")).toLowerCase().includes(q))
       .map((t) => ({ t, stat: statsByTest[String(t._id)] || null }))
       .sort((a, b) => {
@@ -60,7 +68,7 @@ export default function SubmissionsLandingPage() {
         const tb = b.stat && b.stat.lastSubmittedAt ? +b.stat.lastSubmittedAt : 0;
         return tb - ta;
       });
-  }, [tests, statsByTest, search]);
+  }, [tests, statsByTest, search, program]);
 
   return (
     <div className="tab-panel active">
@@ -86,6 +94,8 @@ export default function SubmissionsLandingPage() {
         </div>
       </div>
 
+      <ProgramChips />
+
       {err && (
         <div className="notice error">
           <svg className="icon"><use href="#icon-warning" /></svg> {err}
@@ -94,7 +104,12 @@ export default function SubmissionsLandingPage() {
 
       <div className="card">
         {!tests && !err && <div className="notice info">Loading...</div>}
-        {tests && filtered.length === 0 && <div className="empty-state">No mock tests found.</div>}
+        {tests && filtered.length === 0 &&
+          (program && !search.trim() ? (
+            <ProgramEmpty program={program} what="mock tests yet" />
+          ) : (
+            <div className="empty-state">No mock tests found.</div>
+          ))}
         <div id="testResultsList" style={{ marginTop: 4 }}>
           {filtered.map(({ t, stat }) => (
             <div className="test-item" key={t._id}>
@@ -102,6 +117,7 @@ export default function SubmissionsLandingPage() {
                 <h4>
                   {(t.unit ? t.unit + " · " : "") + t.title}{" "}
                   <span className={"status-pill " + t.status}>{t.status === "published" ? "Published" : "Draft"}</span>
+                  <ProgramBadge program={programOf(t)} isMulti={isMulti} />
                 </h4>
                 <p>
                   Level {t.level != null ? t.level : "-"} ·{" "}
@@ -136,5 +152,13 @@ export default function SubmissionsLandingPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SubmissionsLandingPage() {
+  return (
+    <Suspense fallback={<div className="tab-panel active"><div className="notice info">Loading...</div></div>}>
+      <SubmissionsLandingInner />
+    </Suspense>
   );
 }

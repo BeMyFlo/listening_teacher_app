@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
+import { programParam, usePrograms } from "@/lib/client/program";
+import ProgramChips, { ProgramEmpty } from "@/components/teacher/ProgramChips";
+import ProgramBadge from "@/components/ProgramBadge";
 
-export default function StudentsPage() {
+function StudentsInner() {
   const dialog = useDialog();
+  const search = useSearchParams();
+  const program = programParam(search); // null = All
+  const { isMulti } = usePrograms();
   const [rows, setRows] = useState(null);
   const [classes, setClasses] = useState([]);
   const [listErr, setListErr] = useState("");
@@ -14,14 +21,14 @@ export default function StudentsPage() {
   const [emailDraft, setEmailDraft] = useState({}); // studentId -> value đang gõ
 
   function load() {
-    Promise.all([api.teacher.listStudents(), api.teacher.listClasses().catch(() => ({ rows: [] }))])
+    Promise.all([api.teacher.listStudents(program ? { program } : undefined), api.teacher.listClasses().catch(() => ({ rows: [] }))])
       .then(([s, c]) => {
         setRows(s.rows || []);
         setClasses(c.rows || []);
       })
       .catch((e) => setListErr(e.message));
   }
-  useEffect(load, []);
+  useEffect(load, [program]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -116,6 +123,8 @@ export default function StudentsPage() {
         </div>
       </div>
 
+      <ProgramChips />
+
       <div className="card">
         <h3>Create New Student Account</h3>
         {classes.length === 0 && (
@@ -173,7 +182,12 @@ export default function StudentsPage() {
           </div>
         )}
         {!rows && !listErr && <div className="notice info">Loading...</div>}
-        {rows && rows.length === 0 && <div className="notice info">No student accounts found.</div>}
+        {rows && rows.length === 0 &&
+          (program ? (
+            <ProgramEmpty program={program} what="students yet" />
+          ) : (
+            <div className="notice info">No student accounts found.</div>
+          ))}
         {rows && rows.length > 0 && (
           <div className="table-wrap">
             <table className="data-table">
@@ -218,6 +232,7 @@ export default function StudentsPage() {
                           </option>
                         ))}
                       </select>
+                      <ProgramBadge program={s.program} isMulti={isMulti} />
                     </td>
                     <td>{s.createdAt ? new Date(s.createdAt).toLocaleDateString("en-US") : "-"}</td>
                     <td>{s.submissionCount ?? 0}</td>
@@ -247,5 +262,13 @@ export default function StudentsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function StudentsPage() {
+  return (
+    <Suspense fallback={<div className="tab-panel active"><div className="notice info">Loading...</div></div>}>
+      <StudentsInner />
+    </Suspense>
   );
 }

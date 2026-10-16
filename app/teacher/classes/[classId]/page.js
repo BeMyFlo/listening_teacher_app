@@ -5,12 +5,17 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
 import AttendanceTab from "@/components/teacher/AttendanceTab";
+import ProgramField from "@/components/teacher/ProgramField";
+import ProgramBadge from "@/components/ProgramBadge";
+import { DEFAULT_PROGRAM } from "@/lib/curriculum";
+import { usePrograms } from "@/lib/client/program";
 
 export default function ClassDetailPage() {
   const dialog = useDialog();
   const { classId } = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isMulti, refresh } = usePrograms();
   const [tab, setTab] = useState(searchParams.get("tab") === "attendance" ? "attendance" : "students");
   const [cls, setCls] = useState(null);
   const [roster, setRoster] = useState([]);
@@ -19,6 +24,7 @@ export default function ClassDetailPage() {
   const [addId, setAddId] = useState("");
   const [name, setName] = useState("");
   const [level, setLevel] = useState(1);
+  const [program, setProgram] = useState(DEFAULT_PROGRAM);
   const [saveMsg, setSaveMsg] = useState(null);
 
   function load() {
@@ -27,6 +33,7 @@ export default function ClassDetailPage() {
         setCls(c.class);
         setName(c.class.name);
         setLevel(c.class.level);
+        setProgram(c.class.program || DEFAULT_PROGRAM);
         setRoster(c.students || []);
         setAllStudents(s.rows || []);
       })
@@ -43,9 +50,13 @@ export default function ClassDetailPage() {
   async function saveMeta() {
     setSaveMsg(null);
     try {
-      await api.teacher.updateClass(classId, { name: name.trim(), level: Number(level) || 1 });
+      // Chỉ gửi program khi thật sự đổi (server trả 409 nếu lớp đã có bài giao).
+      const body = { name: name.trim(), level: Number(level) || 1 };
+      if (program !== (cls.program || DEFAULT_PROGRAM)) body.program = program;
+      await api.teacher.updateClass(classId, body);
       setSaveMsg({ cls: "success", msg: "Saved." });
       load();
+      refresh(); // đổi chương trình có thể làm workspace thành/không còn 2 chương trình
     } catch (e) {
       setSaveMsg({ cls: "error", msg: e.message });
     }
@@ -109,6 +120,7 @@ export default function ClassDetailPage() {
         <h2>{cls.name}</h2>
         <p className="page-sub" style={{ marginTop: -4 }}>
           Level {cls.level} · {roster.length} student{roster.length === 1 ? "" : "s"}
+          <ProgramBadge program={cls.program} isMulti={isMulti} />
         </p>
 
         <div className="unit-subtabs" style={{ marginTop: 14 }}>
@@ -135,6 +147,12 @@ export default function ClassDetailPage() {
                 <label>Class Name</label>
                 <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
+              <ProgramField
+                name="classProgram"
+                value={program}
+                onChange={setProgram}
+                locked={!!cls.programLocked}
+              />
               <div className="form-row" style={{ marginBottom: 0 }}>
                 <label>Level (applies to all students in this class)</label>
                 <input type="number" min="1" step="1" value={level} onChange={(e) => setLevel(e.target.value)} />

@@ -5,7 +5,7 @@ const { requireAuth } = require("../../../lib/auth");
 const { withTenant, tenantFilter } = require("../../../lib/tenant");
 const Submission = require("../../../lib/models/Submission");
 const Unit = require("../../../lib/models/Unit");
-const { parseProgramParam, programFilter } = require("../../../lib/curriculum");
+const { parseProgramParam, programFilter, programOf } = require("../../../lib/curriculum");
 
 function promptTitle(unit, promptId) {
   for (const c of (unit && unit.categories) || []) {
@@ -33,7 +33,7 @@ async function handler(req, res) {
     ...(prog.program ? programFilter(prog.program) : {}),
   }))
     .sort({ submittedAt: -1 })
-    .select("studentId studentName kind unitId promptId testId testTitle testSkill submittedAt isLate gradingStatus attemptNumber parentSubmissionId")
+    .select("program studentId studentName kind unitId promptId testId testTitle testSkill submittedAt isLate gradingStatus attemptNumber parentSubmissionId")
     .lean();
 
   const unitIds = [...new Set(subs.filter((s) => s.unitId).map((s) => String(s.unitId)))];
@@ -48,6 +48,7 @@ async function handler(req, res) {
       studentId: s.studentId,
       studentName: s.studentName,
       kind: s.kind,
+      program: programOf(s), // cho nhãn chương trình ở Grading Queue
       source: isLesson ? "lesson" : "mock",
       where: isLesson ? (u ? u.name : "Lesson") : s.testTitle || "Mock test",
       promptTitle: isLesson ? promptTitle(u, s.promptId) : s.testSkill || "",

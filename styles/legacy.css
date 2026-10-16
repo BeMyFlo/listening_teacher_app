@@ -30,6 +30,14 @@
      màu chấm bài "Cohesion" (xem lib/grading/annotate.js colorGroup). */
   --violet: #8B6FD9;
   --violet-light: #ECE6FB;
+  /* Nhãn chương trình (Phase 8). IELTS theo màu thương hiệu của workspace;
+     TOEIC là màu phụ cố định, không đổi theo theme. */
+  --program-ielts: var(--navy-dark);
+  --program-ielts-bg: var(--blue-light);
+  --program-ielts-border: var(--blue-border);
+  --program-toeic: #7A4FD0;
+  --program-toeic-bg: #EEE8FB;
+  --program-toeic-border: #D6C9F3;
   /* Dẫn xuất từ màu chính — themeToCss ghi đè khi workspace đổi màu gốc. */
   --red-light: #FFE0E2;
   --blue-border: #C1E9E1;
@@ -1327,6 +1335,59 @@ tr:hover td { background: var(--pink-wash-2); }
 }
 .status-pill.published { background: var(--teal-light); color: var(--green); }
 .status-pill.draft { background: #F0EDF2; color: var(--muted); }
+
+/* ---------- Program (IELTS / TOEIC) — Phase 8 ---------- */
+.program-badge {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 6px;
+  font-size: .68rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.program-badge.program-ielts { color: var(--program-ielts); background: var(--program-ielts-bg); border-color: var(--program-ielts-border); }
+.program-badge.program-toeic { color: var(--program-toeic); background: var(--program-toeic-bg); border-color: var(--program-toeic-border); }
+
+.program-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.program-chip {
+  padding: 6px 14px;
+  font-size: .84rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.program-chip:hover { color: var(--blue); border-color: var(--blue); }
+.program-chip.active { color: #fff; background: var(--blue); border-color: var(--blue); }
+
+.program-radios { display: flex; flex-wrap: wrap; gap: 16px; padding: 9px 0; }
+.program-radios label { display: flex; align-items: center; gap: 6px; font-weight: 400; margin: 0; cursor: pointer; }
+.program-radios.locked label { cursor: not-allowed; color: var(--muted); }
+.program-hint { margin: 4px 0 0; font-size: .8rem; color: var(--muted); }
+
+.program-section { margin-bottom: 26px; }
+.program-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.program-section-head h2 { margin: 0; font-size: 1.1rem; color: var(--navy); }
+.program-section-head p { margin: 2px 0 0; font-size: .82rem; color: var(--muted); }
+
+/* Dark mode: app chưa có chế độ tối; khối này chỉ có tác dụng khi gắn data-theme="dark" lên <html>. */
+:root[data-theme="dark"] {
+  --program-ielts: #9FD8CC;
+  --program-ielts-bg: rgba(77, 191, 169, .16);
+  --program-ielts-border: rgba(77, 191, 169, .35);
+  --program-toeic: #C3AEF2;
+  --program-toeic-bg: rgba(139, 111, 217, .18);
+  --program-toeic-border: rgba(139, 111, 217, .4);
+}
 
 .builder-section {
   border: 1px solid var(--border);
