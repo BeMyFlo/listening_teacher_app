@@ -12,6 +12,7 @@ const { notifyTeachersOfSubmission } = require("../../lib/notifications/teacher"
 const { resolveVariant } = require("../../lib/grading/rubric");
 const { resolveDeadline, isSkillLocked } = require("../../lib/deadlines");
 const { deleteAudioFile } = require("../../lib/cloudinary");
+const { programOf } = require("../../lib/curriculum");
 const { asObjectId, isCloudinaryUrl, publicIdFromUrl } = require("../../lib/validate");
 
 // Hạn nộp áp cho lớp của học sinh + kỹ năng đang nộp (hạn riêng kỹ năng ->
@@ -127,6 +128,8 @@ async function handler(req, res) {
       workspaceId: req.ws.workspaceId,
       studentId: student._id,
       studentName: student.name,
+      // Chương trình lấy từ đề gốc ở server, không bao giờ từ client.
+      program: programOf(test),
       kind: "test",
       testId: test._id,
       testTitle: `${test.unit} · ${test.title}`.replace(/^ · /, ""),
@@ -189,6 +192,7 @@ async function handler(req, res) {
       workspaceId: req.ws.workspaceId,
       studentId: student._id,
       studentName: student.name,
+      program: programOf(unit),
       kind: "exercise",
       unitId: unit._id,
       categoryKey,
@@ -245,6 +249,7 @@ async function handler(req, res) {
         workspaceId: req.ws.workspaceId,
         studentId: student._id,
         studentName: student.name,
+        program: programOf(test),
         kind,
         testId: test._id,
         testTitle: `${test.unit} · ${test.title}`.replace(/^ · /, ""),
@@ -338,6 +343,7 @@ async function handler(req, res) {
       workspaceId: req.ws.workspaceId,
       studentId: student._id,
       studentName: student.name,
+      program: programOf(unit),
       kind,
       unitId: unit._id,
       categoryKey,

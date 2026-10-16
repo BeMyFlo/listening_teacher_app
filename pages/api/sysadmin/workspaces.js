@@ -9,6 +9,7 @@ const WorkspaceMember = require("../../../lib/models/WorkspaceMember");
 const User = require("../../../lib/models/User");
 const Student = require("../../../lib/models/Student");
 const Class = require("../../../lib/models/Class");
+const { activeProgramsByWorkspace } = require("../../../lib/curriculumServer");
 
 const countBy = (Model) => Model.aggregate([{ $group: { _id: "$workspaceId", n: { $sum: 1 } } }]);
 const toMap = (arr) => arr.reduce((m, x) => ((m[String(x._id)] = x.n), m), {});
@@ -17,11 +18,14 @@ async function handler(req, res) {
   await connectDB();
 
   if (req.method === "GET") {
-    const [list, tc, sc, cc] = await Promise.all([
+    const [list, tc, sc, cc, programsByWs] = await Promise.all([
       Workspace.find().sort({ createdAt: 1 }).lean(),
       countBy(WorkspaceMember),
       countBy(Student),
       countBy(Class),
+      // Chương trình đang dùng (suy ra từ Lớp + Unit + Test), chỉ đọc — 3 aggregate
+      // cho TẤT CẢ workspace, không phải 3 truy vấn mỗi dòng.
+      activeProgramsByWorkspace(),
     ]);
     const owners = await User.find({ _id: { $in: list.map((w) => w.ownerUserId) } }).select("username name").lean();
     const ownerById = {};
@@ -42,6 +46,7 @@ async function handler(req, res) {
           teachers: teachers[String(w._id)] || 0,
           students: students[String(w._id)] || 0,
           classes: classes[String(w._id)] || 0,
+          programs: programsByWs[String(w._id)] || ["ielts"],
         };
       }),
     });

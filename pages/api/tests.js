@@ -4,6 +4,7 @@ const { withTenant, tenantFilter } = require("../../lib/tenant");
 const Student = require("../../lib/models/Student");
 const Test = require("../../lib/models/Test");
 const Class = require("../../lib/models/Class");
+const { PROGRAMS, programOf, programFilter } = require("../../lib/curriculum");
 
 function toPublicQuestionSkill(skill) {
   skill = skill || {};
@@ -53,17 +54,23 @@ function toPublicPromptSkill(skill) {
 }
 
 function toPublicTest(test) {
+  // Kỹ năng ngoài testSkills của chương trình (vd TOEIC 8A: writing/speaking)
+  // KHÔNG được gửi nội dung — giữ nguyên shape nhưng rỗng, để client cũ không
+  // vỡ. IELTS có đủ 4 kỹ năng nên không đổi gì.
+  const allowed = PROGRAMS[programOf(test)].testSkills;
+  const pick = (key) => (allowed.includes(key) ? test.skills[key] : undefined);
   return {
     id: test._id,
     title: test.title,
     unit: test.unit,
+    program: programOf(test),
     opensAt: test.opensAt,
     closesAt: test.closesAt,
     skills: {
-      listening: toPublicQuestionSkill(test.skills.listening),
-      reading: toPublicQuestionSkill(test.skills.reading),
-      writing: toPublicPromptSkill(test.skills.writing),
-      speaking: toPublicPromptSkill(test.skills.speaking)
+      listening: toPublicQuestionSkill(pick("listening")),
+      reading: toPublicQuestionSkill(pick("reading")),
+      writing: toPublicPromptSkill(pick("writing")),
+      speaking: toPublicPromptSkill(pick("speaking"))
     }
   };
 }
@@ -111,11 +118,14 @@ async function handler(req, res) {
   // classIds rỗng/không có = CHƯA giao cho lớp nào (không phải "giao cho tất
   // cả") — giáo viên phải tick rõ lớp thì học sinh lớp đó mới thấy bài.
   const classFilter = { classIds: cls._id };
+  // Học sinh chỉ thấy đề đúng chương trình của lớp mình (doc cũ thiếu field
+  // tính là IELTS — xem programFilter).
+  const progFilter = programFilter(programOf(cls));
 
   if (id) {
     let test;
     try {
-      test = await Test.findOne(tenantFilter(req.ws, { _id: id, status: "published", level, ...classFilter }));
+      test = await Test.findOne(tenantFilter(req.ws, { _id: id, status: "published", level, ...classFilter, ...progFilter }));
     } catch (err) {
       return res.status(404).json({ ok: false, error: "Mock test not found" });
     }
@@ -138,7 +148,7 @@ async function handler(req, res) {
     return res.status(200).json({ ok: true, locked: false, test: toPublicTest(test) });
   }
 
-  const tests = await Test.find(tenantFilter(req.ws, { status: "published", level, ...classFilter })).sort({ createdAt: -1 }).lean();
+  const tests = await Test.find(tenantFilter(req.ws, { status: "published", level, ...classFilter, ...progFilter })).sort({ createdAt: -1 }).lean();
 
   const skillMeta = (skill, key) => {
     skill = skill || {};
@@ -149,21 +159,27 @@ async function handler(req, res) {
     return { present: count > 0, count };
   };
 
-  const rows = tests.map((t) => ({
-    id: t._id,
-    title: t.title,
-    unit: t.unit,
-    opensAt: t.opensAt,
-    closesAt: t.closesAt,
-    locked: !!(t.opensAt && new Date(t.opensAt) > now),
-    closed: !!(t.closesAt && new Date(t.closesAt) < now),
-    skills: {
-      listening: skillMeta(t.skills && t.skills.listening, "listening"),
-      reading: skillMeta(t.skills && t.skills.reading, "reading"),
-      writing: skillMeta(t.skills && t.skills.writing, "writing"),
-      speaking: skillMeta(t.skills && t.skills.speaking, "speaking")
-    }
-  }));
+  const rows = tests.map((t) => {
+    // Kỹ năng ngoài testSkills của chương trình -> báo không có nội dung.
+    const allowed = PROGRAMS[programOf(t)].testSkills;
+    const meta = (key) => skillMeta(allowed.includes(key) ? t.skills && t.skills[key] : undefined, key);
+    return {
+      id: t._id,
+      title: t.title,
+      unit: t.unit,
+      program: programOf(t),
+      opensAt: t.opensAt,
+      closesAt: t.closesAt,
+      locked: !!(t.opensAt && new Date(t.opensAt) > now),
+      closed: !!(t.closesAt && new Date(t.closesAt) < now),
+      skills: {
+        listening: meta("listening"),
+        reading: meta("reading"),
+        writing: meta("writing"),
+        speaking: meta("speaking")
+      }
+    };
+  });
 
   return res.status(200).json({ ok: true, rows });
 }

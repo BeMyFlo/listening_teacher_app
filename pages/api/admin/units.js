@@ -11,6 +11,8 @@ const { sanitizeYouTube } = require("../../../lib/lessonImport");
 const { sanitizeVocabReview } = require("../../../lib/vocabReviewSource");
 const { announceDeadlines } = require("../../../lib/notifications/deadlineAssign");
 const { regradeUnitSubmissions } = require("../../../lib/teacher/regrade");
+const { DEFAULT_PROGRAM, isProgram, programOf, programFilter } = require("../../../lib/curriculum");
+const { programLockReason, resolveProgramChange } = require("../../../lib/curriculumServer");
 
 const S = (v) => String(v == null ? "" : v);
 
@@ -37,22 +39,29 @@ function normalizeTopicExercises(exs) {
   }));
 }
 
-// Lọc classIds hợp lệ: là ObjectId có thật và đúng level của Unit/Test.
-async function sanitizeClassIds(raw, level) {
+// Lọc classIds hợp lệ: là ObjectId có thật, thuộc workspace, đúng level VÀ đúng
+// chương trình của Unit/Test (lớp cũ thiếu field program tính là IELTS).
+async function sanitizeClassIds(ws, raw, level, program) {
   if (!Array.isArray(raw) || !raw.length) return [];
-  const found = await Class.find({ _id: { $in: raw.filter(Boolean) }, level }).select("_id").lean();
+  const found = await Class.find(
+    tenantFilter(ws, { _id: { $in: raw.filter(Boolean) }, level, ...programFilter(program) })
+  ).select("_id").lean();
   return found.map((c) => c._id);
+}
+
+// Tập id lớp hợp lệ (workspace + level + program) cho deadlines/skillLocks.
+async function validClassIdSet(ws, level, program) {
+  const found = await Class.find(tenantFilter(ws, { level, ...programFilter(program) })).select("_id").lean();
+  return new Set(found.map((c) => String(c._id)));
 }
 
 // Hạn nộp theo (lớp, kỹ năng). categoryKey null/rỗng = hạn chung cả Unit;
 // hoặc là 1 trong CATEGORY_KEYS = hạn riêng kỹ năng. Chỉ giữ entry có classId
 // hợp lệ đúng level + dueAt hợp lệ; dueAt rỗng = bỏ hạn đó. Dedup theo
 // (classId, categoryKey). Trả { error } nếu date/kỹ năng sai.
-async function sanitizeDeadlines(raw, level) {
+async function sanitizeDeadlines(ws, raw, level, program) {
   if (!Array.isArray(raw) || !raw.length) return [];
-  const valid = new Set(
-    (await Class.find({ level }).select("_id").lean()).map((c) => String(c._id))
-  );
+  const valid = await validClassIdSet(ws, level, program);
   const seen = new Set();
   const out = [];
   for (const d of raw) {
@@ -74,11 +83,9 @@ async function sanitizeDeadlines(raw, level) {
 
 // Khóa kỹ năng theo lớp: chỉ giữ entry có classId là Lớp thật đúng level và
 // categoryKey hợp lệ; dedup theo (classId, categoryKey).
-async function sanitizeSkillLocks(raw, level) {
+async function sanitizeSkillLocks(ws, raw, level, program) {
   if (!Array.isArray(raw) || !raw.length) return [];
-  const valid = new Set(
-    (await Class.find({ level }).select("_id").lean()).map((c) => String(c._id))
-  );
+  const valid = await validClassIdSet(ws, level, program);
   const seen = new Set();
   const out = [];
   for (const l of raw) {
@@ -140,7 +147,8 @@ async function handler(req, res) {
 
   if (req.method === "GET" && !id) {
     const rows = await Unit.find(tenantFilter(req.ws)).sort({ level: 1, order: 1 }).lean();
-    return res.status(200).json({ ok: true, rows });
+    // lean() không áp default của schema -> doc cũ thiếu program phải được điền IELTS.
+    return res.status(200).json({ ok: true, rows: rows.map((r) => ({ ...r, program: programOf(r) })) });
   }
 
   // Chấm lại toàn bộ bài đã nộp của Unit theo đáp án hiện tại — giáo viên bấm
@@ -160,18 +168,23 @@ async function handler(req, res) {
     if (!Number.isInteger(level) || level < 1) {
       return res.status(400).json({ ok: false, error: "Please select a valid level" });
     }
-    const deadlines = await sanitizeDeadlines(req.body.deadlines, level);
+    // Không gửi program -> IELTS (client cũ giữ hành vi cũ); gửi giá trị lạ -> 400.
+    const rawProgram = req.body.program;
+    const program = rawProgram == null ? DEFAULT_PROGRAM : rawProgram;
+    if (!isProgram(program)) return res.status(400).json({ ok: false, error: "Invalid program" });
+    const deadlines = await sanitizeDeadlines(req.ws, req.body.deadlines, level, program);
     if (deadlines.error) return res.status(400).json({ ok: false, error: deadlines.error });
 
     const unit = await Unit.create({
       workspaceId: req.ws.workspaceId,
       level,
+      program,
       name: String(name).trim(),
       order: Number(req.body.order) || 0,
       status: "draft",
-      classIds: await sanitizeClassIds(req.body.classIds, level),
+      classIds: await sanitizeClassIds(req.ws, req.body.classIds, level, program),
       deadlines,
-      skillLocks: await sanitizeSkillLocks(req.body.skillLocks, level),
+      skillLocks: await sanitizeSkillLocks(req.ws, req.body.skillLocks, level, program),
       categories: Unit.seedCategories()
     });
     return res.status(201).json({ ok: true, unit });
@@ -180,12 +193,23 @@ async function handler(req, res) {
   const unit = await assertOwned(req.ws, Unit, id, { message: "Unit not found" });
 
   if (req.method === "GET") {
-    return res.status(200).json({ ok: true, unit });
+    // toJSON() giữ nguyên hình dạng như khi res.json(doc); chỉ thêm 2 field.
+    const out = unit.toJSON();
+    out.program = programOf(unit);
+    out.programLocked = !!(await programLockReason(req.ws, "unit", unit));
+    return res.status(200).json({ ok: true, unit: out });
   }
 
   if (req.method === "PUT") {
-    const { name, order, status, categories, level, classIds, deadlines, skillLocks } = req.body || {};
+    const { name, order, status, categories, level, classIds, deadlines, skillLocks, program } = req.body || {};
     const levelChanged = level != null && Number(level) !== unit.level;
+
+    // Đổi chương trình chỉ khi chưa giao lớp nào và chưa có bài nộp (C7); gửi
+    // lại đúng program cũ không phải là đổi. Không có nhánh "đổi rồi gỡ".
+    const programChange = await resolveProgramChange(req.ws, "unit", unit, program);
+    if (programChange.error) {
+      return res.status(programChange.status).json({ ok: false, error: programChange.error });
+    }
 
     // Chụp trạng thái hạn nộp + publish TRƯỚC khi ghi đè, để sau khi lưu diff ra
     // các mốc hạn mới/đổi mà gửi thông báo (xem announceDeadlines).
@@ -209,22 +233,25 @@ async function handler(req, res) {
       }
       unit.level = lvl;
     }
+    if (programChange.changed) unit.program = program;
+    // Từ đây mọi sanitize lọc lớp theo (workspace, level, program) của Unit.
+    const unitProgram = programOf(unit);
     if (classIds != null) {
-      unit.classIds = await sanitizeClassIds(classIds, unit.level);
+      unit.classIds = await sanitizeClassIds(req.ws, classIds, unit.level, unitProgram);
     }
     if (deadlines != null) {
-      const clean = await sanitizeDeadlines(deadlines, unit.level);
+      const clean = await sanitizeDeadlines(req.ws, deadlines, unit.level, unitProgram);
       if (clean.error) return res.status(400).json({ ok: false, error: clean.error });
       unit.deadlines = clean;
     } else if (levelChanged) {
       // Đổi level nhưng không gửi deadlines mới -> rụng các mốc của lớp sai level.
-      const clean = await sanitizeDeadlines(unit.deadlines, unit.level);
+      const clean = await sanitizeDeadlines(req.ws, unit.deadlines, unit.level, unitProgram);
       unit.deadlines = Array.isArray(clean) ? clean : [];
     }
     if (skillLocks != null) {
-      unit.skillLocks = await sanitizeSkillLocks(skillLocks, unit.level);
+      unit.skillLocks = await sanitizeSkillLocks(req.ws, skillLocks, unit.level, unitProgram);
     } else if (levelChanged) {
-      unit.skillLocks = await sanitizeSkillLocks(unit.skillLocks, unit.level);
+      unit.skillLocks = await sanitizeSkillLocks(req.ws, unit.skillLocks, unit.level, unitProgram);
     }
     if (order != null) unit.order = Number(order) || 0;
     if (status != null) {

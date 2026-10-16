@@ -10,6 +10,7 @@ const { notifyStudentGraded } = require("../../../lib/notifications/student");
 const Student = require("../../../lib/models/Student");
 const { teacherScope } = require("../../../lib/teacherScope");
 const { asObjectId } = require("../../../lib/validate");
+const { parseProgramParam, programFilter } = require("../../../lib/curriculum");
 
 const KINDS = ["test", "exercise", "writing", "speaking"];
 const LIST_LIMIT = 500;
@@ -39,6 +40,10 @@ async function handler(req, res) {
   if (req.method === "GET") {
     const { testId, name, kind, gradingStatus } = req.query;
     const filter = {};
+    // ?program= trống/all = không lọc (như trước); sai -> 400.
+    const prog = parseProgramParam(req.query.program);
+    if (prog.error) return res.status(400).json({ ok: false, error: prog.error });
+    if (prog.program) Object.assign(filter, programFilter(prog.program));
     if (studentIds) filter.studentId = { $in: studentIds };
     if (testId) {
       const tid = asObjectId(testId);

@@ -31,3 +31,5 @@ async function handler(req, res) {
 }
 
 module.exports = requireAuth(withTenant(handler));
+
+module.exports.default = module.exports;

@@ -12,6 +12,7 @@ const Unit = require("../../../lib/models/Unit");
 const Submission = require("../../../lib/models/Submission");
 const { computeStreak } = require("../../../lib/student/streak");
 const { buildClassLeaderboard } = require("../../../lib/student/leaderboard");
+const { programOf, programFilter } = require("../../../lib/curriculum");
 
 const EMPTY = {
   ok: true,
@@ -42,7 +43,7 @@ async function handler(req, res) {
   const classFilter = { classIds: cls._id };
 
   const [units, classmates] = await Promise.all([
-    Unit.find(tenantFilter(req.ws, { status: "published", level: cls.level, ...classFilter })).lean(),
+    Unit.find(tenantFilter(req.ws, { status: "published", level: cls.level, ...classFilter, ...programFilter(programOf(cls)) })).lean(),
     Student.find(tenantFilter(req.ws, { classId: cls._id })).select("name").lean(),
   ]);
 

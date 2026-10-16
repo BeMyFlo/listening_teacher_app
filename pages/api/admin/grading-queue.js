@@ -5,6 +5,7 @@ const { requireAuth } = require("../../../lib/auth");
 const { withTenant, tenantFilter } = require("../../../lib/tenant");
 const Submission = require("../../../lib/models/Submission");
 const Unit = require("../../../lib/models/Unit");
+const { parseProgramParam, programFilter } = require("../../../lib/curriculum");
 
 function promptTitle(unit, promptId) {
   for (const c of (unit && unit.categories) || []) {
@@ -22,9 +23,14 @@ async function handler(req, res) {
   }
   await connectDB();
 
+  // ?program= trống/all = không lọc (như trước); sai -> 400.
+  const prog = parseProgramParam(req.query.program);
+  if (prog.error) return res.status(400).json({ ok: false, error: prog.error });
+
   const subs = await Submission.find(tenantFilter(req.ws, {
     kind: { $in: ["writing", "speaking"] },
     gradingStatus: { $ne: "graded" },
+    ...(prog.program ? programFilter(prog.program) : {}),
   }))
     .sort({ submittedAt: -1 })
     .select("studentId studentName kind unitId promptId testId testTitle testSkill submittedAt isLate gradingStatus attemptNumber parentSubmissionId")
