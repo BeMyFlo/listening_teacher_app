@@ -25,6 +25,7 @@ function toPublicQuestionSkill(skill) {
         idEnd: f.idEnd || null,
         formatLabel: f.formatLabel || "",
         label: f.label,
+        imageUrl: f.imageId && f.imageId.cloudinaryUrl,
         type: f.type,
         pre: f.pre,
         post: f.post,
@@ -85,6 +86,8 @@ function populateSkillMedia(queryOrDoc) {
     { path: "skills.listening.sections.audioId", select: "cloudinaryUrl" },
     { path: "skills.listening.sections.imageId", select: "cloudinaryUrl" },
     { path: "skills.reading.sections.imageId", select: "cloudinaryUrl" },
+    { path: "skills.listening.sections.fields.imageId", select: "cloudinaryUrl" },
+    { path: "skills.reading.sections.fields.imageId", select: "cloudinaryUrl" },
     { path: "skills.writing.prompts.imageId", select: "cloudinaryUrl" },
     { path: "skills.speaking.prompts.imageId", select: "cloudinaryUrl" }
   ]);

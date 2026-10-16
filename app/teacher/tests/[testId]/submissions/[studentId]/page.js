@@ -174,7 +174,12 @@ function QuestionReview({ detail }) {
                 <>
                   <tr key={d.id}>
                     <td style={{ whiteSpace: "nowrap" }}>{d.id}</td>
-                    <td>{d.label}</td>
+                    <td>
+                      {d.imageUrl && (
+                        <img src={d.imageUrl} alt={"Image for question " + d.id} style={{ display: "block", maxWidth: 180, maxHeight: 110, borderRadius: 6, marginBottom: d.label ? 6 : 0 }} />
+                      )}
+                      {d.label}
+                    </td>
                     <td><span className={"answer-pill " + (bucket === "skipped" ? "blank" : bucket === "correct" ? "correct" : "wrong")}>{d.submittedText}</span></td>
                     <td><span className="answer-pill correct">{d.answerText}</span></td>
                     <td style={{ color: "var(--muted)" }}>{d.explanation ? "…" : "—"}</td>

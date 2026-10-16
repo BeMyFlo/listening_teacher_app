@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import RichTextEditor from "./RichTextEditor";
 import { noteTextToDoc, docToNoteText, blankIdsFromDoc } from "@/lib/tiptap/noteConvert";
 import { removeBlankFromDoc, remapBlankIds, docIsEmpty, walkDoc } from "@/lib/tiptap/doc";
@@ -18,6 +18,10 @@ import {
 } from "@/lib/teacher/sectionTransforms";
 import SpreadsheetImport from "./SpreadsheetImport";
 import { questionFormatsFor } from "@/lib/teacher/questionFormats";
+import { LETTERS, letterOptions, isLetterEditorField } from "@/lib/letterQuestion";
+
+// letterOptions(n) (dạng server {value,label}) -> dạng editor {id,text}.
+const editorLetterOptions = (n) => letterOptions(n).map((o) => ({ id: o.value, text: o.label }));
 
 // Danh sách khối note/table hiện có của 1 section, để builder SỬA — ưu
 // tiên `noteBlocks` (dữ liệu mới, mỗi khối 1 khung độc lập). Section soạn
@@ -118,8 +122,11 @@ function addNoteBlock(s, id) {
 // Test. Controlled; markup khớp renderSectionsEditor của legacy.
 // showTranscript: hiện ô Transcript cho section Listening — chỉ bài tập trong Unit
 // (Vocab Review dùng), không bật ở builder đề thi.
-export default function SectionsEditor({ sections, subject, media, onChange, showTranscript = false }) {
+// program: "ielts" (mặc định) | "toeic" — quyết định danh sách dạng câu hỏi và ẩn
+// nút import spreadsheet với nội dung TOEIC (chưa có template, Phase 8 bước 5.6).
+export default function SectionsEditor({ sections, subject, media, onChange, showTranscript = false, program }) {
   const [importing, setImporting] = useState(false);
+  const canImport = program !== "toeic";
 
   function patch(mut) {
     const draft = structuredClone(sections);
@@ -141,6 +148,7 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
           media={media}
           showTranscript={showTranscript}
           allSections={sections}
+          program={program}
           patch={patch}
         />
       ))}
@@ -153,17 +161,19 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
         >
           <svg className="icon"><use href="#icon-plus" /></svg> Add Section
         </button>
-        <button
-          type="button"
-          className="btn secondary"
-          style={{ padding: "8px 14px", fontSize: ".85rem" }}
-          onClick={() => setImporting(true)}
-        >
-          <svg className="icon"><use href="#icon-upload" /></svg> Import from spreadsheet
-        </button>
+        {canImport && (
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setImporting(true)}
+          >
+            <svg className="icon"><use href="#icon-upload" /></svg> Import from spreadsheet
+          </button>
+        )}
       </div>
 
-      {importing && (
+      {canImport && importing && (
         <SpreadsheetImport
           existingSections={sections}
           onImport={(imported) => onChange([...sections, ...imported])}
@@ -174,9 +184,9 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
   );
 }
 
-function SectionCard({ sec, si, subject, media, allSections, patch, showTranscript }) {
+function SectionCard({ sec, si, subject, media, allSections, patch, showTranscript, program }) {
   const set = (k, v) => patch((d) => (d[si][k] = v));
-  const formats = questionFormatsFor(subject);
+  const formats = questionFormatsFor(subject, program);
   // true = đang hiện lưới chọn dạng bài (bấm "+ Add Question" mở ra, chọn
   // xong hoặc Cancel thì đóng lại). Không có state riêng cho "loại nào" vì
   // chọn xong là tạo câu luôn — không có bước "xác nhận" thừa.
@@ -192,10 +202,14 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
     patch((d) => {
       const s = d[si];
       const field = emptyField(id);
-      field.kind = fmt.kind;
+      // "letter" (Listen and choose — no printed question) lưu như câu mcq đề trống,
+      // lựa chọn A..D tự tạo — xem lib/letterQuestion.js.
+      field.kind = fmt.kind === "letter" ? "mcq" : fmt.kind;
       field.formatLabel = fmt.label || "";
       if (fmt.kind === "tfng") field.options = tfngOptions();
       if (fmt.kind === "ynng") field.options = ynngOptions();
+      if (fmt.kind === "letter") field.options = editorLetterOptions(fmt.letterOptions);
+      if (fmt.presetOptions) field.options = fmt.presetOptions.map((text) => ({ id: newOptionId(), text }));
       s.fields.push(field);
 
       if (fmt.noteMode) addNoteBlock(s, id);
@@ -209,6 +223,24 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
   function addPlainQuestion() {
     patch((d) => d[si].fields.push(emptyField(nextFieldId(allSections))));
     setPickingFormat(false);
+  }
+
+  // "+ Add question" / "+ Add 5 questions" của dạng letter: nhân bản dạng của câu
+  // letter cuối cùng trong section (cùng nhãn dạng, cùng số lựa chọn, không ảnh).
+  const lastLetter = [...(sec.fields || [])].reverse().find(isLetterEditorField) || null;
+  function addLetterQuestions(count) {
+    if (!lastLetter) return;
+    const first = nextFieldId(allSections);
+    patch((d) => {
+      const s = d[si];
+      for (let k = 0; k < count; k++) {
+        const field = emptyField(first + k);
+        field.kind = "mcq";
+        field.formatLabel = lastLetter.formatLabel || "";
+        field.options = editorLetterOptions(lastLetter.options.length);
+        s.fields.push(field);
+      }
+    });
   }
 
   // Câu hỏi rời (không thuộc bất kỳ khối Completion nào) — chỉ những câu
@@ -303,7 +335,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
               đúng dạng ở bước "Add Question" sẽ tự bật/hiện đúng phần này. */}
           {sec.noteMode && (
             <div className="note-editor-inline">
-              <NoteBlocksEditor sec={sec} si={si} allSections={allSections} subject={subject} media={media} patch={patch} />
+              <NoteBlocksEditor sec={sec} si={si} allSections={allSections} subject={subject} program={program} media={media} patch={patch} />
             </div>
           )}
           {(sec.fields || []).some((f) => f.kind === "matching" || f.kind === "labelling") && (
@@ -346,10 +378,22 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
               </div>
               <div className="fields-wrap">
                 {standaloneEntries.map(({ f, fi }) => (
-                  <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} media={media} patch={patch} />
+                  <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} program={program} media={media} patch={patch} />
                 ))}
               </div>
             </>
+          )}
+
+          {lastLetter && !pickingFormat && (
+            <div className="letter-quick-add">
+              <span className="letter-quick-add-label">Quick add — {lastLetter.formatLabel || "Listen and choose"}:</span>
+              <button type="button" className="btn secondary" onClick={() => addLetterQuestions(1)}>
+                <svg className="icon"><use href="#icon-plus" /></svg> Add question
+              </button>
+              <button type="button" className="btn secondary" onClick={() => addLetterQuestions(5)}>
+                <svg className="icon"><use href="#icon-plus" /></svg> Add 5 questions
+              </button>
+            </div>
           )}
 
           {pickingFormat ? (
@@ -442,7 +486,7 @@ function MatchBank({ sec, si, patch }) {
 // và chọn lại 1 dạng Completion, builder tự tạo khung mới. Mỗi blank chèn
 // vào tự tạo thêm 1 câu hỏi trong danh sách Questions bên dưới để nhập đáp
 // án đúng/gợi ý/điểm cho số đó.
-function NoteBlocksEditor({ sec, si, allSections, subject, media, patch }) {
+function NoteBlocksEditor({ sec, si, allSections, subject, program, media, patch }) {
   const blocks = editableNoteBlocks(sec);
   if (blocks.length === 0) return null;
 
@@ -604,7 +648,7 @@ function NoteBlocksEditor({ sec, si, allSections, subject, media, patch }) {
                 </div>
                 <div className="fields-wrap">
                   {entries.map(({ f, fi }) => (
-                    <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} media={media} patch={patch} />
+                    <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} program={program} media={media} patch={patch} />
                   ))}
                 </div>
               </>
@@ -619,9 +663,9 @@ function NoteBlocksEditor({ sec, si, allSections, subject, media, patch }) {
   );
 }
 
-function FieldRow({ f, fi, si, sec, subject, media, patch }) {
+function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
   const setF = (k, v) => patch((d) => (d[si].fields[fi][k] = v));
-  const formats = questionFormatsFor(subject);
+  const formats = questionFormatsFor(subject, program);
 
   function changeKind(kind) {
     patch((d) => {
@@ -658,7 +702,8 @@ function FieldRow({ f, fi, si, sec, subject, media, patch }) {
       const ff = s.fields[fi];
       const wasTfng = isFixedChoiceShape(ff.options, ["true", "false", "ng"]);
       const wasYnng = isFixedChoiceShape(ff.options, ["yes", "no", "ng"]);
-      ff.kind = fmt.kind;
+      const wasLetter = isLetterEditorField(ff);
+      ff.kind = fmt.kind === "letter" ? "mcq" : fmt.kind;
       ff.formatLabel = fmt.label || "";
       if (fmt.kind === "tfng" && !wasTfng) {
         ff.options = tfngOptions();
@@ -668,9 +713,19 @@ function FieldRow({ f, fi, si, sec, subject, media, patch }) {
         ff.options = ynngOptions();
         ff.correctOptionIds = [];
       }
-      if (fmt.kind === "mcq" && (!ff.options.length || wasTfng || wasYnng)) {
+      if (fmt.kind === "mcq" && (!ff.options.length || wasTfng || wasYnng || wasLetter)) {
         ff.options = [];
         ff.correctOptionIds = [];
+      }
+      if (fmt.presetOptions && !ff.options.length) {
+        ff.options = fmt.presetOptions.map((text) => ({ id: newOptionId(), text }));
+        ff.correctOptionIds = [];
+      }
+      if (fmt.kind === "letter") {
+        // Đề trống, lựa chọn A..D tự tạo; giữ đáp án đúng nếu vẫn hợp lệ.
+        ff.label = "";
+        ff.options = editorLetterOptions(fmt.letterOptions);
+        ff.correctOptionIds = ff.correctOptionIds.filter((id) => ff.options.some((o) => o.id === id));
       }
 
       if (fmt.noteMode) {
@@ -693,6 +748,82 @@ function FieldRow({ f, fi, si, sec, subject, media, patch }) {
   const currentFormatKey = formats
     ? ((formats.find((x) => x.label === f.formatLabel) || formats.find((x) => x.kind === f.kind)) || {}).key || ""
     : "";
+  const currentFormat = formats ? formats.find((x) => x.key === currentFormatKey) : null;
+
+  // Câu "Listen and choose — no printed question": chỉ còn số câu + đáp án đúng A/B/C(/D)
+  // (+ ảnh của câu cho Part 1). Không có ô đề, không có ô nhập lựa chọn.
+  if (isLetterEditorField(f)) {
+    const fmt = formats ? formats.find((x) => x.label === f.formatLabel) : null;
+    const wantsImage = !!(fmt && fmt.needsFieldImage);
+    return (
+      <div className="question-row letter-row">
+        <div className="letter-row-main">
+          <input
+            type="text"
+            className="f-id letter-row-num"
+            title="Question No."
+            aria-label="Question number"
+            value={String(f.id)}
+            onChange={(e) => setF("id", e.target.value)}
+          />
+          <span className="letter-row-label">Correct answer:</span>
+          <div className="letter-row-choices" role="radiogroup" aria-label={"Correct answer for question " + f.id}>
+            {f.options.map((o) => (
+              <label key={o.id} className={"letter-row-choice" + (f.correctOptionIds[0] === o.id ? " on" : "")}>
+                <input
+                  type="radio"
+                  name={"letter-" + si + "-" + fi}
+                  checked={f.correctOptionIds[0] === o.id}
+                  onChange={() => patch((d) => (d[si].fields[fi].correctOptionIds = [o.id]))}
+                />
+                {o.text}
+              </label>
+            ))}
+          </div>
+          <select
+            className="letter-row-count"
+            title="Number of choices"
+            aria-label="Number of choices"
+            value={f.options.length}
+            onChange={(e) =>
+              patch((d) => {
+                const ff = d[si].fields[fi];
+                ff.options = editorLetterOptions(Number(e.target.value));
+                ff.correctOptionIds = ff.correctOptionIds.filter((id) => ff.options.some((o) => o.id === id));
+              })
+            }
+          >
+            {[3, 4].map((n) => (
+              <option key={n} value={n}>
+                {LETTERS.slice(0, n).join("/")}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="icon-btn danger f-remove"
+            title="Delete question"
+            onClick={() => patch((d) => removeField(d[si], fi))}
+          >
+            <svg className="icon"><use href="#icon-trash" /></svg>
+          </button>
+        </div>
+        {(wantsImage || f.imageId) && (
+          <FieldImagePicker f={f} fi={fi} si={si} media={media} patch={patch} defaultOpen={wantsImage || !!f.imageId} />
+        )}
+        <div className="question-hint-row">
+          <input
+            type="text"
+            className="f-explanation"
+            placeholder="Explanation (optional) — shown to students in review"
+            value={f.explanation || ""}
+            onChange={(e) => setF("explanation", e.target.value)}
+          />
+        </div>
+        {!f.correctOptionIds.length && <div className="kind-hint warn">Pick the correct answer above.</div>}
+      </div>
+    );
+  }
 
   return (
     <div className="question-row">
@@ -774,9 +905,59 @@ function FieldRow({ f, fi, si, sec, subject, media, patch }) {
           onChange={(e) => setF("explanation", e.target.value)}
         />
       </div>
+      {f.kind === "mcq" && (
+        <FieldImagePicker
+          f={f}
+          fi={fi}
+          si={si}
+          media={media}
+          patch={patch}
+          defaultOpen={!!(currentFormat && currentFormat.needsFieldImage) || !!f.imageId}
+        />
+      )}
       <div className="question-detail">
         <QuestionDetail f={f} fi={fi} si={si} sec={sec} media={media} patch={patch} />
       </div>
+    </div>
+  );
+}
+
+// Ảnh riêng của 1 câu (field.imageId) — vd TOEIC Part 1 (ảnh chụp), Part 3/4 có biểu đồ.
+// Luôn có trên câu mcq nhưng thu gọn; mở sẵn khi dạng câu cần ảnh (needsFieldImage) hoặc
+// câu đã có ảnh.
+function FieldImagePicker({ f, fi, si, media, patch, defaultOpen }) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  useEffect(() => {
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen]);
+  const img = f.imageId ? media.images.find((im) => im._id === f.imageId) : null;
+  return (
+    <div className="field-image-picker">
+      <button type="button" className="field-image-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <svg className="icon"><use href={"#icon-" + (open ? "chevron-down" : "chevron-right")} /></svg>
+        Question image{f.imageId ? " · attached" : " (optional)"}
+      </button>
+      {open && (
+        <div className="field-image-body">
+          <select
+            className="select-inline field-image-select"
+            style={{ width: "100%" }}
+            value={f.imageId || ""}
+            onChange={(e) => patch((d) => (d[si].fields[fi].imageId = e.target.value))}
+          >
+            <option value="">— No question image —</option>
+            {media.images.map((im) => (
+              <option key={im._id} value={im._id}>
+                {(im.unit ? im.unit + " · " : "") + im.title}
+              </option>
+            ))}
+          </select>
+          {media.loaded && media.images.length === 0 && (
+            <p className="field-image-hint">No images yet — upload one in the Media library first.</p>
+          )}
+          {img && <img src={img.cloudinaryUrl} alt="" className="field-image-thumb" />}
+        </div>
+      )}
     </div>
   );
 }

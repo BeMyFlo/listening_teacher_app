@@ -13,9 +13,25 @@ import {
   testToBuilder,
   builderToPayload,
   skillHasContent,
+  testSkillsFor,
+  defaultDurationsFor,
 } from "@/lib/teacher/testBuilder";
 import SectionsEditor from "@/components/teacher/SectionsEditor";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
+
+// Đổi chương trình của đề mới: bỏ lớp đã tick (thuộc chương trình cũ) và đổi thời lượng
+// còn nguyên giá trị mặc định của chương trình cũ sang mặc định của chương trình mới.
+function withProgram(prev, k) {
+  const before = defaultDurationsFor(prev.program);
+  const after = defaultDurationsFor(k);
+  const skills = { ...prev.skills };
+  Object.keys(skills).forEach((key) => {
+    if (skills[key].durationMinutes === (before[key] || "")) {
+      skills[key] = { ...skills[key], durationMinutes: after[key] || "" };
+    }
+  });
+  return { ...prev, program: k, classIds: [], skills };
+}
 
 function TestBuilderInner() {
   const { testId } = useParams();
@@ -46,12 +62,14 @@ function TestBuilderInner() {
   // Mock Tests (?program=). Đang ở "All" thì để trống, giáo viên phải chọn.
   useEffect(() => {
     if (!isNew || !loaded || !isMulti || !paramProgram) return;
-    setB((p) => (p && !p.program ? { ...p, program: paramProgram } : p));
+    setB((p) => (p && !p.program ? withProgram(p, paramProgram) : p));
   }, [isNew, loaded, isMulti, paramProgram]);
 
   function chooseProgram(k) {
     // Lớp đã tick thuộc chương trình cũ -> bỏ, tránh giao nhầm.
-    setB((p) => ({ ...p, program: k, classIds: [] }));
+    setB((p) => withProgram(p, k));
+    // Kỹ năng đang mở có thể không có ở chương trình mới.
+    if (!testSkillsFor(k).some((s) => s.key === active)) setActive("listening");
   }
 
   function toggleClass(id) {
@@ -124,8 +142,11 @@ function TestBuilderInner() {
   const levelClasses = classes.filter(
     (c) => c.level === Number(b.level) && (!b.program || programOf(c) === b.program)
   );
-  const skillMeta = TEST_SKILLS.find((s) => s.key === active);
-  const skill = b.skills[active];
+  // Tab kỹ năng theo chương trình của đề (IELTS = đủ 4 như cũ).
+  const skillTabs = testSkillsFor(b.program);
+  const activeKey = skillTabs.some((s) => s.key === active) ? active : skillTabs[0].key;
+  const skillMeta = TEST_SKILLS.find((s) => s.key === activeKey);
+  const skill = b.skills[activeKey];
 
   return (
     <div className="tab-panel active">
@@ -212,17 +233,17 @@ function TestBuilderInner() {
           </div>
         </div>
         <p style={{ color: "var(--muted)", fontSize: ".82rem", marginTop: 6 }}>
-          Leave blank = open indefinitely. All 4 skills open/close together on this schedule. Students can only view and
+          Leave blank = open indefinitely. All {skillTabs.length} skills open/close together on this schedule. Students can only view and
           submit within the active window.
         </p>
 
         <h4 style={{ marginTop: 22 }}>Skills</h4>
         <div className="subject-toggle" id="tbSkillTabs">
-          {TEST_SKILLS.map((s) => (
+          {skillTabs.map((s) => (
             <button
               key={s.key}
               type="button"
-              className={s.key === active ? "active" : ""}
+              className={s.key === activeKey ? "active" : ""}
               onClick={() => setActive(s.key)}
             >
               <svg className="icon"><use href={"#icon-" + s.icon} /></svg> {s.label}
@@ -242,7 +263,7 @@ function TestBuilderInner() {
                 className="skill-instructions"
                 placeholder="e.g. Listen to the conversation and fill in the blanks..."
                 value={skill.instructions}
-                onChange={(e) => updateSkill(active, (s) => (s.instructions = e.target.value))}
+                onChange={(e) => updateSkill(activeKey, (s) => (s.instructions = e.target.value))}
               />
             </div>
             <div className="form-row" style={{ marginBottom: 0 }}>
@@ -254,7 +275,7 @@ function TestBuilderInner() {
                 step="1"
                 placeholder="Unlimited"
                 value={skill.durationMinutes}
-                onChange={(e) => updateSkill(active, (s) => (s.durationMinutes = e.target.value))}
+                onChange={(e) => updateSkill(activeKey, (s) => (s.durationMinutes = e.target.value))}
               />
             </div>
           </div>
@@ -264,9 +285,10 @@ function TestBuilderInner() {
               <h4 style={{ marginTop: 22 }}>Sections</h4>
               <SectionsEditor
                 sections={skill.sections}
-                subject={active}
+                subject={activeKey}
+                program={b.program || undefined}
                 media={media}
-                onChange={(next) => updateSkill(active, (s) => (s.sections = next))}
+                onChange={(next) => updateSkill(activeKey, (s) => (s.sections = next))}
               />
             </>
           ) : (
@@ -275,8 +297,8 @@ function TestBuilderInner() {
               <PromptsEditor
                 prompts={skill.prompts}
                 media={media}
-                skill={active}
-                onChange={(next) => updateSkill(active, (s) => (s.prompts = next))}
+                skill={activeKey}
+                onChange={(next) => updateSkill(activeKey, (s) => (s.prompts = next))}
               />
             </>
           )}

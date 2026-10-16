@@ -8,7 +8,7 @@ import { VocabReviewOptions } from "./AiVocabOptions";
 // qua onChange (trang editor đọc giá trị cuối khi giáo viên bấm "Save & generate").
 //   items     [{ label, state: "empty" | "stale" }]
 //   initial   tuỳ chọn AI điền sẵn (lần dùng trước)
-export default function VocabReviewSavePrompt({ items, initial, onChange }) {
+export default function VocabReviewSavePrompt({ items, initial, onChange, program }) {
   const [opts, setOpts] = useState(initial);
   const patch = (p) => {
     const next = { ...opts, ...p };
@@ -34,7 +34,7 @@ export default function VocabReviewSavePrompt({ items, initial, onChange }) {
       <details>
         <summary style={{ cursor: "pointer", color: "var(--ink)", fontWeight: 600, fontSize: ".86rem" }}>Options</summary>
         <div style={{ marginTop: 10 }}>
-          <VocabReviewOptions opts={opts} onChange={patch} idSuffix="-save" />
+          <VocabReviewOptions opts={opts} onChange={patch} idSuffix="-save" program={program} />
         </div>
       </details>
     </div>

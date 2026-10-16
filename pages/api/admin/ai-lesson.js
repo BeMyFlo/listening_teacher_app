@@ -48,6 +48,8 @@ async function handler(req, res) {
     level: input.level,
     studentLevel: input.studentLevel,
     language: input.language,
+    // Chỉ ghi khi không phải IELTS để log IELTS giữ nguyên như trước Phase 8.
+    ...(input.program && input.program !== "ielts" ? { program: input.program } : {}),
     ...mod.logContext(input),
   };
   const schema = mod.buildSchema(input);
@@ -56,7 +58,7 @@ async function handler(req, res) {
   // chủ đề còn lại cho giáo viên.
   async function one(topic) {
     const { data, model, logId } = await generateJSON({
-      systemInstruction: mod.SYSTEM,
+      systemInstruction: mod.systemFor(input.program),
       prompt: mod.buildPrompt(input, topic),
       schema,
       temperature: 0.4,

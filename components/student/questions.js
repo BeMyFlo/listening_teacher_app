@@ -7,6 +7,7 @@ import { NoteDoc } from "@/components/student/RichDoc";
 import HighlightText, { hashStr, clearHighlights } from "@/components/student/HighlightText";
 import ExamAudioPlayer from "@/components/student/ExamAudioPlayer";
 import { blankIdsFromDoc } from "@/lib/tiptap/doc";
+import { isLetterOnlyField } from "@/lib/letterQuestion";
 
 // Highlightable static text in the question column. `base` scopes it to the
 // current section; `slot` + a hash of the text keep the localStorage key stable
@@ -126,19 +127,50 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
     : "";
 
   if (isChoice) {
+    // "Listen and choose — no printed question" (TOEIC Part 1/2): chỉ số câu + hàng nút chữ cái.
+    const letterOnly = isLetterOnlyField(field);
     return (
-      <div className={rowCls} id={"row-" + field.id}>
+      <div className={rowCls + (letterOnly ? " letter-row" : "")} id={"row-" + field.id}>
         <span className="num">{fieldNum(field)}.</span>
         <div style={{ flex: 1 }}>
-          <div className="label" style={{ marginBottom: 6 }}>
-            <HL base={hlBase} slot={field.id + ":label"} text={field.label} />
-            {selectCount > 1 && (
-              <span className="select-hint"> (Select up to {selectCount} answers)</span>
-            )}
-            {field.hint && (
-              <span className="field-hint"> <HL base={hlBase} slot={field.id + ":hint"} text={field.hint} /></span>
-            )}
-          </div>
+          {field.imageUrl && <FieldImage field={field} />}
+          {(!letterOnly || field.hint) && (
+            <div className="label" style={{ marginBottom: 6 }}>
+              {!letterOnly && <HL base={hlBase} slot={field.id + ":label"} text={field.label} />}
+              {selectCount > 1 && (
+                <span className="select-hint"> (Select up to {selectCount} answers)</span>
+              )}
+              {field.hint && (
+                <span className="field-hint"> <HL base={hlBase} slot={field.id + ":hint"} text={field.hint} /></span>
+              )}
+            </div>
+          )}
+          {letterOnly ? (
+            <div className="letter-choices" role="radiogroup" aria-label={"Question " + fieldNum(field)}>
+              {options.map((o) => {
+                const selected = value === o.value;
+                const isRight = !!review && String(o.label).trim() === String(correctAnswerLabel).trim();
+                const cls =
+                  "letter-btn" +
+                  (selected ? " selected" : "") +
+                  (review && isRight ? " is-correct" : "") +
+                  (review && selected && !review.correct ? " is-wrong" : "");
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    className={cls}
+                    disabled={!!review}
+                    onClick={() => !review && onChange(o.value)}
+                  >
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {options.map((o) => {
               const checked =
@@ -170,6 +202,7 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
               );
             })}
           </div>
+          )}
         </div>
         {review && (
           <span className={"result-mark " + (review.correct ? "correct" : review.partial ? "partial" : "wrong")}>
@@ -221,6 +254,11 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
       )}
     </div>
   );
+}
+
+// Ảnh riêng của 1 câu (field.imageUrl) — cùng style với ảnh minh hoạ của section.
+function FieldImage({ field }) {
+  return <img src={field.imageUrl} alt={"Image for question " + field.id} className="diagram-image field-image" />;
 }
 
 function DiagramImage({ section, center }) {

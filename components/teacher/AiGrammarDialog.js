@@ -10,6 +10,9 @@ const LEVEL_SUGGESTIONS = [
   "A1", "A2", "B1", "B2", "C1",
 ];
 
+// Gợi ý trình độ cho chương trình TOEIC (điểm Listening + Reading).
+const TOEIC_LEVEL_SUGGESTIONS = ["300", "400", "450", "500", "550", "600", "650", "700", "750", "800", "850"];
+
 const LANGUAGES = [
   ["vi", "Vietnamese explanations, English examples"],
   ["bilingual", "Bilingual (English + Vietnamese)"],
@@ -96,6 +99,7 @@ export default function AiGrammarDialog({ context, onAdd, onClose }) {
       const r = await api.teacher.aiLessonDraft({
         kind: "grammar",
         unitId: context && context.unitId,
+        program: context && context.program,
         ...form,
         parts,
         exerciseTypes,
@@ -165,16 +169,16 @@ export default function AiGrammarDialog({ context, onAdd, onClose }) {
               </div>
               <div className="builder-2col" style={{ marginBottom: 12 }}>
                 <div className="form-row" style={{ marginBottom: 0 }}>
-                  <label>Students&apos; level (IELTS band or CEFR)</label>
+                  <label>{context && context.program === "toeic" ? "Students' level (TOEIC score)" : "Students' level (IELTS band or CEFR)"}</label>
                   <input
                     type="text"
                     list="ai-grammar-level-suggestions"
-                    placeholder="e.g. 6.5, 5.0–5.5, B1"
+                    placeholder={context && context.program === "toeic" ? "e.g. 550, 450–600, 750+" : "e.g. 6.5, 5.0–5.5, B1"}
                     value={form.studentLevel}
                     onChange={set("studentLevel")}
                   />
                   <datalist id="ai-grammar-level-suggestions">
-                    {LEVEL_SUGGESTIONS.map((v) => (
+                    {(context && context.program === "toeic" ? TOEIC_LEVEL_SUGGESTIONS : LEVEL_SUGGESTIONS).map((v) => (
                       <option key={v} value={v} />
                     ))}
                   </datalist>

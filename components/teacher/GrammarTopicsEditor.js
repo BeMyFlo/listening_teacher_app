@@ -22,8 +22,10 @@ const LESSON_FIELDS = [
   ["examples", "Examples"],
 ];
 
-export default function GrammarTopicsEditor({ topics, media, onChange, aiContext }) {
+export default function GrammarTopicsEditor({ topics, media, onChange, aiContext, program }) {
   const dialog = useDialog();
+  // Template import (Excel) chưa có cho TOEIC -> ẩn các nút import (Phase 8, 5.6).
+  const canImport = program !== "toeic";
   // null = đang đóng; -1 = nút Import chung ở trên; i = nút Import trong chủ đề i.
   const [importTarget, setImportTarget] = useState(null);
   const [aiOpen, setAiOpen] = useState(false);
@@ -106,20 +108,22 @@ export default function GrammarTopicsEditor({ topics, media, onChange, aiContext
           >
             <svg className="icon"><use href="#icon-sparkles" /></svg> Create by AI
           </button>
-          <button
-            type="button"
-            className="btn secondary"
-            style={{ padding: "8px 14px", fontSize: ".85rem" }}
-            onClick={() => setImportTarget(-1)}
-          >
-            <svg className="icon"><use href="#icon-upload" /></svg> Import from file
-          </button>
+          {canImport && (
+            <button
+              type="button"
+              className="btn secondary"
+              style={{ padding: "8px 14px", fontSize: ".85rem" }}
+              onClick={() => setImportTarget(-1)}
+            >
+              <svg className="icon"><use href="#icon-upload" /></svg> Import from file
+            </button>
+          )}
         </div>
       </div>
 
       {topics.length === 0 && (
         <div className="empty-state" style={{ marginTop: 12 }}>
-          No topics yet. Import from a file or add them manually.
+          {canImport ? "No topics yet. Import from a file or add them manually." : "No topics yet. Create them by AI or add them manually."}
         </div>
       )}
 
@@ -135,15 +139,17 @@ export default function GrammarTopicsEditor({ topics, media, onChange, aiContext
                 value={t.name}
                 onChange={(e) => patch((d) => (d[i].name = e.target.value))}
               />
-              <button
-                type="button"
-                className="btn secondary"
-                style={{ padding: "5px 11px", fontSize: ".78rem", whiteSpace: "nowrap" }}
-                title="Import from a file into this topic"
-                onClick={() => setImportTarget(i)}
-              >
-                <svg className="icon"><use href="#icon-upload" /></svg> Import
-              </button>
+              {canImport && (
+                <button
+                  type="button"
+                  className="btn secondary"
+                  style={{ padding: "5px 11px", fontSize: ".78rem", whiteSpace: "nowrap" }}
+                  title="Import from a file into this topic"
+                  onClick={() => setImportTarget(i)}
+                >
+                  <svg className="icon"><use href="#icon-upload" /></svg> Import
+                </button>
+              )}
               <button
                 type="button"
                 className="icon-btn"
@@ -192,6 +198,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange, aiContext
                   exercises={t.exercises}
                   media={media}
                   subject="grammar"
+                  program={program}
                   onChange={(next) => patch((d) => (d[i].exercises = next))}
                 />
               </>
@@ -216,7 +223,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange, aiContext
         <AiGrammarDialog context={aiContext} onAdd={addAiTopics} onClose={() => setAiOpen(false)} />
       )}
 
-      {importTarget != null && (
+      {canImport && importTarget != null && (
         <LessonImport
           mode="grammar"
           existing={topics.flatMap((t) => t.exercises.flatMap((e) => e._sections || []))}
@@ -229,7 +236,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange, aiContext
 }
 
 // Bài tập của 1 topic/group — mỗi exercise có title + _sections (SectionsEditor).
-export function TopicExercises({ exercises, media, subject, onChange }) {
+export function TopicExercises({ exercises, media, subject, program, onChange }) {
   const dialog = useDialog();
   function patch(mut) {
     const draft = structuredClone(exercises);
@@ -264,6 +271,7 @@ export function TopicExercises({ exercises, media, subject, onChange }) {
             <SectionsEditor
               sections={ex._sections || []}
               subject={subject}
+              program={program}
               media={media}
               onChange={(next) => patch((d) => (d[i]._sections = next))}
             />

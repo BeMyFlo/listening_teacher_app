@@ -372,6 +372,11 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
                   return (
                     <div key={f.id} className={"field-row " + (d.correct ? "correct" : "wrong")}>
                       <span className="num">{f.id}.</span>
+                      {f.imageUrl && (
+                        <div style={{ flexBasis: "100%" }}>
+                          <img src={f.imageUrl} alt={"Image for question " + f.id} className="diagram-image field-image" style={{ maxHeight: 180, marginBottom: 6 }} />
+                        </div>
+                      )}
                       <span className="label">{f.label}</span>
                       <span className="tail" style={{ flex: 1 }}>
                         Your answer: <b>{shown}</b>

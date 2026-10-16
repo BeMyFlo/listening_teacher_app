@@ -6,6 +6,7 @@ const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const Submission = require("../../../lib/models/Submission");
 const { buildUnitOverview, buildStudentDetail } = require("../../../lib/teacher/unitSubmissions");
+const { collectFieldImageIds, unitSectionLists, loadImageUrls } = require("../../../lib/fieldImages");
 const { classDeadlines } = require("../../../lib/deadlines");
 
 const S = (v) => (v == null ? "" : String(v));
@@ -50,6 +51,8 @@ async function handler(req, res) {
     const mine = submissions.filter((s) => S(s.studentId) === S(studentId));
     const cls = student.classId ? classById[S(student.classId)] : null;
     const dl = cls ? classDeadlines(unit, cls._id) : { unit: null, byCategory: {} };
+    // Ảnh riêng của từng câu (Phase 8, 5.4) để trang review hiện cùng câu hỏi.
+    const fieldImageUrls = await loadImageUrls(req.ws, collectFieldImageIds(unitSectionLists(unit)));
     return res.status(200).json({
       ok: true,
       unit: { _id: unit._id, name: unit.name, level: unit.level },
@@ -60,7 +63,7 @@ async function handler(req, res) {
         dueAt: dl.unit,               // hạn chung
         deadlineByCategory: dl.byCategory, // hạn đã resolve từng kỹ năng
       },
-      categories: buildStudentDetail({ unit, submissions: mine }),
+      categories: buildStudentDetail({ unit, submissions: mine, fieldImageUrls }),
     });
   }
 

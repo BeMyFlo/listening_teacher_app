@@ -41,6 +41,7 @@ function toPublicUnit(unit, cls) {
         idEnd: f.idEnd || null,
         formatLabel: f.formatLabel || "",
         label: f.label,
+        imageUrl: f.imageId && f.imageId.cloudinaryUrl,
         type: f.type,
         pre: f.pre,
         post: f.post,
@@ -192,7 +193,10 @@ async function handler(req, res) {
         .populate("categories.topics.exercises.sections.audioId", "cloudinaryUrl")
         .populate("categories.topics.exercises.sections.imageId", "cloudinaryUrl")
         .populate("categories.groups.exercises.sections.audioId", "cloudinaryUrl")
-        .populate("categories.groups.exercises.sections.imageId", "cloudinaryUrl");
+        .populate("categories.groups.exercises.sections.imageId", "cloudinaryUrl")
+        .populate("categories.exercises.sections.fields.imageId", "cloudinaryUrl")
+        .populate("categories.topics.exercises.sections.fields.imageId", "cloudinaryUrl")
+        .populate("categories.groups.exercises.sections.fields.imageId", "cloudinaryUrl");
     } catch (err) {
       return res.status(404).json({ ok: false, error: "Lesson unit not found" });
     }

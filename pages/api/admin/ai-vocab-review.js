@@ -37,7 +37,7 @@ async function handler(req, res) {
   let result;
   try {
     result = await generateJSON({
-      systemInstruction: mod.SYSTEM,
+      systemInstruction: mod.systemFor(input.program),
       prompt: mod.buildPrompt(input),
       schema: mod.buildSchema(input),
       temperature: 0.3,
@@ -53,6 +53,7 @@ async function handler(req, res) {
           unitName: input.unitName,
           studentLevel: input.studentLevel,
           language: input.language,
+          ...(input.program && input.program !== "ielts" ? { program: input.program } : {}),
           ...mod.logContext(input),
         },
       },

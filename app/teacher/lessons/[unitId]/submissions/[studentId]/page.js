@@ -55,7 +55,12 @@ function QuestionTable({ detail }) {
           {detail.map((d) => (
             <tr key={d.id} style={{ background: d.correct ? "#DFF7E9" : "#FFE0E2" }}>
               <td>{d.id}</td>
-              <td>{d.label}</td>
+              <td>
+                {d.imageUrl && (
+                  <img src={d.imageUrl} alt={"Image for question " + d.id} style={{ display: "block", maxWidth: 180, maxHeight: 110, borderRadius: 6, marginBottom: d.label ? 6 : 0 }} />
+                )}
+                {d.label}
+              </td>
               <td>{d.submittedText}</td>
               <td>{d.correct ? "" : <b>{d.answerText}</b>}</td>
               <td style={{ color: "var(--muted)" }}>{d.explanation || ""}</td>
