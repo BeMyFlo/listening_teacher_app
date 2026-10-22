@@ -80,13 +80,15 @@ function buildSkillsFromBody(body) {
   return { skills };
 }
 
-async function validateSkill(ws, key, skill) {
-  return QUESTION_SKILLS.includes(key) ? validateSections(ws, key, skill.sections) : validatePrompts(ws, skill.prompts);
+async function validateSkill(ws, key, skill, program) {
+  return QUESTION_SKILLS.includes(key)
+    ? validateSections(ws, key, skill.sections)
+    : validatePrompts(ws, skill.prompts, { program, skill: key });
 }
 
-async function validateAllSkills(ws, skills) {
+async function validateAllSkills(ws, skills, program) {
   for (const key of ALL_SKILLS) {
-    const error = await validateSkill(ws, key, skills[key]);
+    const error = await validateSkill(ws, key, skills[key], program);
     if (error) return `${SKILL_LABELS[key]}: ${error}`;
   }
   return null;
@@ -104,7 +106,8 @@ function populateSkillMedia(queryOrDoc) {
     { path: "skills.listening.sections.imageId", select: "title unit cloudinaryUrl" },
     { path: "skills.reading.sections.imageId", select: "title unit cloudinaryUrl" },
     { path: "skills.writing.prompts.imageId", select: "title unit cloudinaryUrl" },
-    { path: "skills.speaking.prompts.imageId", select: "title unit cloudinaryUrl" }
+    { path: "skills.speaking.prompts.imageId", select: "title unit cloudinaryUrl" },
+    { path: "skills.speaking.prompts.audioId", select: "title unit cloudinaryUrl" }
   ]);
 }
 
@@ -135,7 +138,7 @@ async function handler(req, res) {
 
     const built = buildSkillsFromBody(req.body || {});
     if (built.error) return res.status(400).json({ ok: false, error: built.error });
-    const error = await validateAllSkills(req.ws, built.skills);
+    const error = await validateAllSkills(req.ws, built.skills, program);
     if (error) return res.status(400).json({ ok: false, error });
 
     const schedule = parseSchedule(req.body || {}, null);
@@ -201,7 +204,7 @@ async function handler(req, res) {
     if (req.body && req.body.skills != null) {
       const built = buildSkillsFromBody(req.body);
       if (built.error) return res.status(400).json({ ok: false, error: built.error });
-      const error = await validateAllSkills(req.ws, built.skills);
+      const error = await validateAllSkills(req.ws, built.skills, programOf(test));
       if (error) return res.status(400).json({ ok: false, error });
       test.skills = built.skills;
     }

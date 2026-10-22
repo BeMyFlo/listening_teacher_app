@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { parseProgramParam } = require("../lib/curriculum");
+const { parseProgramParam, PROGRAMS } = require("../lib/curriculum");
 const {
   countCategoryItems,
   countUnitItems,
@@ -53,15 +53,46 @@ test("completion: Unit cũ thiếu program tính như IELTS", () => {
   assert.deepEqual(lessonSkillsOf(u), ["grammar", "vocabulary", "listening", "reading", "writing", "speaking"]);
 });
 
-test("completion: Unit TOEIC còn sót prompt Writing/Speaking chỉ đếm 4 kỹ năng", () => {
+// Từ 8B cả IELTS lẫn TOEIC đều có đủ 6 kỹ năng, nên các test về "kỹ năng bị ẩn" giả lập
+// một chương trình ẩn Writing/Speaking bằng cách tạm sửa registry (luôn khôi phục).
+function withHiddenWritingSpeaking(fn) {
+  const saved = PROGRAMS.toeic.lessonSkills;
+  PROGRAMS.toeic.lessonSkills = saved.filter((k) => k !== "writing" && k !== "speaking");
+  try {
+    return fn();
+  } finally {
+    PROGRAMS.toeic.lessonSkills = saved;
+  }
+}
+
+test("completion: Unit TOEIC (8B) đếm đủ 6 kỹ năng như IELTS", () => {
+  const u = makeUnit("toeic");
+  assert.equal(countUnitItems(u), 7);
+  assert.equal(countCategoryItems(u.categories[4], u), 2);
+  assert.equal(countCategoryItems(u.categories[5], u), 1);
+});
+
+test("completion: kỹ năng ẩn của chương trình không được đếm", () => withHiddenWritingSpeaking(() => {
   const u = makeUnit("toeic");
   assert.equal(countUnitItems(u), 4);
   assert.equal(countCategoryItems(u.categories[4], u), 0); // writing bị ẩn
   assert.equal(countCategoryItems(u.categories[5], u), 0); // speaking bị ẩn
   assert.equal(countCategoryItems(u.categories[2], u), 1); // listening vẫn đếm
+}));
+
+test("isScopeComplete: TOEIC cần cả prompt Writing/Speaking mới xong Unit (8B)", () => {
+  const u = makeUnit("toeic");
+  const four = [
+    { kind: "exercise", exerciseId: "g1", categoryKey: "grammar" },
+    { kind: "exercise", exerciseId: "v1", categoryKey: "vocabulary" },
+    { kind: "exercise", exerciseId: "l1", categoryKey: "listening" },
+    { kind: "exercise", exerciseId: "r1", categoryKey: "reading" },
+  ];
+  assert.equal(isScopeComplete(u, null, four), false);
+  assert.equal(isScopeComplete(u, "writing", []), false);
 });
 
-test("isScopeComplete: TOEIC làm xong 4 kỹ năng là xong cả Unit (dù còn prompt ẩn)", () => {
+test("isScopeComplete: kỹ năng ẩn - làm xong các kỹ năng còn lại là xong cả Unit (dù còn prompt ẩn)", () => withHiddenWritingSpeaking(() => {
   const u = makeUnit("toeic");
   const subs = [
     { kind: "exercise", exerciseId: "g1", categoryKey: "grammar" },
@@ -72,9 +103,9 @@ test("isScopeComplete: TOEIC làm xong 4 kỹ năng là xong cả Unit (dù còn
   assert.equal(isScopeComplete(u, null, subs), true);
   // Cùng dữ liệu với Unit IELTS thì chưa xong (còn 3 prompt).
   assert.equal(isScopeComplete(makeUnit("ielts"), null, subs), false);
-});
+}));
 
-test("isScopeComplete: bài nộp thuộc kỹ năng ẩn không cộng vào tiến độ TOEIC", () => {
+test("isScopeComplete: bài nộp thuộc kỹ năng ẩn không cộng vào tiến độ", () => withHiddenWritingSpeaking(() => {
   const u = makeUnit("toeic");
   const subs = [
     { kind: "exercise", exerciseId: "g1", categoryKey: "grammar" },
@@ -84,15 +115,15 @@ test("isScopeComplete: bài nộp thuộc kỹ năng ẩn không cộng vào ti�
   ];
   // 4 bài nộp nhưng chỉ 1 thuộc kỹ năng hiện -> chưa đủ 4.
   assert.equal(isScopeComplete(u, null, subs), false);
-});
+}));
 
-test("isScopeComplete: phạm vi 1 kỹ năng ẩn của TOEIC luôn 'xong' (total = 0)", () => {
+test("isScopeComplete: phạm vi 1 kỹ năng ẩn luôn xong (total = 0)", () => withHiddenWritingSpeaking(() => {
   const u = makeUnit("toeic");
   assert.equal(isScopeComplete(u, "writing", []), true);
   assert.equal(isScopeComplete(u, "speaking", []), true);
   assert.equal(isScopeComplete(u, "listening", []), false);
   assert.equal(isScopeComplete(u, "listening", [{ kind: "exercise", exerciseId: "l1", categoryKey: "listening" }]), true);
-});
+}));
 
 test("isScopeComplete: IELTS không đổi (phạm vi writing vẫn cần nộp prompt)", () => {
   const u = makeUnit("ielts");
@@ -104,7 +135,7 @@ test("isScopeComplete: IELTS không đổi (phạm vi writing vẫn cần nộp 
   assert.equal(isScopeComplete(u, "writing", subs), true);
 });
 
-test("distinctDeadlines: bỏ mốc hạn của kỹ năng ẩn (TOEIC), IELTS giữ nguyên", () => {
+test("distinctDeadlines: bỏ mốc hạn của kỹ năng ẩn, IELTS giữ nguyên", () => withHiddenWritingSpeaking(() => {
   const due = new Date("2030-01-01T00:00:00Z");
   const dls = [
     { classId: "c1", categoryKey: null, dueAt: due },
@@ -117,9 +148,15 @@ test("distinctDeadlines: bỏ mốc hạn của kỹ năng ẩn (TOEIC), IELTS g
   assert.deepEqual(ielts.map((d) => d.categoryKey), [null, "listening", "writing"]);
   const legacy = distinctDeadlines({ deadlines: dls }, "c1");
   assert.equal(legacy.length, 3);
+}));
+
+test("distinctDeadlines: TOEIC (8B) giữ mốc hạn Writing", () => {
+  const due = new Date("2030-01-01T00:00:00Z");
+  const dls = [{ classId: "c1", categoryKey: "writing", dueAt: due }];
+  assert.deepEqual(distinctDeadlines({ program: "toeic", deadlines: dls }, "c1").map((d) => d.categoryKey), ["writing"]);
 });
 
-test("streak.latestDeadline: hạn kỹ năng ẩn không được tính", () => {
+test("streak.latestDeadline: hạn kỹ năng ẩn không được tính", () => withHiddenWritingSpeaking(() => {
   const early = new Date("2030-01-01T00:00:00Z");
   const late = new Date("2030-06-01T00:00:00Z");
   const dls = [
@@ -128,6 +165,16 @@ test("streak.latestDeadline: hạn kỹ năng ẩn không được tính", () =>
   ];
   assert.equal(latestDeadline({ program: "toeic", deadlines: dls }, "c1"), +early);
   assert.equal(latestDeadline({ program: "ielts", deadlines: dls }, "c1"), +late);
+}));
+
+test("streak.latestDeadline: TOEIC (8B) tính hạn Writing", () => {
+  const early = new Date("2030-01-01T00:00:00Z");
+  const late = new Date("2030-06-01T00:00:00Z");
+  const dls = [
+    { classId: "c1", categoryKey: null, dueAt: early },
+    { classId: "c1", categoryKey: "writing", dueAt: late },
+  ];
+  assert.equal(latestDeadline({ program: "toeic", deadlines: dls }, "c1"), +late);
 });
 
 // ----------------------------------------------------------- parseProgramParam

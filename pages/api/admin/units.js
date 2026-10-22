@@ -5,7 +5,7 @@ const Unit = require("../../../lib/models/Unit");
 const Class = require("../../../lib/models/Class");
 const Audio = require("../../../lib/models/Audio");
 const Image = require("../../../lib/models/Image");
-const { normalizeSections, validateSections } = require("../../../lib/testSections");
+const { normalizeSections, validateSections, normalizePrompts, promptTaskError, promptTaskFields } = require("../../../lib/testSections");
 const { sanitizeDoc } = require("../../../lib/tiptap/doc");
 const { sanitizeYouTube } = require("../../../lib/lessonImport");
 const { sanitizeVocabReview } = require("../../../lib/vocabReviewSource");
@@ -104,7 +104,7 @@ const CATEGORY_KEYS = Unit.CATEGORY_KEYS;
 // Validates a full client-sent categories array. Exercise sections reuse the
 // Test engine validation — listening/reading exercises keep media rules,
 // grammar/vocabulary exercises only need at least one question.
-async function validateCategories(ws, categories) {
+async function validateCategories(ws, categories, program) {
   if (!Array.isArray(categories)) return "Invalid categories format";
   for (const cat of categories) {
     if (!CATEGORY_KEYS.includes(cat.key)) return "Invalid unit category: " + cat.key;
@@ -122,9 +122,19 @@ async function validateCategories(ws, categories) {
     if (cat.theory && cat.theory.imageId && !(await Image.exists(tenantFilter(ws, { _id: cat.theory.imageId })))) {
       return `${cat.key}: Selected image does not exist.`;
     }
-    for (const p of cat.prompts || []) {
+    const prompts = normalizePrompts(cat.prompts);
+    for (let i = 0; i < prompts.length; i++) {
+      const p = prompts[i];
+      // Luật taskType (8B 2.3) chỉ áp cho Writing/Speaking; IELTS gửi taskType -> 400.
+      const taskError = promptTaskError(program, cat.key, p);
+      if (taskError && (cat.key === "writing" || cat.key === "speaking" || p.taskType)) {
+        return `${cat.key}: Prompt ${i + 1}: ${taskError}`;
+      }
       if (p.imageId && !(await Image.exists(tenantFilter(ws, { _id: p.imageId })))) {
         return `${cat.key}: Selected image does not exist for a prompt.`;
+      }
+      if (p.audioId && !(await Audio.exists(tenantFilter(ws, { _id: p.audioId })))) {
+        return `${cat.key}: Selected audio track does not exist for a prompt.`;
       }
     }
 
@@ -267,7 +277,7 @@ async function handler(req, res) {
     }
 
     if (categories != null) {
-      const error = await validateCategories(req.ws, categories);
+      const error = await validateCategories(req.ws, categories, unitProgram);
       if (error) return res.status(400).json({ ok: false, error });
       // Client resends the whole categories array on every save. Keeping the
       // incoming _ids preserves exercise/prompt identities that submissions
@@ -298,7 +308,9 @@ async function handler(req, res) {
             title: String(p.title || "").trim(),
             instructions: String(p.instructions || ""),
             imageId: p.imageId || undefined,
-            writingTask: ["task1", "task2"].includes(p.writingTask) ? p.writingTask : "task2"
+            writingTask: ["task1", "task2"].includes(p.writingTask) ? p.writingTask : "task2",
+            // Prompt IELTS (không taskType) -> {} : shape cũ, không đụng gì.
+            ...promptTaskFields(p)
           })),
           topics: (cat.topics || []).map((t) => ({
             _id: t._id || undefined,

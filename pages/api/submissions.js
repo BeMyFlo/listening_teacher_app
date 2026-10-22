@@ -271,7 +271,7 @@ async function handler(req, res) {
         audioUrl: kind === "speaking" ? audioUrl : undefined,
         audioPublicId: kind === "speaking" ? audioPublicId : undefined,
         gradingStatus: "submitted",
-        rubricVariant: resolveVariant(kind, prompt.writingTask)
+        rubricVariant: prompt.taskType || resolveVariant(kind, prompt.writingTask)
       });
       await notifyTeachersSafe({
         ws: req.ws,
@@ -369,7 +369,7 @@ async function handler(req, res) {
       audioUrl: kind === "speaking" ? audioUrl : undefined,
       audioPublicId: kind === "speaking" ? audioPublicId : undefined,
       gradingStatus: "submitted",
-      rubricVariant: resolveVariant(kind, prompt.writingTask),
+      rubricVariant: prompt.taskType || resolveVariant(kind, prompt.writingTask),
       isLate,
       dueAt
     });

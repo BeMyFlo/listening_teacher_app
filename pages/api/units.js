@@ -8,6 +8,7 @@ const { resolveDeadline, isSkillLocked } = require("../../lib/deadlines");
 const { PROGRAMS, programOf, programFilter } = require("../../lib/curriculum");
 const { lessonSkillsOf } = require("../../lib/completion");
 const { levelNameFor } = require("../../lib/curriculumServer");
+const { publicTaskFields } = require("../../lib/toeicTasks");
 
 const iso = (d) => (d ? new Date(d) : null);
 const overdue = (d) => !!d && Date.now() > new Date(d).getTime();
@@ -126,7 +127,8 @@ function toPublicUnit(unit, cls, levelName) {
         id: p._id,
         title: p.title,
         instructions: p.instructions,
-        imageUrl: p.imageId && p.imageId.cloudinaryUrl
+        imageUrl: p.imageId && p.imageId.cloudinaryUrl,
+        ...publicTaskFields(p)
       })),
       // Grammar: chủ điểm (lý thuyết + bài tập). Vocab: nhóm từ (flashcard).
       topics: (c.topics || []).map((t) => ({
@@ -192,6 +194,7 @@ async function handler(req, res) {
         .populate("categories.exercises.sections.audioId", "cloudinaryUrl")
         .populate("categories.exercises.sections.imageId", "cloudinaryUrl")
         .populate("categories.prompts.imageId", "cloudinaryUrl")
+        .populate("categories.prompts.audioId", "cloudinaryUrl")
         .populate("categories.topics.exercises.sections.audioId", "cloudinaryUrl")
         .populate("categories.topics.exercises.sections.imageId", "cloudinaryUrl")
         .populate("categories.groups.exercises.sections.audioId", "cloudinaryUrl")

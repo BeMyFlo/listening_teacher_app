@@ -22,9 +22,9 @@ test("registry: ielts và toeic đúng như plan 3.1", () => {
   assert.deepEqual(PROGRAMS.ielts.defaultDurations, { listening: 30, reading: 60, writing: 60, speaking: 14 });
   assert.equal(PROGRAMS.ielts.scoring, "ielts-band");
 
-  assert.deepEqual(PROGRAMS.toeic.lessonSkills, ["grammar", "vocabulary", "listening", "reading"]);
-  assert.deepEqual(PROGRAMS.toeic.testSkills, ["listening", "reading"]);
-  assert.deepEqual(PROGRAMS.toeic.defaultDurations, { listening: 45, reading: 75 });
+  assert.deepEqual(PROGRAMS.toeic.lessonSkills, ["grammar", "vocabulary", "listening", "reading", "writing", "speaking"]);
+  assert.deepEqual(PROGRAMS.toeic.testSkills, ["listening", "reading", "writing", "speaking"]);
+  assert.deepEqual(PROGRAMS.toeic.defaultDurations, { listening: 45, reading: 75, writing: 60, speaking: 20 });
   assert.equal(PROGRAMS.toeic.scoring, "toeic-scaled");
 
   for (const k of PROGRAM_KEYS) {
@@ -125,12 +125,13 @@ test("lessonSkillAllowed / testSkillAllowed đọc registry theo chương trình
   // Doc cũ thiếu program = IELTS: giữ nguyên hành vi cũ.
   assert.equal(lessonSkillAllowed({}, "writing"), true);
   assert.equal(testSkillAllowed({}, "speaking"), true);
-  // TOEIC 8A không có Writing/Speaking.
+  // TOEIC từ 8B có đủ Writing/Speaking.
   assert.equal(lessonSkillAllowed({ program: "toeic" }, "listening"), true);
-  assert.equal(lessonSkillAllowed({ program: "toeic" }, "writing"), false);
-  assert.equal(lessonSkillAllowed({ program: "toeic" }, "speaking"), false);
+  assert.equal(lessonSkillAllowed({ program: "toeic" }, "writing"), true);
+  assert.equal(lessonSkillAllowed({ program: "toeic" }, "speaking"), true);
   assert.equal(testSkillAllowed({ program: "toeic" }, "reading"), true);
-  assert.equal(testSkillAllowed({ program: "toeic" }, "writing"), false);
+  assert.equal(testSkillAllowed({ program: "toeic" }, "writing"), true);
+  assert.equal(testSkillAllowed({ program: "toeic" }, "speaking"), true);
   // Khoá lạ / thiếu -> không cho.
   assert.equal(lessonSkillAllowed({ program: "toeic" }, undefined), false);
   assert.equal(testSkillAllowed({ program: "ielts" }, "constructor"), false);

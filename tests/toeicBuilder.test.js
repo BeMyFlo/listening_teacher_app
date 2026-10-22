@@ -10,7 +10,7 @@ const {
   sectionsToEditor,
   sectionsToPayload,
 } = require("../lib/teacher/sectionTransforms");
-const { emptyBuilder, builderToPayload, testSkillsFor, defaultDurationsFor } = require("../lib/teacher/testBuilder");
+const { emptyBuilder, builderToPayload, testToBuilder, testSkillsFor, defaultDurationsFor } = require("../lib/teacher/testBuilder");
 const {
   LETTER_FORMAT_LABEL,
   letterOptions,
@@ -192,27 +192,44 @@ test("emptyBuilder: IELTS unchanged (blank durations), TOEIC uses defaultDuratio
   const t = emptyBuilder("toeic");
   assert.equal(t.skills.listening.durationMinutes, "45");
   assert.equal(t.skills.reading.durationMinutes, "75");
-  assert.equal(t.skills.writing.durationMinutes, "");
+  assert.equal(t.skills.writing.durationMinutes, "60");
+  assert.equal(t.skills.speaking.durationMinutes, "20");
   assert.deepEqual(defaultDurationsFor("ielts"), {});
   assert.deepEqual(defaultDurationsFor(undefined), {});
 });
 
-test("testSkillsFor: IELTS 4 skills, TOEIC listening + reading", () => {
+test("testSkillsFor: IELTS và TOEIC đều có đủ 4 kỹ năng (8B)", () => {
   assert.deepEqual(testSkillsFor(null).map((s) => s.key), ["listening", "reading", "writing", "speaking"]);
   assert.deepEqual(testSkillsFor("ielts").map((s) => s.key), ["listening", "reading", "writing", "speaking"]);
-  assert.deepEqual(testSkillsFor("toeic").map((s) => s.key), ["listening", "reading"]);
+  assert.deepEqual(testSkillsFor("toeic").map((s) => s.key), ["listening", "reading", "writing", "speaking"]);
 });
 
-test("builderToPayload: hidden skills are sent empty for TOEIC; IELTS payload keeps all 4", () => {
+test("builderToPayload: TOEIC sends Writing/Speaking (8B) with task fields; IELTS prompts keep the old shape", () => {
   const b = emptyBuilder("toeic");
   b.title = "TOEIC mock";
   b.program = "toeic";
-  b.skills.writing.prompts = [{ _id: "p", title: "t", instructions: "i", imageId: "", writingTask: "task2" }];
+  b.skills.writing.prompts = [{
+    _id: "p", title: "t", instructions: "i", imageId: "im", writingTask: "task2",
+    taskType: "toeic.w.picture", requiredWords: ["a", "b"], audioId: "", audioPlays: 1, prepSeconds: "", responseSeconds: "96",
+  }];
   b.skills.speaking.durationMinutes = "14";
   const p = builderToPayload(b);
-  assert.deepEqual(p.skills.writing, { durationMinutes: null, instructions: "", prompts: [] });
-  assert.deepEqual(p.skills.speaking, { durationMinutes: null, instructions: "", prompts: [] });
+  assert.equal(p.skills.writing.prompts.length, 1);
+  assert.deepEqual(p.skills.writing.prompts[0], {
+    _id: "p", title: "t", instructions: "i", imageId: "im", writingTask: "task2",
+    taskType: "toeic.w.picture", requiredWords: ["a", "b"], audioId: null, audioPlays: 1, prepSeconds: null, responseSeconds: 96,
+  });
+  assert.equal(p.skills.speaking.durationMinutes, 14);
   assert.equal(p.skills.listening.durationMinutes, 45);
+
+  // Round trip: testToBuilder dựng lại đúng field task (giây dạng chuỗi), prompt IELTS không thêm field.
+  const back = testToBuilder({ skills: { writing: { prompts: [
+    { _id: "p", title: "t", instructions: "i", imageId: "im", taskType: "toeic.w.picture", requiredWords: ["a", "b"], audioPlays: 1, prepSeconds: null, responseSeconds: 96 },
+    { _id: "q", title: "t", instructions: "i" },
+  ] } } });
+  assert.equal(back.skills.writing.prompts[0].responseSeconds, "96");
+  assert.equal(back.skills.writing.prompts[0].prepSeconds, "");
+  assert.deepEqual(Object.keys(back.skills.writing.prompts[1]).sort(), ["_id", "imageId", "instructions", "title", "writingTask"]);
 
   const i = emptyBuilder();
   i.title = "IELTS mock";

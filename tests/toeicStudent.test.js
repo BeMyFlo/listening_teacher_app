@@ -153,7 +153,7 @@ test("skillBarValue: TOEIC chỉ hiện %, IELTS giữ Band cho Writing/Speaking
 test("skillsForProgram + studentProgramFromUnits", () => {
   const skills = ["grammar", "vocabulary", "listening", "reading", "writing", "speaking"].map((key) => ({ key, pct: 50 }));
   assert.equal(skillsForProgram(skills, "ielts").length, 6);
-  assert.deepEqual(skillsForProgram(skills, "toeic").map((s) => s.key), ["grammar", "vocabulary", "listening", "reading"]);
+  assert.equal(skillsForProgram(skills, "toeic").length, 6); // 8B: TOEIC có đủ Writing/Speaking
   assert.equal(skillsForProgram(null, "toeic").length, 0);
 
   assert.equal(studentProgramFromUnits([]), "ielts");

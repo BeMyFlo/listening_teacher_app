@@ -6,6 +6,7 @@ const Test = require("../../lib/models/Test");
 const Class = require("../../lib/models/Class");
 const { PROGRAMS, programOf, programFilter } = require("../../lib/curriculum");
 const { levelNameFor } = require("../../lib/curriculumServer");
+const { publicTaskFields } = require("../../lib/toeicTasks");
 
 function toPublicQuestionSkill(skill) {
   skill = skill || {};
@@ -50,7 +51,8 @@ function toPublicPromptSkill(skill) {
       id: p._id,
       title: p.title,
       instructions: p.instructions,
-      imageUrl: p.imageId && p.imageId.cloudinaryUrl
+      imageUrl: p.imageId && p.imageId.cloudinaryUrl,
+      ...publicTaskFields(p)
     }))
   };
 }
@@ -92,7 +94,9 @@ function populateSkillMedia(queryOrDoc) {
     { path: "skills.listening.sections.fields.imageId", select: "cloudinaryUrl" },
     { path: "skills.reading.sections.fields.imageId", select: "cloudinaryUrl" },
     { path: "skills.writing.prompts.imageId", select: "cloudinaryUrl" },
-    { path: "skills.speaking.prompts.imageId", select: "cloudinaryUrl" }
+    { path: "skills.speaking.prompts.imageId", select: "cloudinaryUrl" },
+    { path: "skills.writing.prompts.audioId", select: "cloudinaryUrl" },
+    { path: "skills.speaking.prompts.audioId", select: "cloudinaryUrl" }
   ]);
 }
 

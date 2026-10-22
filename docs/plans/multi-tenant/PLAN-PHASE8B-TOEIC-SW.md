@@ -266,3 +266,27 @@ server đang chạy. **Sonnet code, Opus review từng bước** (memory: delega
 ## 9. Nhật ký thi hành
 
 > Người thi hành ghi vào đây sau mỗi bước: đã làm gì, lệch gì so với plan, kiểm chứng bằng gì.
+
+### 2026-10-22 — Bước 1: registry + schema + server
+
+- `lib/toeicTasks.js` (client-safe): 8 dạng đề, thời gian mặc định, `aspects` (mã TK/OR/VO/GR/PN/IN/FL/CT + `ASPECT_LABELS`), descriptor en/vi từng mức
+  0..max (tự viết lại, **chờ chủ dự án đọc duyệt**, nguồn ghi trong comment đầu file), helper `toeicTask`, `isToeicTaskType`, `tasksForSkill`,
+  `effectivePrep/Response`, `publicTaskFields`. `s.respond`/`s.info` mặc định nói 15s (giáo viên đặt 30s cho câu cuối; bộ đề chuẩn bước 4 làm hộ);
+  `s.info` prep = 45 (phần đọc, 3s sau bỏ qua); `w.picture` = 96s/câu (8 phút / 5).
+- `PromptSchema` thêm 6 field (mục 2.2). `lib/testSections.js`: `promptTaskFields` (chỉ thêm field khi `taskType` có -> prompt IELTS giữ shape cũ),
+  `promptTaskError` (luật 2.3, không chạm DB), `validatePrompts(ws, prompts, { program, skill })` kiểm thêm audio thuộc workspace. `admin/tests.js`
+  truyền `program` (POST: program của request; PUT: `programOf(test)` sau khi áp đổi chương trình); `admin/units.js` `validateCategories` nhận
+  `program`, kiểm taskType + audio tồn tại/thuộc workspace và map prompt qua `promptTaskFields`. Lỗi trả `400 { ok:false, error }` dạng
+  `"<skill>: Prompt N: ..."`.
+- Payload học sinh (`api/units.js`, `api/tests.js`): populate `audioId`, thêm field TOEIC qua `publicTaskFields` chỉ khi có `taskType`.
+- `lib/curriculum.js`: TOEIC mở writing/speaking (lesson + test), `defaultDurations` 60/20. `testBuilder.js` round-trip field task; `submissions.js`
+  `rubricVariant = prompt.taskType || resolveVariant(...)`.
+- **Lệch/ghi chú:** (a) `audioPlays` yêu cầu số nguyên; giây chỉ kiểm khoảng (không bắt nguyên). (b) `builderToPayload` / unit editor vốn đã đọc
+  registry nên không phải sửa logic, chỉ sửa comment. (c) Các test "kỹ năng ẩn" (completion/deadlines/streak) vẫn giữ để bảo vệ logic lọc: chúng tạm sửa
+  `PROGRAMS.toeic.lessonSkills` trong `withHiddenWritingSpeaking` rồi khôi phục. (d) Unit/Test TOEIC có prompt cũ không `taskType` giờ bị 400 khi lưu
+  (đúng plan 2.3; UI soạn đề TOEIC chưa có tới bước 4, nên tạm thời chưa thể tạo prompt TOEIC từ giao diện).
+- **Cần lưu ý cho bước 2/3:** `rubricVariant` kiểu `toeic.w.email` chưa có trong `VARIANTS` -> `getRubric` trả `null`. Đường đọc an toàn
+  (`RubricResult` dùng `rubric?.`, `RubricGrader` hiện "Grading rubric not found."). Đường ghi: `PUT admin/submissions` trả 400 "Unknown grading rubric";
+  `runAiGrade` (bấm chấm AI) sẽ đưa rubric rỗng vào prompt IELTS -> chưa dùng được cho bài TOEIC tới bước 2–3.
+- Kiểm: `npm test` (139 test, qua), `check-tenant-scope --strict` qua, nạp `PromptSchema` bằng mongoose (default, enum, tối đa 2 từ).
+  **Chưa kiểm:** chưa chạy với DB/route thật (không động tới MongoDB), chưa kiểm UI.
