@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
 import { programParam, usePrograms } from "@/lib/client/program";
-import { programOf } from "@/lib/curriculum";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
 import ProgramChips, { ProgramEmpty } from "@/components/teacher/ProgramChips";
 import ProgramBadge from "@/components/ProgramBadge";
 
@@ -69,6 +69,16 @@ function StudentsInner() {
   }
 
   async function changeClass(s, classId) {
+    const target = classes.find((c) => String(c._id) === String(classId));
+    if (target && s.classId && s.program && s.program !== programOf(target)) {
+      const ok = await dialog.confirm({
+        title: "Move to a different program?",
+        message: `${s.name} is currently in ${s.className} (${PROGRAMS[s.program].label}). Adding them here moves them to ${target.name} (${PROGRAMS[programOf(target)].label}): they will leave ${s.className} and stop seeing its lessons and tests. Their past submissions are kept. A student can only be in one class at a time.`,
+        confirmText: "Move student",
+        cancelText: "Cancel",
+      });
+      if (!ok) return;
+    }
     try {
       await api.teacher.updateStudent(s._id, { classId: classId || null });
       dialog.toast("Class updated");

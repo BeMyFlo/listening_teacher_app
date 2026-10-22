@@ -8,7 +8,7 @@ import AttendanceTab from "@/components/teacher/AttendanceTab";
 import ProgramField from "@/components/teacher/ProgramField";
 import LevelField from "@/components/teacher/LevelField";
 import ProgramBadge from "@/components/ProgramBadge";
-import { DEFAULT_PROGRAM, programOf } from "@/lib/curriculum";
+import { DEFAULT_PROGRAM, PROGRAMS, programOf } from "@/lib/curriculum";
 import { usePrograms } from "@/lib/client/program";
 
 export default function ClassDetailPage() {
@@ -65,6 +65,16 @@ export default function ClassDetailPage() {
 
   async function addStudent() {
     if (!addId) return;
+    const st = allStudents.find((x) => String(x._id) === String(addId));
+    if (st && st.classId && st.program && st.program !== programOf(cls)) {
+      const ok = await dialog.confirm({
+        title: "Move to a different program?",
+        message: `${st.name} is currently in ${st.className} (${PROGRAMS[st.program].label}). Adding them here moves them to ${cls.name} (${PROGRAMS[programOf(cls)].label}): they will leave ${st.className} and stop seeing its lessons and tests. Their past submissions are kept. A student can only be in one class at a time.`,
+        confirmText: "Move student",
+        cancelText: "Cancel",
+      });
+      if (!ok) return;
+    }
     try {
       await api.teacher.updateStudent(addId, { classId });
       setAddId("");
