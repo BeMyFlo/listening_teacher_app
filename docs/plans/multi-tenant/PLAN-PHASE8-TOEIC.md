@@ -565,6 +565,8 @@ lúc đó sẽ hiện như IELTS (code cũ không biết `program`) — báo gi�
 
 ## 7. Đợt 8B — TOEIC Speaking & Writing (plan sơ bộ, viết chi tiết sau khi 8A xong)
 
+> **Đã thay bằng plan chi tiết [PLAN-PHASE8B-TOEIC-SW.md](PLAN-PHASE8B-TOEIC-SW.md) (2026-10-22).** Phần dưới giữ để tham khảo.
+
 1. **Loại đề** — `PromptSchema` thêm `taskType` (thay dần `writingTask` cho chương trình mới):
    `toeic.w.picture | toeic.w.email | toeic.w.essay | toeic.s.read | toeic.s.picture | toeic.s.respond |
    toeic.s.info | toeic.s.opinion`. Đề IELTS giữ `writingTask` như cũ.

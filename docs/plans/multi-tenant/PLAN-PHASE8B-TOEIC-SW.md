@@ -1,0 +1,268 @@
+# PLAN — Phase 8B: TOEIC Speaking & Writing
+
+> Đợt 2 của [PLAN-PHASE8-TOEIC.md](PLAN-PHASE8-TOEIC.md) (thay mục 7 "plan sơ bộ" ở file đó).
+> Nền `program`, registry, bộ lọc, Part 1–7 Nghe/Đọc đã có từ 8A — file này chỉ nói phần Nói + Viết.
+>
+> **Người thi hành đọc kỹ mục 0 và mục 1 trước khi gõ dòng code đầu tiên.**
+
+Trạng thái: ○ plan, chưa code · Ngày lập: 2026-10-22 · Branch: `phase-8-toeic` (cùng PR với 8A — chủ dự án muốn
+xong cả 8A + 8B mới mở PR)
+
+---
+
+## 0. Luật chơi
+
+### 0.1 8B làm gì
+
+Mở **Writing** và **Speaking** cho chương trình TOEIC, ở cả Lesson lẫn Mock Test: dạng đề TOEIC, đồng hồ chuẩn bị/nói,
+audio câu hỏi, rubric + chấm AI riêng theo thang TOEIC, và mọi chỗ đang hiện "Band" đổi thành điểm TOEIC.
+
+### 0.2 Bất biến — IELTS không đổi gì (giữ nguyên luật 0.2 của 8A)
+
+- Mọi nhánh mới gated bởi `program === "toeic"` hoặc `taskType` bắt đầu bằng `toeic.`. Prompt IELTS (không có
+  `taskType`) đi đúng đường cũ, từng chữ.
+- `lib/grading/prompts/writingSystem.js`, `speakingSystem.js`, `rubrics.json` (phần IELTS), `overallBand` **không đổi
+  một ký tự**. `tests/aiGrade.test.js` đang ghim chúng — phải qua nguyên vẹn.
+- Hai "bất thường" của IELTS tìm thấy khi khảo sát (Speaking AI không nhận đề; `runAiGrade` đọc `s.writingTask` không
+  tồn tại) **không sửa ở 8B**. Ghi vào mục 8 "Để sau".
+
+### 0.3 8B KHÔNG làm gì
+
+- Không làm học sinh nhiều lớp / nhiều chương trình (phase riêng, sau 8B).
+- Không bật điểm quy đổi 0–200 (giống L&R: có code, tắt bằng `SCALE_SOURCE` rỗng cho tới khi chủ dự án chọn bảng).
+- Không làm AI sinh đề Writing/Speaking (hiện IELTS cũng chưa có).
+- Không đổi cách tính ngân sách AI (vẫn toàn nền tảng, `lib/ai/budget.js`).
+- Không làm thang điểm "Pronunciation / Intonation" tách riêng cho Q1–2 — chấm 1 điểm tổng 0–3 như các câu khác.
+
+---
+
+## 1. Quyết định (chủ dự án, 2026-10-22)
+
+- **E1. Điểm thô từng câu.** Mỗi câu chấm theo thang TOEIC của câu đó (bảng 2.1). Hiện "Score 2/3". Mock Test hiện tổng
+  điểm thô từng kỹ năng: "Speaking: 27/35 points", "Writing: 22/28 points". Ước tính 0–200 có hàm nhưng **tắt**
+  (`SCALE_SOURCE` rỗng → `null` → không hiện), y như L&R.
+- **E2. Mock Test Speaking như thi thật.** Từng câu: (phát audio câu hỏi nếu có) → đếm ngược chuẩn bị → **tự bắt đầu
+  ghi** → đếm ngược nói → **tự dừng** → tự nộp → sang câu sau. Không ghi lại.
+- **E3. Lesson = luyện tập tự do.** Có đồng hồ chuẩn bị/nói để tham khảo nhưng học sinh tự bấm, được ghi lại như hiện
+  nay. Writing có đếm từ và kiểm 2 từ bắt buộc (Q1–5).
+- **E4. Đề được gắn audio.** Giáo viên chọn audio từ thư viện cho đề (Speaking Q5–10). Phát xong mới đếm giờ. Không có
+  audio thì hiện chữ như hiện nay.
+- **E5 (mặc định của người lập plan, đổi được).** Mỗi câu vẫn là **một bài nộp** (`Submission`) như IELTS — chấm AI
+  từng câu, giáo viên duyệt từng câu. Writing Q1–5 là 5 bài nộp ngắn → 5 lần gọi AI nhỏ. Chấp nhận ở V1.
+- **E6 (mặc định).** Khi tải lại trang giữa Mock Test Speaking: câu đã nộp giữ nguyên, **câu đang dở làm lại từ đầu
+  phần chuẩn bị** (không tính là bỏ lỡ). Lý do: rớt mạng/đóng nhầm tab không nên mất điểm; vẫn không cho ghi lại câu
+  đã nộp.
+
+---
+
+## 2. Cấu trúc đề TOEIC S&W và cách map vào app
+
+### 2.1 Registry dạng đề — `lib/toeicTasks.js` (mới, CommonJS, client-safe)
+
+| `taskType` | Kỹ năng | Câu trong đề thật | Chuẩn bị | Trả lời | Thang | Cần | 
+|---|---|---|---|---|---|---|
+| `toeic.s.read` | speaking | Q1–2 Read a text aloud | 45s | 45s | 0–3 | đoạn văn (instructions) |
+| `toeic.s.picture` | speaking | Q3–4 Describe a picture | 45s | 30s | 0–3 | ảnh |
+| `toeic.s.respond` | speaking | Q5–7 Respond to questions | 3s | 15s / 15s / 30s | 0–3 | audio (khuyến nghị) |
+| `toeic.s.info` | speaking | Q8–10 Respond using information | 45s đọc + 3s | 15s / 15s / 30s | 0–3 | ảnh/bảng + audio; Q10 phát 2 lần |
+| `toeic.s.opinion` | speaking | Q11 Express an opinion | 45s | 60s | 0–5 | |
+| `toeic.w.picture` | writing | Q1–5 Sentence about a picture | — | (8 phút cho cả 5) | 0–3 | ảnh + 2 từ bắt buộc |
+| `toeic.w.email` | writing | Q6–7 Respond to a written request | — | 10 phút/câu | 0–4 | |
+| `toeic.w.essay` | writing | Q8 Opinion essay (~300 từ) | — | 30 phút | 0–5 | |
+
+Mỗi entry: `{ key, skill, label, shortLabel, maxScore, prepSeconds, responseSeconds, needsImage, needsAudio,
+needsRequiredWords, wordTarget, aspects }`. `aspects` = các khía cạnh để giáo viên/AI nhận xét (không chấm điểm riêng),
+ví dụ `toeic.w.email`: `["task", "organization", "vocabulary", "grammar"]`. Nguồn: các link ETS/IIBC ở mục 1.2 của
+plan 8A. **Mô tả từng mức điểm (descriptor) tự viết lại bằng lời mình, không chép nguyên văn ETS**, en + vi như
+`rubrics.json`, ghi URL nguồn tham khảo trong comment đầu file. Chủ dự án đọc duyệt descriptor trước khi merge.
+
+Thời gian trong bảng là **mặc định** điền sẵn khi giáo viên chọn dạng đề; giáo viên sửa được từng đề.
+
+### 2.2 Field mới trên `PromptSchema` (`lib/models/schemas/promptSchema.js`)
+
+| Field | Kiểu | Default | Dùng cho |
+|---|---|---|---|
+| `taskType` | String, enum `TOEIC_TASK_KEYS` + `""` | `""` | `""` = IELTS (như cũ) |
+| `requiredWords` | [String], tối đa 2 | `[]` | `toeic.w.picture` |
+| `audioId` | ObjectId ref Audio | `null` | `toeic.s.respond`, `toeic.s.info` (cho phép mọi dạng speaking TOEIC) |
+| `audioPlays` | Number 1–2 | `1` | Q10 phát 2 lần |
+| `prepSeconds` | Number 0–600 | `null` | null = lấy mặc định của `taskType` |
+| `responseSeconds` | Number 5–3600 | `null` | như trên. Writing: giây cho câu đó (Lesson chỉ để tham khảo) |
+
+Prompt IELTS không có các field này (hoặc giá trị default) → mọi chỗ đọc phải coi như không có.
+
+**Chỗ phải thêm field (khảo sát đã tìm ra, đừng bỏ sót):** `lib/testSections.js` `normalizePrompts` (~166) và
+`validatePrompts`; `pages/api/admin/units.js` map prompt (~296–302) + kiểm ảnh tồn tại (~125); thêm kiểm **audio tồn tại
+và thuộc workspace** giống ảnh; `lib/teacher/testBuilder.js` round-trip (~67–73, ~111–117); payload học sinh
+`pages/api/units.js` (~125) và `pages/api/tests.js` (~49) trả thêm `taskType, requiredWords, audioUrl, audioPlays,
+prepSeconds, responseSeconds` **chỉ khi `taskType` có** (prompt IELTS giữ đúng shape cũ `{id,title,instructions,imageUrl}`).
+
+### 2.3 Luật server
+
+- Prompt Writing/Speaking của Unit/Test **TOEIC** bắt buộc có `taskType` khớp kỹ năng (`toeic.w.*` cho writing,
+  `toeic.s.*` cho speaking) → không thì 400. Prompt của Unit/Test **IELTS** gửi `taskType` khác `""` → 400.
+  Live chưa có dữ liệu TOEIC (8A chưa deploy) nên không cần migration. Dev có vài prompt TOEIC bị ẩn từ đợt test —
+  probe dọn đi.
+- `toeic.w.picture` phải có đúng 2 `requiredWords` không rỗng và ảnh. `toeic.s.picture`/`toeic.s.info` phải có ảnh.
+  `toeic.s.respond`/`toeic.s.info` không bắt buộc audio (E4: không có thì hiện chữ).
+- `lib/curriculum.js`: TOEIC `lessonSkills` + `writing`, `speaking`; `testSkills` + `writing`, `speaking`;
+  `defaultDurations` thêm `writing: 60, speaking: 20`. Bỏ các comment "8B: …".
+- Lúc nộp bài (`pages/api/submissions.js` ~274, ~372): `rubricVariant` = `prompt.taskType` nếu có, không thì
+  `resolveVariant(kind, prompt.writingTask)` như cũ.
+
+---
+
+## 3. Chấm điểm
+
+### 3.1 `lib/grading/rubric.js` — tổng quát hoá, IELTS giữ nguyên
+
+- `VARIANTS` thêm 8 key `toeic.*`. Helper mới: `isToeicVariant(v)`, `scoreRange(v)` → IELTS `{min:1,max:9}` mỗi
+  criterion; TOEIC `{min:0,max:maxScore}`.
+- Rubric TOEIC có **đúng 1 criterion chấm điểm**: key `"score"`, mức 0..maxScore, descriptor từ `lib/toeicTasks.js`
+  (không nhét vào `rubrics.json` để file IELTS không đổi). `getRubric(v)` trả cùng shape cho cả hai.
+- `validateCriteria(v, criteria)`: TOEIC → đúng 1 criterion `score`, số nguyên trong `[0, maxScore]`.
+- Điểm tổng câu: IELTS `overallBand` (không đổi). TOEIC: `taskScore(v, criteria)` = điểm criterion `score`.
+- `manualScore` vẫn là điểm tổng của bài nộp: IELTS band 0–9 step .5; TOEIC số nguyên 0..maxScore. Validate theo
+  variant trong `pages/api/admin/submissions.js` PUT (~28–31 `validOverride`, ~162–179).
+
+### 3.2 Hiển thị điểm — thay mọi chỗ "Band" khi variant là TOEIC
+
+Helper chung `lib/scoreLabel.js` (client-safe): `formatScore(sub)` → IELTS `"Band 6.5"` (đúng chữ cũ), TOEIC
+`"Score 2/3"`; `scorePct(sub)` → IELTS `band/9*100` (như cũ), TOEIC `score/max*100`. Thay ở:
+
+- `app/student/lessons/[unitId]/page.js:623, :667`; `app/student/tests/page.js:126, :176`
+- `lib/student/dashboard.js:29` (pct), `:109`, `:153`; `lib/student/skillBar.js` (TOEIC đã là %, giữ)
+- `lib/notifications/student.js:12, :31, :33`
+- `components/RubricResult.js:90, :101` + bảng criteria (TOEIC: 1 dòng "Score", descriptor của mức đạt được)
+- `components/teacher/RubricGrader.js` (Task 1/Task 2 switch ẩn với TOEIC; select điểm 0..max; nhãn "Score" thay
+  "Overall band"; override ẩn với TOEIC vì chỉ có 1 criterion)
+- `app/admin/page.js:115`; `app/teacher/tests/[testId]/submissions/page.js:29` + `lib/teacher/testSubmissions.js:81,:92`
+  (avgScore TOEIC = tổng điểm thô / tổng max của kỹ năng, hiện "22/28")
+- `lib/student/leaderboard.js:19–23`: TOEIC cộng `score/max*9` (giữ cùng cỡ với band để bảng xếp hạng một lớp không lệch;
+  IELTS không đổi). Ghi chú: một lớp chỉ có một chương trình nên không trộn.
+- `lib/teacher/dashboard.js:145–159` (luật "điểm tụt"): so theo `scorePct` khi TOEIC; IELTS giữ nguyên phép so band.
+
+Mock Test TOEIC: tổng kỹ năng = Σ điểm câu / Σ max, chỉ khi **mọi câu của kỹ năng đã chấm**; chưa đủ thì "x/y graded".
+Ước tính 0–200: `lib/toeicScale.js` thêm `estimateToeicSW(skill, raw, max)` → `null` khi `SCALE_SOURCE` rỗng.
+
+### 3.3 Annotation / nhận xét
+
+- `lib/grading/annotate.js` `CRITERIA` thêm key khía cạnh TOEIC (vd `TK` task/relevance, `OR` organization, `VO`
+  vocabulary, `GR` grammar, `PN` pronunciation, `IN` intonation & stress, `FL` fluency, `CT` content). Màu nhóm theo
+  cách đang làm. Danh sách IELTS giữ nguyên thứ tự.
+- `components/teacher/EssayAnnotator.js:33`, `SpeakingReview.js:13`, `RubricResult.js:45`: lấy danh sách criterion
+  theo variant (TOEIC → `aspects` của `taskType`), không hard-code.
+
+### 3.4 Chấm AI
+
+- Prompt hệ thống mới: `lib/grading/prompts/toeicWritingSystem.js`, `toeicSpeakingSystem.js` — giám khảo TOEIC, nhận
+  `taskType`, thang `0..maxScore`, descriptor từng mức, `aspects`. Writing gửi kèm đề (title, instructions), ảnh, 2 từ
+  bắt buộc (`toeic.w.picture`: kiểm có dùng đúng cả 2 từ — thiếu thì tối đa 1 điểm, giống luật ETS), số từ mục tiêu.
+  Speaking gửi audio bài nói + **đề (title, instructions, taskType)** — khác IELTS (IELTS không gửi đề; không sửa).
+  Audio câu hỏi không gửi (chỉ gửi chữ của đề).
+- Schema output TOEIC (`lib/grading/aiGradeSchema.js`, hàm riêng `toeicGradeSchema(variant)`): `{ score (int 0..max),
+  comment, aspects:[{key, comment}], annotations (criterion ∈ aspects), priorities, improvedSample (writing),
+  transcript + speakingNotes (speaking) }`. `validateToeicGrade` kiểm `score` trong khoảng; server không tin số ngoài
+  khoảng.
+- `lib/grading/runAiGrade.js`: rẽ nhánh theo `isToeicVariant(s.rubricVariant)` → prompt/schema TOEIC; `persistDraft`
+  ghi `criteria=[{key:"score", band:score}]`, `manualScore=score`. Ngân sách, AiLog (`purpose` `"grading.toeic.writing"`
+  / `"grading.toeic.speaking"`), GradingJob, demo-block: dùng chung đường cũ.
+- Test: `tests/toeicGrade.test.js` — schema/validate/normalise TOEIC, rubric TOEIC, `formatScore`; `aiGrade.test.js`
+  không sửa.
+
+---
+
+## 4. Giáo viên — soạn đề
+
+- `components/teacher/PromptsEditor.js` nhận thêm `program` (truyền từ `app/teacher/lessons/[unitId]/page.js:817` và
+  `app/teacher/tests/[testId]/page.js:298`). IELTS: y như cũ (Task 1/Task 2). TOEIC:
+  - Select **Task type** (chỉ các dạng của kỹ năng đang mở). Chọn xong điền sẵn thời gian (sửa được), hiện field cần
+    theo registry: ảnh (bắt buộc với picture/info), 2 ô **Required words** (w.picture), chọn **audio** từ thư viện
+    (s.respond/s.info, có "Play twice" cho Q10), Prep / Response (giây).
+  - Đề chưa chọn task type → báo lỗi ngay ở form, không cho lưu.
+- `lib/teacher/useMediaLibraries.js` / `MediaLibrary`: kiểm PromptsEditor có lấy được danh sách audio (Listening đã dùng).
+- Mock Test builder TOEIC: nút **"Add standard TOEIC set"** ở Writing (8 đề: 5 picture + 2 email + 1 essay) và Speaking
+  (11 đề: 2 read + 2 picture + 3 respond + 3 info + 1 opinion, câu 10 `audioPlays: 2`), đề rỗng đúng `taskType` +
+  thời gian, đánh tiêu đề "Question N". Chỉ hiện khi kỹ năng đang trống. Thời lượng kỹ năng mặc định 60 / 20 phút.
+- Unit editor TOEIC: bỏ dòng "Writing content is hidden for TOEIC" (8A), mở tab Writing/Speaking.
+
+## 5. Học sinh
+
+### 5.1 Lesson (E3 — luyện tập tự do), `components/student/PromptBlock.js`
+
+- Prompt có `taskType` TOEIC:
+  - Speaking: hiện nhãn dạng đề, nút phát audio đề (nếu có, `audioPlays` lần), **đồng hồ tham khảo** "Prep 0:45 ·
+    Speak 0:45" có nút Start (đếm prep rồi đếm speak, đổi màu khi hết giờ), ghi âm vẫn bấm tay, **không tự dừng**,
+    ghi lại được như hiện nay.
+  - Writing: **đếm từ** dưới ô viết (+ mục tiêu ~300 với essay), `toeic.w.picture` hiện 2 chip từ bắt buộc, chip
+    chuyển ✓ khi bài có từ đó (so khớp không phân biệt hoa thường, chấp nhận biến thể -s/-ed/-ing đơn giản; chỉ để
+    gợi ý, không chặn nộp).
+- Prompt IELTS: DOM không đổi.
+
+### 5.2 Mock Test Writing TOEIC — `app/student/tests/[testId]/[skill]/page.js`
+
+- Giữ `Countdown` cấp kỹ năng (60 phút) + force-submit khi hết giờ như IELTS. Mỗi đề có đếm từ + chip từ bắt buộc
+  như 5.1. Tiêu đề nhóm "Questions 1–5 · Write a sentence based on a picture" (dùng lại ý `partHeadings` của 8A).
+
+### 5.3 Mock Test Speaking TOEIC (E2 — như thi thật) — component mới `components/student/ToeicSpeakingRunner.js`
+
+1. Màn bắt đầu: kiểm micro (`getUserMedia`), thử ghi 3 giây phát lại; micro bị chặn → báo lỗi, không cho bắt đầu.
+2. Lần lượt từng đề: hiện đề (+ ảnh) → phát audio đề (`audioPlays` lần, không tua) → đếm ngược **prep** (beep khi
+   hết) → **tự bắt đầu ghi** → đếm ngược **response** + thanh tiến độ → **tự dừng** → upload + nộp ở nền (dùng
+   `api.student.uploadSpeakingAudio` + submit như `SpeakingPrompt`) → đề sau. Không có nút ghi lại; có nút "Finish
+   early" để dừng sớm phần nói.
+3. Tiến độ lưu `localStorage` (key theo test + học sinh): chỉ số đề hiện tại + các đề đã nộp. Tải lại → đề đã nộp bỏ
+   qua, đề đang dở làm lại từ prep (E6).
+4. Upload lỗi → thử lại 2 lần; vẫn lỗi → giữ blob trong bộ nhớ, hiện "Retry upload" ở cuối, không chặn các đề sau.
+5. `Countdown` cấp kỹ năng: **ẩn** với TOEIC Speaking (thời gian do từng đề quyết định); `durationMinutes` chỉ làm mốc
+   an toàn — hết thì force-submit những gì đã ghi.
+6. Kết thúc: "Speaking submitted — x/11 recorded", về danh sách Mock Test.
+
+- Ghi âm: tách logic MediaRecorder của `SpeakingPrompt` thành hook `lib/client/useRecorder.js` để Runner và PromptBlock
+  dùng chung; `SpeakingPrompt` IELTS dùng hook nhưng hành vi/DOM giữ nguyên.
+
+---
+
+## 6. Các bước thi hành
+
+Mỗi bước là một commit. Sau mỗi bước: `npm test` qua, `check-tenant-scope --strict` qua. Không chạy `next build` khi dev
+server đang chạy. **Sonnet code, Opus review từng bước** (memory: delegate-coding-to-sonnet).
+
+1. **Registry + schema + server** — `lib/toeicTasks.js` (kèm descriptor en/vi), field 2.2, normalizer/validator 2.2–2.3,
+   payload học sinh, mở skill trong `lib/curriculum.js`, `rubricVariant` lúc nộp. Sửa test đang ghim TOEIC không có
+   writing/speaking (`curriculum.test.js:126–133`, `toeicBuilder.test.js:188–223`, `programEnforce.test.js` phần
+   completion). Test mới cho validator.
+2. **Rubric + điểm + hiển thị** — mục 3.1–3.3, `lib/scoreLabel.js`, mọi chỗ ở 3.2, RubricGrader/RubricResult/annotator.
+3. **Chấm AI TOEIC** — mục 3.4 + `tests/toeicGrade.test.js`. Gọi Gemini thật **một lần mỗi loại** (1 writing, 1 speaking)
+   trên dev để kiểm schema — chủ dự án đồng ý trước vì tốn tiền AI.
+4. **Soạn đề** — mục 4.
+5. **Học sinh Lesson + Mock Writing** — 5.1, 5.2, hook `useRecorder`.
+6. **Mock Speaking như thi thật** — 5.3.
+7. **Kiểm thử tổng** — mở rộng `scripts/_probe-phase8-TMP.js`: validator 2.3, nộp bài TOEIC S/W lấy đúng variant,
+   chấm tay qua PUT (điểm ngoài khoảng → 400), IELTS PUT không đổi; fixture `--keep` thêm Unit + Mock Test TOEIC S/W
+   (audio giả). Trình duyệt: giáo viên soạn đề + bộ chuẩn, học sinh Lesson + Mock Speaking chạy hết 11 câu (micro giả
+   của trình duyệt nếu được), chấm tay, kết quả "Score x/y". Workspace IELTS-only: Writing/Speaking/Grading y như cũ.
+   Rồi mới: backfill dev, `next build`, dọn probe, xoá script tạm, mở PR 8A+8B.
+
+## 7. Rủi ro
+
+| # | Rủi ro | Chặn bằng |
+|---|---|---|
+| S1 | Đổi rubric/grading làm lệch điểm IELTS | Mọi nhánh theo variant; `aiGrade.test.js` ghim IELTS; probe PUT IELTS trước/sau |
+| S2 | Ghi âm tự động lỗi trên iOS Safari (MediaRecorder, autoplay audio) | Màn kiểm micro trước khi bắt đầu; audio đề phát sau một lần chạm của học sinh; kiểm trên điện thoại ở bước 7 |
+| S3 | Mất bài nói khi rớt mạng giữa Mock | Upload nền + thử lại + "Retry upload"; tải lại trang làm lại đề đang dở (E6) |
+| S4 | Chi phí AI tăng (19 bài nộp / 1 Mock S+W) | Chấm AI vẫn do giáo viên bấm; budget chung chặn như cũ; ghi rõ trong log để theo dõi |
+| S5 | Descriptor tự viết bị hiểu là rubric ETS chính thức | Ghi "based on the public TOEIC scoring guides" + chủ dự án duyệt nội dung |
+| S6 | Học sinh hiểu điểm thô là điểm TOEIC 0–200 | Luôn hiện dạng "x/y points"; 0–200 tắt |
+
+## 8. Để sau
+
+- Speaking IELTS: gửi đề cho AI; dọn `s.writingTask` không tồn tại trong `runAiGrade.js:164`.
+- Bảng quy đổi 0–200 (cùng lúc với bảng 5–495 của L&R).
+- Chấm AI hàng loạt cả Mock Test một nút.
+- Pronunciation / Intonation tách điểm cho Q1–2.
+- Học sinh nhiều lớp / nhiều chương trình (phase riêng).
+
+## 9. Nhật ký thi hành
+
+> Người thi hành ghi vào đây sau mỗi bước: đã làm gì, lệch gì so với plan, kiểm chứng bằng gì.

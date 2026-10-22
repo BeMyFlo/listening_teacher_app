@@ -25,3 +25,4 @@
 - [PLAN-PHASE3-STEP12-WRITE-STAMP.md](plans/multi-tenant/PLAN-PHASE3-STEP12-WRITE-STAMP.md): Phase 3 bước 1–2, gán `workspaceId` khi ghi
 - [PLAN-PHASE3-STEP45-CLASS-CRON.md](plans/multi-tenant/PLAN-PHASE3-STEP45-CLASS-CRON.md): Phase 3 bước 4–5, GV tự tạo lớp + cron theo workspace
 - [PLAN-PHASE8-TOEIC.md](plans/multi-tenant/PLAN-PHASE8-TOEIC.md): Phase 8, chương trình TOEIC (8A Nghe/Đọc, 8B Nói/Viết)
+- [PLAN-PHASE8B-TOEIC-SW.md](plans/multi-tenant/PLAN-PHASE8B-TOEIC-SW.md): Phase 8B chi tiết, TOEIC Speaking & Writing
