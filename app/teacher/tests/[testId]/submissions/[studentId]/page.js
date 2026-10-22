@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Fragment, Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import RubricGrader from "@/components/teacher/RubricGrader";
@@ -173,8 +173,8 @@ function QuestionReview({ detail }) {
               const bucket = bucketOf(d);
               const open = openId === d.id;
               return (
-                <>
-                  <tr key={d.id}>
+                <Fragment key={d.id}>
+                  <tr>
                     <td style={{ whiteSpace: "nowrap" }}>{d.id}</td>
                     <td>
                       {d.imageUrl && (
@@ -199,14 +199,14 @@ function QuestionReview({ detail }) {
                     </td>
                   </tr>
                   {open && d.explanation && (
-                    <tr key={d.id + "-exp"}>
+                    <tr>
                       <td></td>
                       <td colSpan={6} style={{ color: "var(--muted)", background: "var(--bg)", fontSize: ".85rem" }}>
                         {d.explanation}
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </tbody>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
 import RubricGrader from "@/components/teacher/RubricGrader";
 import RubricResult from "@/components/RubricResult";
 import { useDialog } from "@/components/ui/Dialog";
@@ -394,7 +395,9 @@ export default function StudentUnitSubmissionPage() {
   if (!data)
     return <div className="tab-panel active">{head}<div className="notice info">Loading...</div></div>;
 
-  const lateCount = data.categories.reduce((n, cat) => {
+  // Kỹ năng bị ẩn của chương trình (vd Writing/Speaking của TOEIC 8A) không hiện tab.
+  const categories = data.categories.filter((cat) => PROGRAMS[programOf(data.unit)].lessonSkills.includes(cat.key));
+  const lateCount = categories.reduce((n, cat) => {
     const items = cat.kind === "exercise" ? cat.exercises : cat.prompts;
     return n + (items || []).filter((i) => i.isLate).length;
   }, 0);
@@ -419,7 +422,7 @@ export default function StudentUnitSubmissionPage() {
         <button type="button" className={active === "stats" ? "active" : ""} onClick={() => setActive("stats")}>
           <svg className="icon"><use href="#icon-chart-bar" /></svg> Thống kê
         </button>
-        {data.categories.map((cat) => (
+        {categories.map((cat) => (
           <button
             key={cat.key}
             type="button"
@@ -432,9 +435,9 @@ export default function StudentUnitSubmissionPage() {
       </div>
 
       {active === "stats" ? (
-        <StatsTab categories={data.categories} />
+        <StatsTab categories={categories} />
       ) : (
-        data.categories
+        categories
           .filter((cat) => cat.key === active)
           .map((cat) => {
             const catDue = (data.student.deadlineByCategory || {})[cat.key];

@@ -81,7 +81,7 @@ function Inner() {
         <div className="page-head-icon"><svg className="icon"><use href="#icon-list" /></svg></div>
         <div>
           <h1>Submissions{data ? " — " + data.test.title : ""}</h1>
-          <p className="page-sub">Mock test · 4 skills · graded per student</p>
+          <p className="page-sub">Mock test · {data ? PROGRAMS[programOf(data.test)].testSkills.length : 4} skills · graded per student</p>
         </div>
       </div>
     </div>
@@ -159,6 +159,8 @@ function Inner() {
 
   // ---------- Student list for a class ----------
   const toeic = usesToeicScale(programOf(data.test));
+  // Cột tổng chỉ có nghĩa khi bảng quy đổi đang bật (estimateToeic trả null khi tắt).
+  const showTotal = toeic && estimateToeic("listening", 0, 1) != null;
   const skillCols = SKILLS.filter((sk) => PROGRAMS[programOf(data.test)].testSkills.includes(sk.key));
   // Tổng L+R ước tính của 1 học sinh (chỉ khi đã làm cả hai kỹ năng).
   const totalCell = (s) => {
@@ -192,14 +194,14 @@ function Inner() {
               <tr>
                 <th>Student</th>
                 {skillCols.map((s) => <th key={s.key}>{s.label}</th>)}
-                {toeic && <th>Total (estimated)</th>}
+                {showTotal && <th>Total (estimated)</th>}
                 <th>Status</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {students.length === 0 && (
-                <tr><td colSpan={skillCols.length + (toeic ? 1 : 0) + 3} style={{ textAlign: "center", color: "var(--muted)" }}>No students</td></tr>
+                <tr><td colSpan={skillCols.length + (showTotal ? 1 : 0) + 3} style={{ textAlign: "center", color: "var(--muted)" }}>No students</td></tr>
               )}
               {students.map((s) => {
                 const st = STATUS[s.status] || STATUS.not_started;
@@ -215,7 +217,7 @@ function Inner() {
                       <span style={{ color: "var(--muted)", fontSize: ".8rem" }}>{s.username}</span>
                     </td>
                     {skillCols.map((sk) => <SkillCell key={sk.key} s={s.skills[sk.key]} skillKey={sk.key} toeic={toeic} />)}
-                    {toeic && <td style={{ fontSize: ".85rem" }}>{totalCell(s)}</td>}
+                    {showTotal && <td style={{ fontSize: ".85rem" }}>{totalCell(s)}</td>}
                     <td><span className={"pill " + st.cls}>{st.label}</span></td>
                     <td><svg className="icon"><use href="#icon-chevron-right" /></svg></td>
                   </tr>

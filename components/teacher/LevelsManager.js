@@ -99,7 +99,7 @@ export default function LevelsManager() {
               <p className="page-sub" style={{ margin: "4px 0 8px" }}>No levels yet — add the first one.</p>
             ) : (
               <div className="table-wrap">
-                <table className="data-table" style={{ maxWidth: 640 }}>
+                <table className="data-table" style={{ maxWidth: 640, minWidth: 480 }}>
                   <thead>
                     <tr>
                       <th style={{ width: 150 }}>Level</th>
@@ -112,7 +112,7 @@ export default function LevelsManager() {
                     {rows.map((r) => (
                       <tr key={r.level}>
                         <td>Level {r.level}{!r.name && <span style={{ color: "var(--muted)" }}> (no name)</span>}</td>
-                        <td>{r.name || <span style={{ color: "var(--muted)" }}>—</span>}</td>
+                        <td style={{ minWidth: 140 }}>{r.name || <span style={{ color: "var(--muted)" }}>—</span>}</td>
                         <td>{r.classCount}</td>
                         <td>
                           <div style={{ display: "flex", gap: 4 }}>
@@ -124,10 +124,11 @@ export default function LevelsManager() {
                             >
                               <svg className="icon"><use href="#icon-edit" /></svg>
                             </button>
-                            <span title={r.inUse ? usedHint(r) : "Delete"}>
+                            <span title={r.inUse ? `${usedHint(r)} — can't delete` : "Delete"}>
                               <button
                                 type="button" className="icon-btn danger"
                                 aria-label={`Delete level ${r.level}`}
+                                title={r.inUse ? `${usedHint(r)} — can't delete` : "Delete"}
                                 disabled={r.inUse}
                                 style={r.inUse ? { opacity: 0.4, cursor: "not-allowed" } : undefined}
                                 onClick={() => remove(k, r)}

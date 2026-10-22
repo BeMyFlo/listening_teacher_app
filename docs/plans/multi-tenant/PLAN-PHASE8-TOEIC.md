@@ -685,3 +685,46 @@ lúc đó sẽ hiện như IELTS (code cũ không biết `program`) — báo gi�
 "x/y correct" — `ANCHORS` hiện tại là xấp xỉ tự đặt, chưa có nguồn, không được cho học sinh xem. Bật lại:
 thay `ANCHORS` bằng bảng công khai chủ dự án chọn (D7) và điền URL vào `SCALE_SOURCE`. Hai test định dạng
 hiển thị tự bỏ qua khi `SCALE_SOURCE` rỗng.
+
+### 2026-10-16 — Ngoài plan: tên level theo chương trình + quản lý level ở Classes
+
+Hai commit `273d098` và `d1a59c6`, theo dõi chi tiết ở [PLAN-LEVEL-NAMES.md](../PLAN-LEVEL-NAMES.md).
+
+- `273d098`: `Workspace.levelNames [{program, level, name}]`, nhãn "Level N · Tên" ở mọi nơi có level (Classes, Lessons, Mock Tests, Students, trang học sinh); level chưa đặt tên hiển thị như cũ.
+  Sửa kèm: đếm/roster học sinh theo level chỉ tính lớp **cùng chương trình**.
+- `d1a59c6`: Classes có tab Classes | Levels (`/api/admin/levels`, xoá chỉ khi level không được dùng); form lớp chọn level có sẵn hoặc "+ New level…"; bỏ thẻ Levels khỏi Workspace Settings.
+- **Ghi chú:** chưa kiểm bằng trình duyệt tại thời điểm commit — phần này được kiểm ở mục nhật ký 2026-10-21 bên dưới.
+
+### 2026-10-21 — Bước 8: kiểm thử thật (probe dev DB + trình duyệt) + sửa lỗi UI
+
+**Probe dev DB**
+- `scripts/_probe-phase8-TMP.js` (tạm, **sẽ xoá trước khi commit**): handler thật + JWT thật, 2 workspace probe riêng (`probe-p8` có 2 chương trình, `probe-p8-ielts` chỉ IELTS).
+- **205/205** phép kiểm qua: toàn bộ checklist bước 2 (program sai -> 400; `/teacher/me` programs thêm/bớt; sanitize lớp/deadline/skill-lock theo (level, program);
+  khoá đổi chương trình 409; học sinh TOEIC không lấy được Unit/Test IELTS kể cả `?id=`; bài nộp ghi đúng `program`; `?program=` ở grading-queue/submissions/dashboard/students;
+  doc thiếu `program` vẫn nằm ở bộ lọc IELTS — R2), chặn chéo workspace, API levels. Không thấy lỗi app. Chạy xong dọn sạch (0 doc còn lại).
+- Dev DB **vẫn chưa backfill** (cố ý, để kiểm R2).
+- **Chưa probe:** luồng email nhắc hạn, giáo viên bị giới hạn lớp (`Teacher.classIds`), chấm Writing/Speaking (PUT submissions).
+
+**Trình duyệt** (dev server, tài khoản probe)
+- Workspace chỉ IELTS: không có chip/nhãn/nhóm chương trình nào ngoài ô Program trong form lớp (R4 — kiểm bằng mắt từng trang, **không** so `outerHTML` với main).
+- Workspace 2 chương trình: chip lọc + URL `?program=`, nhóm Lessons, khoá Program có lý do, tab Levels, builder TOEIC (4 kỹ năng, Part 1–7, ô ảnh, câu Reading đầu = 101),
+  học sinh TOEIC (4 tab, thanh kỹ năng chỉ %, tiêu đề Part khi làm và xem lại, chỉ "x/y correct"). Mobile 375px không tràn ngang.
+
+**Lỗi tìm thấy và đã sửa** (UI, không đổi chữ/DOM IELTS)
+- Trang bài nộp Unit TOEIC hiện 6 kỹ năng -> API `unit-submissions` trả thêm `unit.program`.
+- Phụ đề "4 skills" ở bài nộp Mock Test; cột "Total (estimated)" giờ ẩn khi bảng quy đổi tắt.
+- Phụ đề Lessons học sinh liệt kê theo chương trình; đếm bài/prompt ở Lessons giáo viên bỏ kỹ năng ẩn.
+- Bảng Levels trên mobile (min-width, cuộn ngang trong `.table-wrap` — áp cho cả IELTS); nút xoá level bị khoá có `title` giải thích.
+- Dropdown dạng câu TOEIC thiếu `formatLabel` hiện "Choose a Part…" thay vì đoán Part 3 (IELTS giữ cách cũ); key React trong `QuestionReview`.
+
+**Không sửa**
+- Thống kê theo dạng bài gom câu thiếu `formatLabel` vào "Khác" — câu tạo bằng builder luôn có `formatLabel`; import CSV không đặt `formatLabel` (import đã ẩn với TOEIC).
+- Chữ "1 prompts" giữ nguyên vì đổi sẽ đổi chữ IELTS.
+- **Dark mode:** app chưa có dark mode thật — không có nút bật, `data-theme="dark"` chỉ định nghĩa token `--program-*`, nền/thẻ/chữ không có bảng màu tối.
+  Không kiểm được, cũng không chỉnh token. Ghi lại để làm khi có dark mode.
+
+**Cần chủ dự án quyết**
+- Form "Add a student" của lớp IELTS liệt kê cả học sinh đang ở lớp TOEIC (chuyển chéo chương trình) — plan chưa nói.
+
+**Kiểm tra tự động:** `npm test` 120 pass / 2 skip (2 test định dạng điểm tự bỏ qua khi `SCALE_SOURCE` rỗng); `check-tenant-scope --strict` qua.
+**Chưa chạy `next build`** (dev server đang chạy).

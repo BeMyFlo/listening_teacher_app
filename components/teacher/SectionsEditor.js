@@ -747,8 +747,11 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
   // đều là "fill") — ưu tiên đúng tên đã lưu (formatLabel) để dropdown hiện
   // lại chính xác; câu cũ tạo trước khi có formatLabel (hoặc import CSV)
   // thì mới hiện đại diện đầu tiên khớp cơ chế đó.
+  // TOEIC: nhiều Part chung 1 cơ chế (mcq) nên KHÔNG đoán theo cơ chế — câu chưa có
+  // formatLabel hiện ô "Choose a Part" thay vì nhận bừa Part 3.
   const currentFormatKey = formats
-    ? ((formats.find((x) => x.label === f.formatLabel) || formats.find((x) => x.kind === f.kind)) || {}).key || ""
+    ? ((formats.find((x) => x.label === f.formatLabel) ||
+        (program === "toeic" ? null : formats.find((x) => x.kind === f.kind))) || {}).key || ""
     : "";
   const currentFormat = formats ? formats.find((x) => x.key === currentFormatKey) : null;
 
@@ -850,6 +853,7 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
               if (fmt) changeFormat(fmt);
             }}
           >
+            {program === "toeic" && !currentFormatKey && <option value="" disabled>Choose a Part…</option>}
             {formats.map((fmt) => (
               <option key={fmt.key} value={fmt.key}>
                 {fmt.label}

@@ -70,6 +70,8 @@ export default function LessonsPage() {
   // Chỉ hiện khi giáo viên đã đặt tên cho level này; chưa đặt thì giữ nguyên chữ cũ.
   const first = units && units[0];
   const levelText = first && first.levelName ? `Level ${first.level} · ${first.levelName}` : "";
+  // Danh sách kỹ năng ở phụ đề theo chương trình của học sinh (lấy từ Unit đầu tiên).
+  const skillsText = catsOf(first || {}).map((c) => c.label).join(", ");
 
   const sorted = useMemo(() => {
     const arr = (units || []).slice();
@@ -94,7 +96,7 @@ export default function LessonsPage() {
           <div>
             <h1>Lessons</h1>
             <p className="page-sub">
-              Units by level — Grammar, Vocabulary, Listening, Reading, Writing, Speaking
+              Units by level — {skillsText}
               {levelText ? " · " + levelText : ""}
             </p>
           </div>
@@ -168,7 +170,10 @@ export default function LessonsPage() {
             <div id="unitsList" style={{ marginTop: 10 }}>
               {sorted.map((u, idx) => {
                 const p = unitProgress(u, subs);
-                const skillsWithContent = (u.categories || []).filter((c) => c.hasContent).length;
+                const unitCats = catsOf(u);
+                const skillsWithContent = (u.categories || []).filter(
+                  (c) => c.hasContent && unitCats.some((x) => x.key === c.key)
+                ).length;
                 const statusLabel =
                   p.pct === 100 ? "Completed" : p.pct === 0 ? "Not started" : "In progress";
                 const color =

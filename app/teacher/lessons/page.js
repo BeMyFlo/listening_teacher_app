@@ -302,8 +302,9 @@ function LessonsInner() {
           )}
           {filtered.map((u) => {
             const assigned = (u.classIds || []).map((id) => classById[String(id)]?.name).filter(Boolean);
-            const ex = (u.categories || []).reduce((n, c) => n + (c.exercises || []).length, 0);
-            const pr = (u.categories || []).reduce((n, c) => n + (c.prompts || []).length, 0);
+            const shown = (u.categories || []).filter((c) => PROGRAMS[programOf(u)].lessonSkills.includes(c.key));
+            const ex = shown.reduce((n, c) => n + (c.exercises || []).length, 0);
+            const pr = shown.reduce((n, c) => n + (c.prompts || []).length, 0);
             return (
               <div className="test-item" key={u._id}>
                 <div className="meta">

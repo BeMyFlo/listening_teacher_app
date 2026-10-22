@@ -60,7 +60,7 @@ async function handler(req, res) {
     const fieldImageUrls = await loadImageUrls(req.ws, collectFieldImageIds(unitSectionLists(unit)));
     return res.status(200).json({
       ok: true,
-      unit: { _id: unit._id, name: unit.name, level: unit.level },
+      unit: { _id: unit._id, name: unit.name, level: unit.level, program: programOf(unit) },
       student: {
         _id: student._id,
         name: student.name,
@@ -91,7 +91,7 @@ async function handler(req, res) {
 
   return res.status(200).json({
     ok: true,
-    unit: { _id: unit._id, name: unit.name, level: unit.level, classIds: assignedClassIds },
+    unit: { _id: unit._id, name: unit.name, level: unit.level, program: programOf(unit), classIds: assignedClassIds },
     scope,
     hasSkillDeadlines,
     deadlineByClass,
