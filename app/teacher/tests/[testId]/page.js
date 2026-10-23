@@ -18,6 +18,7 @@ import {
 } from "@/lib/teacher/testBuilder";
 import SectionsEditor from "@/components/teacher/SectionsEditor";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
+import { toeicPromptsError } from "@/lib/toeicStandardSet";
 
 // Đổi chương trình của đề mới: bỏ lớp đã tick (thuộc chương trình cũ) và đổi thời lượng
 // còn nguyên giá trị mặc định của chương trình cũ sang mặc định của chương trình mới.
@@ -102,6 +103,16 @@ function TestBuilderInner() {
     if (b.opensAt && b.closesAt && new Date(b.opensAt) >= new Date(b.closesAt)) {
       setSaveErr("Opening time must be before closing time.");
       return;
+    }
+    if (b.program === "toeic") {
+      for (const key of ["writing", "speaking"]) {
+        const e = toeicPromptsError(b.skills[key].prompts, key);
+        if (e) {
+          setActive(key);
+          setSaveErr(e);
+          return;
+        }
+      }
     }
     if (status === "published" && !(b.classIds || []).length) {
       setSaveErr("Chọn ít nhất 1 lớp trước khi Publish — không tick lớp nào thì không học sinh nào thấy bài.");
@@ -299,6 +310,8 @@ function TestBuilderInner() {
                 prompts={skill.prompts}
                 media={media}
                 skill={activeKey}
+                program={b.program || undefined}
+                standardSet
                 onChange={(next) => updateSkill(activeKey, (s) => (s.prompts = next))}
               />
             </>

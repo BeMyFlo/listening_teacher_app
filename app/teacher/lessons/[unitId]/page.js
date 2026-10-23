@@ -21,7 +21,8 @@ import { PROGRAMS, PROGRAM_KEYS, programOf } from "@/lib/curriculum";
 import { usePrograms } from "@/lib/client/program";
 import ProgramBadge from "@/components/ProgramBadge";
 import { sectionsToEditor, sectionsToPayload, refId } from "@/lib/teacher/sectionTransforms";
-import { toDatetimeLocal } from "@/lib/teacher/testBuilder";
+import { toDatetimeLocal, taskFieldsToBuilder, taskFieldsToPayload } from "@/lib/teacher/testBuilder";
+import { toeicPromptsError } from "@/lib/toeicStandardSet";
 import { LESSON_CATS, PROMPT_CATS } from "@/lib/student/constants";
 import SectionsEditor from "@/components/teacher/SectionsEditor";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
@@ -115,6 +116,7 @@ function toEditorUnit(u, prevLocked = false) {
         instructions: p.instructions || "",
         imageId: refId(p.imageId),
         writingTask: p.writingTask || "task2",
+        ...taskFieldsToBuilder(p),
       })),
       topics: (c.topics || []).map((t) => ({
         _id: t._id,
@@ -218,6 +220,7 @@ function toPayload(unit, status) {
         instructions: p.instructions,
         imageId: p.imageId || null,
         writingTask: p.writingTask || "task2",
+        ...taskFieldsToPayload(p),
       })),
       topics: (cat.topics || []).map((t) => ({
         _id: t._id,
@@ -387,6 +390,20 @@ export default function UnitEditorPage() {
       setActiveTab("settings");
       setSaveErr("Chọn ít nhất 1 lớp trước khi Publish — không tick lớp nào thì không học sinh nào thấy Unit này.");
       return false;
+    }
+    // TOEIC: đề Writing/Speaking thiếu dạng đề / ảnh / từ bắt buộc -> báo ngay, nhảy tới tab lỗi.
+    if (programOf(unit) === "toeic") {
+      for (const key of PROMPT_CATS) {
+        const c = unit.categories.find((x) => x.key === key);
+        const e = c && toeicPromptsError(c.prompts, key);
+        if (e) {
+          setActiveTab("content");
+          setCatKey(key);
+          setSubTab("practice");
+          setSaveErr(e);
+          return false;
+        }
+      }
     }
     return true;
   }
@@ -814,7 +831,7 @@ export default function UnitEditorPage() {
               onChange={(next) => updateCat((c) => (c.theory = next))}
             />
           ) : isPrompt ? (
-            <PromptsEditor prompts={cat.prompts} media={media} skill={catKey} onChange={(next) => updateCat((c) => (c.prompts = next))} />
+            <PromptsEditor prompts={cat.prompts} media={media} skill={catKey} program={program} onChange={(next) => updateCat((c) => (c.prompts = next))} />
           ) : (
             <ExercisesEditor cat={cat} media={media} program={program} onChange={(next) => updateCat((c) => (c.exercises = next))} />
           )}

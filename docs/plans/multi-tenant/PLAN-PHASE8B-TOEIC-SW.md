@@ -334,3 +334,19 @@ server đang chạy. **Sonnet code, Opus review từng bước** (memory: delega
   bài nộp; vẫn ghi AiLog/AiSpend vì đi qua `generateJSON`) — xoá cùng đợt dọn probe bước 7.
 - **Chưa kiểm:** **chưa gọi Gemini thật** (cả Writing lẫn Speaking) — schema Gemini nhận hay không, chất lượng chấm, định dạng audio mp3 cho bài TOEIC chưa biết, chờ chủ dự án đồng ý chạy smoke script; chưa chạy với DB/route thật
   (job -> persistDraft); chưa xem UI RubricGrader nạp draft TOEIC bằng mắt (dòng nhận xét khía cạnh hiển thị trong ô note có xuống dòng hay không).
+
+### 2026-10-23 — Bước 4: soạn đề TOEIC S&W
+
+- **Đã làm:** `lib/toeicStandardSet.js` (thuần, client-safe): `standardSet(skill)` (Writing 8 đề, Speaking 11 đề, "Question N", thời gian mặc định, 15/15/30 cho câu 5–7 và 8–10, câu 10 `audioPlays: 2`),
+  `taskDefaults` (điền giây mặc định khi chọn dạng đề, không đè giá trị đã sửa; đổi dạng đề thì giá trị còn đúng bằng mặc định của dạng cũ mới đổi theo), `blankToeicPrompt`, `promptCues` / `toeicPromptsError`
+  (field thiếu theo registry, câu lỗi dạng "Writing: Prompt 3: choose a task type."). `PromptsEditor` nhận `program` + `standardSet`: TOEIC có ô Task type (bắt buộc, kèm dòng gợi ý "Write 10 min · scored 0–4 …" và
+  "Still needed: …" màu đỏ), ảnh (required/optional), 2 ô Required words, audio + "Play twice", Prep/Speak (placeholder = mặc định); Task 1/2 radio ẩn với TOEIC; IELTS giữ nguyên DOM. Nút "Add standard TOEIC set"
+  chỉ ở Mock Test builder khi kỹ năng đang trống. `testBuilder.js` export `taskFieldsToBuilder/Payload`; unit editor dùng chúng (trước đó bị bỏ rớt field khi load/save unit). Cả hai trang chặn lưu phía client khi
+  prompt TOEIC thiếu dạng đề / tiêu đề / đề / ảnh / từ bắt buộc (nhảy tới tab lỗi) trước khi gọi server.
+- **Lệch/ghi chú:** (a) dòng "Writing content is hidden for TOEIC" không còn là chuỗi cố định mà là thông báo chung `hiddenWithContent` (chỉ hiện khi kỹ năng ẩn có dữ liệu) — Writing/Speaking đã mở nên tự biến mất, không phải sửa.
+  (b) `useMediaLibraries` đã có audio; admin GET units/tests không populate `audioId` của Writing (không cần) — Speaking của test đã populate, unit trả id thô nên `refId` đủ dùng. (c) Kiểm client không chặn khoảng giây — server trả
+  "Prompt N: Response time must be between 5 and 3600 seconds." (đã thử, hiện đúng trong khung lỗi). (d) `scripts/_probe-phase8-TMP.js`: prompt Writing ẩn của unit TOEIC thêm `taskType: "toeic.w.essay"` vì bước 1 đã chặn prompt không taskType.
+- **Kiểm chứng:** `tests/toeicSet.test.js` (7 test), `npm test` qua, `check-tenant-scope --strict` qua. Trình duyệt (workspace Probe P8): unit TOEIC thấy tab Writing/Speaking; thêm prompt email, lưu thiếu dạng đề -> lỗi rõ; lưu OK, tải lại giữ nguyên;
+  Mock Test mới: Speaking "Add standard TOEIC set" -> 11 đề đúng, điền ảnh/audio, lưu, tải lại giữ nguyên (kể cả Play twice câu 10); Writing 8 đề, 5 picture + 2 từ bắt buộc lưu/tải lại đúng. Workspace IELTS-only: Writing/Speaking
+  trong unit và Mock Test y như cũ (radio Task 1/2, không có field/nút TOEIC).
+- **Chưa kiểm:** ảnh/audio trong thư viện probe là giả (không xem/nghe được); chưa kiểm trên điện thoại; tải lại dữ liệu Writing/Speaking của Unit với nhiều prompt (chỉ thử 2 prompt).
