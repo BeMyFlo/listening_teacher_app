@@ -14,7 +14,8 @@ const {
   formatToeicTotal,
   formatToeicTotalFromSubs,
 } = require("../lib/toeicScale");
-const { groupFieldsByPart } = require("../lib/partGroups");
+const { groupFieldsByPart, groupPromptsByTask } = require("../lib/partGroups");
+const { countWords, formatTimerSec, hasRequiredWord } = require("../lib/toeicTasks");
 const { studentProgramFromUnits, skillBarValue, skillsForProgram } = require("../lib/student/skillBar");
 
 // ---- estimateToeic ----
@@ -165,4 +166,82 @@ test("skillsForProgram + studentProgramFromUnits", () => {
 test("estimateToeic: tắt (null) khi chưa có bảng nguồn SCALE_SOURCE", () => {
   if (SCALE_SOURCE) return;
   assert.equal(estimateToeic("listening", 38, 50), null);
+});
+
+// ---- Phase 8B bước 5: Writing/Speaking TOEIC helpers ----
+test("countWords + formatTimerSec: đếm từ và định dạng đồng hồ", () => {
+  assert.equal(countWords(""), 0);
+  assert.equal(countWords("   \n\t "), 0);
+  assert.equal(countWords(null), 0);
+  assert.equal(countWords("Hello world!"), 2);
+  assert.equal(countWords("  The passengers are   boarding\nthe plane. "), 6);
+
+  assert.equal(formatTimerSec(45), "0:45");
+  assert.equal(formatTimerSec(5), "0:05");
+  assert.equal(formatTimerSec(60), "1:00");
+  assert.equal(formatTimerSec(0), "0:00");
+  assert.equal(formatTimerSec(-3), "0:00");
+});
+
+test("hasRequiredWord: khớp không phân biệt hoa thường + biến thể -s/-ed/-ing đơn giản", () => {
+  // Khớp nguyên gốc & không phân biệt hoa thường
+  assert.equal(hasRequiredWord("The PASSENGER is waiting at the gate.", "passenger"), true);
+  assert.equal(hasRequiredWord("She is at the airport.", "passenger"), false);
+
+  // Số nhiều -s / -es / -ies
+  assert.equal(hasRequiredWord("Many passengers boarded the bus.", "passenger"), true);
+  assert.equal(hasRequiredWord("He watches the screen.", "watch"), true);
+  assert.equal(hasRequiredWord("She carries two bags.", "carry"), true);
+
+  // Quá khứ -ed / -d / -ied / gấp đôi phụ âm
+  assert.equal(hasRequiredWord("They walked across the street.", "walk"), true);
+  assert.equal(hasRequiredWord("She smiled at the camera.", "smile"), true);
+  assert.equal(hasRequiredWord("He studied all night.", "study"), true);
+  assert.equal(hasRequiredWord("The car stopped at the light.", "stop"), true);
+
+  // V-ing (bỏ e câm, gấp đôi phụ âm, -ying)
+  assert.equal(hasRequiredWord("People are boarding the train.", "board"), true);
+  assert.equal(hasRequiredWord("She is writing a report.", "write"), true);
+  assert.equal(hasRequiredWord("A man is sitting on the bench.", "sit"), true);
+  assert.equal(hasRequiredWord("He is tying his shoes.", "tie"), true);
+
+  // Không khớp từ con bên trong từ khác
+  assert.equal(hasRequiredWord("The category is clear.", "cat"), false);
+
+  // Cụm nhiều từ (liên từ / giới từ kép)
+  assert.equal(hasRequiredWord("He stayed home because of the rain.", "because of"), true);
+  assert.equal(hasRequiredWord("He stayed home because it rained.", "because of"), false);
+
+  // Đầu vào rỗng an toàn
+  assert.equal(hasRequiredWord("", "walk"), false);
+  assert.equal(hasRequiredWord("They walk.", ""), false);
+  assert.equal(hasRequiredWord(null, null), false);
+});
+
+test("groupPromptsByTask: gom các đề Writing TOEIC liền kề cùng taskType", () => {
+  const prompts = [
+    { id: 1, taskType: "toeic.w.picture" },
+    { id: 2, taskType: "toeic.w.picture" },
+    { id: 3, taskType: "toeic.w.picture" },
+    { id: 4, taskType: "toeic.w.picture" },
+    { id: 5, taskType: "toeic.w.picture" },
+    { id: 6, taskType: "toeic.w.email" },
+    { id: 7, taskType: "toeic.w.email" },
+    { id: 8, taskType: "toeic.w.essay" },
+  ];
+  const groups = groupPromptsByTask(prompts);
+  assert.equal(groups.length, 3);
+  assert.equal(groups[0].label, "Questions 1\u20135 \u00b7 Write a sentence based on a picture");
+  assert.deepEqual(groups[0].prompts.map((p) => p.id), [1, 2, 3, 4, 5]);
+  assert.equal(groups[1].label, "Questions 6\u20137 \u00b7 Respond to a written request");
+  assert.deepEqual(groups[1].prompts.map((p) => p.id), [6, 7]);
+  assert.equal(groups[2].label, "Question 8 \u00b7 Write an opinion essay");
+  assert.deepEqual(groups[2].prompts.map((p) => p.id), [8]);
+
+  // Đề IELTS (không có taskType) -> label rỗng
+  const ieltsGroups = groupPromptsByTask([{ id: 10 }, { id: 11 }]);
+  assert.equal(ieltsGroups.length, 1);
+  assert.equal(ieltsGroups[0].label, "");
+  assert.deepEqual(groupPromptsByTask([]), []);
+  assert.deepEqual(groupPromptsByTask(null), []);
 });
