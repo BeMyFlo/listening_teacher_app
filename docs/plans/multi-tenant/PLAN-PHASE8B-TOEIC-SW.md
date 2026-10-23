@@ -310,3 +310,27 @@ server đang chạy. **Sonnet code, Opus review từng bước** (memory: delega
   (c) ngưỡng "điểm tụt" TOEIC theo % là lựa chọn của người thi hành, chủ dự án có thể chỉnh.
 - Kiểm: `tests/toeicScore.test.js` (13 test mới), `npm test` 150 pass / 0 fail, `check-tenant-scope --strict` qua; các trang đổi biên dịch được trên dev server (HTTP 200, không lỗi module).
   **Chưa kiểm:** UI chấm/hiển thị TOEIC bằng mắt (dev không có bài TOEIC S&W đã nộp), IELTS "Band …" trên trình duyệt (dev không có bài Writing/Speaking đã chấm), không chạy với DB (PUT chấm tay).
+
+### 2026-10-23 — Bước 3: chấm AI TOEIC
+
+- **Đã làm:** `lib/grading/prompts/toeicWritingSystem.js` / `toeicSpeakingSystem.js` (`buildSystem(variant)` + `buildPrompt(...)`) và `toeicShared.js` (thang điểm + descriptor en từng mức, khía cạnh,
+  `neutralise`). Writing gửi đề (title/instructions), ảnh (inline như IELTS), 2 từ bắt buộc + luật "thiếu từ nào -> tối đa 1 điểm, chấp nhận biến thể -s/-ed/-ing", `wordTarget` khi có.
+  Speaking gửi audio bài nói (Cloudinary -> mp3, như IELTS) + đề (title, instructions, tên dạng đề); không gửi audio câu hỏi. `aiGradeSchema.js` thêm `toeicGradeSchema(variant)` (Writing/Speaking, enum
+  khía cạnh theo dạng đề), `toeicFieldSpec`, `validateToeicGrade`, `normaliseToeicGrade`, `normaliseToeicSpeaking` (quote -> offset bằng `resolveAnnotationsFromQuotes`/`reconcileAnnotations`, cap 12 như IELTS).
+  `runAiGrade.js`: nếu `isToeicVariant(s.rubricVariant)` -> `runToeicGrade` (AiLog `purpose` `grading.toeic.writing|speaking`; `generateJSON` — ngân sách, chuỗi model, AiLog — và GradingJob/demo-block
+  dùng chung đường cũ); nhánh IELTS không đụng. Điểm ngoài 0..max / không nguyên / khía cạnh lạ = lỗi validate -> `flagAiLog` + throw giống IELTS (job báo lỗi), **không kẹp**.
+- **Draft trả về:** `criteria:[{key:"score", band:score, comment}]`, `suggestedOverall = score` (persistDraft ghi `manualScore`), `overallFeedback = comment` tổng, `annotations`, `priorities`, `topicVocabulary`
+  (0–5, có thể rỗng), `improvedSample`; Speaking thêm `transcript`, `speakingNotes`, `mainIssue`. **Nhận xét từng khía cạnh:** RubricGrader/RubricResult chỉ có ô ghi chú cho criterion `score` nên
+  gộp vào `criteria[0].comment`, mỗi khía cạnh một dòng "Nhãn: nhận xét" (`Task / relevance: ...`); mảng `aspects:[{key,comment}]` còn trong draft/GradingJob.result nhưng không lưu thành field riêng của Submission.
+  `persistDraft` và `ai-grade.js` không có kiểm tra IELTS-only nên không phải sửa.
+- **Lệch/ghi chú:** (a) Speaking có ảnh (`s.picture`/`s.info`) thì gửi kèm ảnh (plan chỉ nói audio + chữ) — không có ảnh thì không chấm "mô tả tranh" được. (b) Thêm `topicVocabulary` tuỳ chọn (plan không liệt kê) để
+  UI Suggested Actions hiện như IELTS. (c) `mainIssue` chỉ có ở Speaking, như IELTS. (d) Luật "thiếu từ bắt buộc -> ≤1" chỉ nằm trong prompt, server không kiểm lại bằng so khớp chuỗi (chưa có quyết định cho việc đó).
+  (e) `loadToeicTaskPrompt` mới (đọc theo `s.kind`, trả `requiredWords`) thay vì sửa `loadTaskPrompt` IELTS (giữ nguyên bất biến); hai bất thường IELTS ở mục 8 vẫn chưa sửa.
+- **IELTS không đổi, chứng minh bằng:** `tests/ieltsAiRequestPin.test.js` — chạy `runAiGrade` thật với DB/Gemini/fetch giả (`tests/helpers/runAiGradeHarness.js`), ghim sha256 của request gửi Gemini
+  (system prompt + user prompt + responseSchema + mimeType audio/ảnh + model chain + purpose) cho 5 ca: Writing Task 1 có ảnh / không ảnh có số liệu / không ảnh không số liệu, Task 2, Speaking. Hash lấy từ code TRƯỚC
+  khi sửa `runAiGrade`/`aiGradeSchema` rồi vẫn khớp sau khi sửa. `aiGrade.test.js` không sửa, vẫn qua.
+- **Kiểm chứng:** `tests/toeicGrade.test.js` (15 test: prompt, schema, validate nhận/từ chối, normalise, `runAiGrade` TOEIC end-to-end với model giả cho Writing + Speaking trong Mock Test + điểm sai -> flag/lỗi + từ chối
+  bài rỗng/thiếu audio/lệch kỹ năng); `npm test` 166 pass / 0 fail (2 skip có sẵn); `check-tenant-scope --strict` qua. Script tay `scripts/_ai-toeic-smoke-TMP.js --dev --submission <id>` (chỉ DB dev, in kết quả, không ghi
+  bài nộp; vẫn ghi AiLog/AiSpend vì đi qua `generateJSON`) — xoá cùng đợt dọn probe bước 7.
+- **Chưa kiểm:** **chưa gọi Gemini thật** (cả Writing lẫn Speaking) — schema Gemini nhận hay không, chất lượng chấm, định dạng audio mp3 cho bài TOEIC chưa biết, chờ chủ dự án đồng ý chạy smoke script; chưa chạy với DB/route thật
+  (job -> persistDraft); chưa xem UI RubricGrader nạp draft TOEIC bằng mắt (dòng nhận xét khía cạnh hiển thị trong ô note có xuống dòng hay không).
