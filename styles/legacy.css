@@ -4251,3 +4251,41 @@ tr:hover td { background: var(--pink-wash-2); }
 .part-heading:first-child { margin-top: 4px; }
 .toeic-estimate { margin: 6px 0 10px; font-weight: 600; color: var(--navy); }
 .toeic-estimate > div + div { margin-top: 2px; font-size: .95rem; color: var(--muted); }
+
+
+/* Phase 8B bước 5 — Học sinh Lesson + Mock Writing TOEIC: từ bắt buộc, đếm từ, đồng hồ tham khảo. */
+.toeic-req-words { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+.toeic-req-label { font-size: .82rem; font-weight: 600; color: var(--muted); }
+.toeic-word-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--bg);
+  font-size: .82rem; font-weight: 700; color: var(--ink);
+}
+.toeic-word-chip.is-used {
+  border-color: var(--green); background: var(--teal-light); color: var(--green);
+}
+.toeic-writing-meta {
+  display: flex; justify-content: flex-end; align-items: center; margin: 4px 0 2px;
+}
+.toeic-word-count { font-size: .82rem; font-weight: 600; color: var(--muted); }
+
+.toeic-speaking-bar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.toeic-speaking-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.toeic-q-audio-btn { padding: 6px 12px; font-size: .84rem; }
+.toeic-ref-timer {
+  display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; align-self: flex-start;
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg);
+  font-size: .88rem; font-weight: 600; color: var(--ink);
+}
+.toeic-ref-timer .icon { width: 1rem; height: 1rem; color: var(--muted); }
+.toeic-ref-times .is-active { color: var(--blue); font-weight: 700; }
+.toeic-ref-phase { font-size: .8rem; font-weight: 700; color: var(--blue); }
+.toeic-ref-timer.phase-prep, .toeic-ref-timer.phase-speak {
+  border-color: var(--blue); background: var(--blue-light);
+}
+.toeic-ref-timer.is-expired {
+  border-color: var(--red); background: var(--red-light); color: var(--red);
+}
+.toeic-ref-timer.is-expired .icon,
+.toeic-ref-timer.is-expired .toeic-ref-phase { color: var(--red); }
+.toeic-timer-btn { padding: 4px 10px; font-size: .8rem; }

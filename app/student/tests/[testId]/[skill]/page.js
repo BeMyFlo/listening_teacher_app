@@ -16,7 +16,7 @@ import RubricResult from "@/components/RubricResult";
 import NotebookFab from "@/components/student/NotebookFab";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
 import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
-import { groupFieldsByPart } from "@/lib/partGroups";
+import { groupFieldsByPart, groupPromptsByTask } from "@/lib/partGroups";
 
 export default function TakeTestPage() {
   const { testId, skill } = useParams();
@@ -111,6 +111,10 @@ export default function TakeTestPage() {
     const allSubmitted =
       (skillData.prompts || []).length > 0 &&
       (skillData.prompts || []).every((p) => !!latestPromptSub(subs, p.id));
+    const toeicWriting = skill === "writing" && programOf(test) === "toeic";
+    const promptGroups = toeicWriting
+      ? groupPromptsByTask(skillData.prompts || [])
+      : [{ label: "", prompts: skillData.prompts || [] }];
     return (
       <section>
         <div className="card">
@@ -127,94 +131,99 @@ export default function TakeTestPage() {
           {skillData.instructions && (
             <p style={{ color: "var(--muted)", marginBottom: 20 }}>{skillData.instructions}</p>
           )}
-          {(skillData.prompts || []).map((p) => {
-            const last = latestPromptSub(subs, p.id);
+          {promptGroups.map((g, gi) => (
+            <Fragment key={gi}>
+              {g.label && <h4 className="part-heading">{g.label}</h4>}
+              {g.prompts.map((p) => {
+                const last = latestPromptSub(subs, p.id);
 
-            const promptInfo = (
-              <>
-                <h4 style={{ margin: "0 0 8px" }}>{p.title || "Prompt"}</h4>
-                {p.instructions && (
-                  <div className="prompt-instructions">
-                    {p.instructions.split(/\n{2,}/).map((para, k) => (
-                      <p key={k}>{para}</p>
-                    ))}
-                  </div>
-                )}
-                {p.imageUrl && (
-                  <img src={p.imageUrl} className="diagram-image" style={{ margin: "10px 0" }} alt="" />
-                )}
-              </>
-            );
-
-            const workAndStatus = (
-              <>
-                <div className="prompt-work" style={skill === "writing" ? undefined : { marginTop: 12 }}>
-                  {skill === "writing" ? (
-                    <WritingPrompt
-                      ref={(el) => (promptRefs.current[p.id] = el)}
-                      prompt={p}
-                      submitContext={{ testId: test.id, skill }}
-                      onSubmitted={refresh}
-                    />
-                  ) : (
-                    <SpeakingPrompt
-                      ref={(el) => (promptRefs.current[p.id] = el)}
-                      prompt={p}
-                      submitContext={{ testId: test.id, skill }}
-                      onSubmitted={refresh}
-                    />
-                  )}
-                </div>
-                <div className="prompt-status" style={{ marginTop: 12 }}>
-                  {last &&
-                    (last.gradingStatus === "graded" ? (
-                      <div className="notice success">
-                        <svg className="icon"><use href="#icon-check-circle" /></svg> Graded by your teacher
-                        <RubricResult
-                          rubricVariant={last.rubricVariant}
-                          criteria={last.criteria}
-                          manualScore={last.manualScore}
-                          manualFeedback={last.manualFeedback}
-                      essayText={last.essayText}
-                      annotations={last.annotations}
-                      audioUrl={last.audioUrl}
-                      transcript={last.transcript}
-                      speakingNotes={last.speakingNotes}
-                      priorities={last.priorities}
-                      topicVocabulary={last.topicVocabulary}
-                      improvedSample={last.improvedSample}
-                      mainIssue={last.mainIssue}
-                      showAnnotationList={false}
-                        />
+                const promptInfo = (
+                  <>
+                    <h4 style={{ margin: "0 0 8px" }}>{p.title || "Prompt"}</h4>
+                    {p.instructions && (
+                      <div className="prompt-instructions">
+                        {p.instructions.split(/\n{2,}/).map((para, k) => (
+                          <p key={k}>{para}</p>
+                        ))}
                       </div>
-                    ) : (
-                      <div className="notice info">Submitted — pending teacher review.</div>
-                    ))}
-                </div>
-              </>
-            );
+                    )}
+                    {p.imageUrl && (
+                      <img src={p.imageUrl} className="diagram-image" style={{ margin: "10px 0" }} alt="" />
+                    )}
+                  </>
+                );
 
-            // Writing: tách 2 cột như Reading — đề bên trái, ô viết bài bên
-            // phải, cùng cuộn ngang hàng — dễ vừa đọc đề vừa viết hơn là cuộn
-            // lên xuống. Speaking giữ nguyên 1 cột (không cần đọc/viết song song).
-            if (skill === "writing") {
-              return (
-                <div className="lesson-block" key={p.id}>
-                  <div className="reading-layout">
-                    <div className="passage-pane">{promptInfo}</div>
-                    <div className="questions-pane">{workAndStatus}</div>
+                const workAndStatus = (
+                  <>
+                    <div className="prompt-work" style={skill === "writing" ? undefined : { marginTop: 12 }}>
+                      {skill === "writing" ? (
+                        <WritingPrompt
+                          ref={(el) => (promptRefs.current[p.id] = el)}
+                          prompt={p}
+                          submitContext={{ testId: test.id, skill }}
+                          onSubmitted={refresh}
+                        />
+                      ) : (
+                        <SpeakingPrompt
+                          ref={(el) => (promptRefs.current[p.id] = el)}
+                          prompt={p}
+                          submitContext={{ testId: test.id, skill }}
+                          onSubmitted={refresh}
+                        />
+                      )}
+                    </div>
+                    <div className="prompt-status" style={{ marginTop: 12 }}>
+                      {last &&
+                        (last.gradingStatus === "graded" ? (
+                          <div className="notice success">
+                            <svg className="icon"><use href="#icon-check-circle" /></svg> Graded by your teacher
+                            <RubricResult
+                              rubricVariant={last.rubricVariant}
+                              criteria={last.criteria}
+                              manualScore={last.manualScore}
+                              manualFeedback={last.manualFeedback}
+                          essayText={last.essayText}
+                          annotations={last.annotations}
+                          audioUrl={last.audioUrl}
+                          transcript={last.transcript}
+                          speakingNotes={last.speakingNotes}
+                          priorities={last.priorities}
+                          topicVocabulary={last.topicVocabulary}
+                          improvedSample={last.improvedSample}
+                          mainIssue={last.mainIssue}
+                          showAnnotationList={false}
+                            />
+                          </div>
+                        ) : (
+                          <div className="notice info">Submitted — pending teacher review.</div>
+                        ))}
+                    </div>
+                  </>
+                );
+
+                // Writing: tách 2 cột như Reading — đề bên trái, ô viết bài bên
+                // phải, cùng cuộn ngang hàng — dễ vừa đọc đề vừa viết hơn là cuộn
+                // lên xuống. Speaking giữ nguyên 1 cột (không cần đọc/viết song song).
+                if (skill === "writing") {
+                  return (
+                    <div className="lesson-block" key={p.id}>
+                      <div className="reading-layout">
+                        <div className="passage-pane">{promptInfo}</div>
+                        <div className="questions-pane">{workAndStatus}</div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="lesson-block" key={p.id}>
+                    {promptInfo}
+                    {workAndStatus}
                   </div>
-                </div>
-              );
-            }
-
-            return (
-              <div className="lesson-block" key={p.id}>
-                {promptInfo}
-                {workAndStatus}
-              </div>
-            );
-          })}
+                );
+              })}
+            </Fragment>
+          ))}
         </div>
       </section>
     );
