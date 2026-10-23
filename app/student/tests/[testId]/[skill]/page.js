@@ -86,7 +86,7 @@ export default function TakeTestPage() {
         </div>
       </section>
     );
-  // Kỹ năng ngoài testSkills của chương trình (vd Writing của đề TOEIC 8A) coi như không tồn tại.
+  // Kỹ năng ngoài testSkills của chương trình (chương trình nào mở kỹ năng nào do lib/curriculum.js quyết định) coi như không tồn tại.
   const skillHidden = !!(test && test.program && !PROGRAMS[programOf(test)].testSkills.includes(skill));
   if (!tab || skillHidden) return <section><div className="card">{backLink}<p>Invalid skill.</p></div></section>;
   if (!test)

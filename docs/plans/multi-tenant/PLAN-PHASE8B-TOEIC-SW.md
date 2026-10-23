@@ -290,3 +290,23 @@ server đang chạy. **Sonnet code, Opus review từng bước** (memory: delega
   `runAiGrade` (bấm chấm AI) sẽ đưa rubric rỗng vào prompt IELTS -> chưa dùng được cho bài TOEIC tới bước 2–3.
 - Kiểm: `npm test` (139 test, qua), `check-tenant-scope --strict` qua, nạp `PromptSchema` bằng mongoose (default, enum, tối đa 2 từ).
   **Chưa kiểm:** chưa chạy với DB/route thật (không động tới MongoDB), chưa kiểm UI.
+
+### 2026-10-22 — Bước 2: rubric + điểm + hiển thị
+
+- **Rubric/điểm:** `lib/grading/rubric.js` thêm 8 variant `toeic.*` (dựng từ `lib/toeicTasks.js`, 1 criterion `score` mức 0..max, không đụng `rubrics.json`),
+  `isToeicVariant`, `scoreRange`, `taskScore`, `annotationCriteria`; `validateCriteria` TOEIC = đúng 1 criterion `score`, số nguyên 0..max. IELTS giữ nguyên
+  (`getRubric` chỉ đổi sang `hasOwnProperty` để `"constructor"`... không lọt). `pages/api/admin/submissions.js` PUT: bài TOEIC luôn chấm theo `rubricVariant` đã nộp,
+  điểm ngoài khoảng -> 400 (cả bản nháp, trừ để trống), overall = `taskScore`, bỏ qua `manualScore` override; luồng "chấm nhanh" (không `criteria`) cũng kiểm khoảng với bài TOEIC.
+- **Hiển thị:** `lib/scoreLabel.js` (`formatScore`, `scorePct`, `scoreMax`, `toeicTotals`, `toeicSkillSummary`). Thay "Band" ở student lessons/tests, `lib/student/dashboard.js`
+  (TOEIC: pct = trung bình % điểm thô, không có band), `notifications/student.js`, `RubricResult` ("Score x/max", 1 dòng), `RubricGrader` (ẩn Task 1/2 + override, select 0..max),
+  `app/admin/page.js`, bảng giáo viên Mock Test **và** Lesson (`testSubmissions.js`/`unitSubmissions.js` thêm `toeic/scoreSum/maxSum` chỉ khi có bài TOEIC; UI "22/28" khi mọi đề đã chấm,
+  không thì "x/y graded"), `leaderboard.js` (TOEIC `score/max*9`, làm tròn 2 số lẻ), `teacher/dashboard.js` (luật tụt: TOEIC so `scorePct`, ngưỡng = 0.5/9*100 ≈ 5.6%, nhãn "Score ↓ 3/4 → 2/4").
+  Mock Test student: "Speaking: 27/35 points" / "x/y graded" ở dòng Results và ô kỹ năng. `estimateToeicSW` trong `toeicScale.js` luôn `null` (gate `SCALE_SOURCE`, TODO bảng).
+  API: `pages/api/student/dashboard.js` và `admin/dashboard.js` select thêm `rubricVariant` (và `recent` trả `rubricVariant`); các API còn lại đã trả full row.
+- **Annotation:** `annotate.js` tách `IELTS_CRITERIA` (thứ tự cũ) + `TOEIC_CRITERIA`, `CRITERIA` = nối cả hai; `aiGradeSchema.js` ghim enum/fallback IELTS vào `IELTS_CRITERIA` (output schema IELTS không đổi).
+  `EssayAnnotator`/`SpeakingReview` nhận `variant`; `RubricResult` lấy khía cạnh từ variant TOEIC. Màu tô theo *category* chứ không theo criterion nên không có "nhóm màu" mới để thêm.
+- Dọn comment "TOEIC 8A: không có Writing/Speaking" (6 chỗ trong plan + vài chỗ tương tự: `lessons/page.js`, `api/units.js`, `curriculum.js`).
+- **Lệch plan:** (a) đổi cả bảng Lesson (`unitSubmissions`) không chỉ Mock Test vì cùng bất hợp lý khi trộn thang 0–3/0–5; (b) chưa làm gì cho AI (`runAiGrade` vẫn rẽ IELTS cho variant TOEIC — bước 3);
+  (c) ngưỡng "điểm tụt" TOEIC theo % là lựa chọn của người thi hành, chủ dự án có thể chỉnh.
+- Kiểm: `tests/toeicScore.test.js` (13 test mới), `npm test` 150 pass / 0 fail, `check-tenant-scope --strict` qua; các trang đổi biên dịch được trên dev server (HTTP 200, không lỗi module).
+  **Chưa kiểm:** UI chấm/hiển thị TOEIC bằng mắt (dev không có bài TOEIC S&W đã nộp), IELTS "Band …" trên trình duyệt (dev không có bài Writing/Speaking đã chấm), không chạy với DB (PUT chấm tay).

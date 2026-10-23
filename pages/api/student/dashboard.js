@@ -57,7 +57,7 @@ async function handler(req, res) {
   // lớp nào vượt qua thì phần rất cũ sẽ không tính vào điểm xếp hạng.
   const submissions = await Submission.find(tenantFilter(req.ws, { studentId: { $in: classmateIds } }))
     .select(
-      "studentId kind score total manualScore gradingStatus exerciseId promptId testId testSkill unitId isLate submittedAt"
+      "studentId kind score total manualScore rubricVariant gradingStatus exerciseId promptId testId testSkill unitId isLate submittedAt"
     )
     .sort({ submittedAt: -1 })
     .limit(5000)

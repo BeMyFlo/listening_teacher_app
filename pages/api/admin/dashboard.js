@@ -47,7 +47,7 @@ async function handler(req, res) {
   const studentIds = students.map((s) => s._id);
   const submissions = await Submission.find(tenantFilter(req.ws, { studentId: { $in: studentIds }, ...pf }))
     .select(
-      "studentId studentName kind categoryKey unitId exerciseId promptId testTitle exerciseTitle score total manualScore gradingStatus submittedAt gradedAt isLate"
+      "studentId studentName kind categoryKey unitId exerciseId promptId testTitle exerciseTitle score total manualScore rubricVariant gradingStatus submittedAt gradedAt isLate"
     )
     .lean();
 

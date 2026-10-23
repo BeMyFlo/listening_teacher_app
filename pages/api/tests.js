@@ -58,7 +58,7 @@ function toPublicPromptSkill(skill) {
 }
 
 function toPublicTest(test, levelName) {
-  // Kỹ năng ngoài testSkills của chương trình (vd TOEIC 8A: writing/speaking)
+  // Kỹ năng ngoài testSkills của chương trình (kỹ năng chương trình đó không mở)
   // KHÔNG được gửi nội dung — giữ nguyên shape nhưng rỗng, để client cũ không
   // vỡ. IELTS có đủ 4 kỹ năng nên không đổi gì.
   const allowed = PROGRAMS[programOf(test)].testSkills;

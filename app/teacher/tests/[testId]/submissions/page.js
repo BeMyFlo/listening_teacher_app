@@ -25,6 +25,10 @@ function SkillCell({ s, skillKey, toeic }) {
   if (s.kind === "prompt") {
     if (s.itemsTotal === 0) return <td style={{ color: "var(--muted)" }}>—</td>;
     if (!s.submitted) return <td style={{ color: "var(--muted)" }}>—</td>;
+    // TOEIC: tổng điểm thô / tổng max khi mọi đề đã chấm, chưa đủ thì "x/y graded".
+    if (s.toeic) {
+      return s.graded < s.itemsTotal ? <td><span className="pill pill-warn">{s.graded}/{s.itemsTotal} graded</span></td> : <td><b>{s.scoreSum}/{s.maxSum}</b></td>;
+    }
     if (s.submitted > s.graded) return <td><span className="pill pill-warn">Pending</span></td>;
     return <td><b>{s.avgScore != null ? s.avgScore : "✓"}</b></td>;
   }

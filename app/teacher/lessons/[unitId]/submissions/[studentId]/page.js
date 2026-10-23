@@ -395,7 +395,7 @@ export default function StudentUnitSubmissionPage() {
   if (!data)
     return <div className="tab-panel active">{head}<div className="notice info">Loading...</div></div>;
 
-  // Kỹ năng bị ẩn của chương trình (vd Writing/Speaking của TOEIC 8A) không hiện tab.
+  // Kỹ năng bị ẩn của chương trình (lessonSkills của chương trình) không hiện tab.
   const categories = data.categories.filter((cat) => PROGRAMS[programOf(data.unit)].lessonSkills.includes(cat.key));
   const lateCount = categories.reduce((n, cat) => {
     const items = cat.kind === "exercise" ? cat.exercises : cat.prompts;

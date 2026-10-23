@@ -35,6 +35,10 @@ function CatCell({ c }) {
   if (!c) return <td style={{ color: "var(--muted)" }}>—</td>;
   if (c.kind === "prompt") {
     if (!c.submitted) return <td style={{ color: "var(--muted)" }}>—</td>;
+    // TOEIC: tổng điểm thô / tổng max khi mọi đề đã chấm, chưa đủ thì "x/y graded".
+    if (c.toeic) {
+      return c.graded < c.itemsTotal ? <td><span className="pill pill-warn">{c.graded}/{c.itemsTotal} graded</span></td> : <td><b>{c.scoreSum}/{c.maxSum}</b></td>;
+    }
     if (c.submitted > c.graded)
       return <td><span className="pill pill-warn">Pending</span></td>;
     return <td><b>{c.avgScore != null ? c.avgScore : "✓"}</b></td>;

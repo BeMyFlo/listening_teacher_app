@@ -1,6 +1,7 @@
 "use client";
 
-import { getRubric } from "@/lib/grading/rubric";
+import { getRubric, isToeicVariant, scoreRange, annotationCriteria } from "@/lib/grading/rubric";
+import { ASPECT_LABELS } from "@/lib/toeicTasks";
 import AnnotatedEssay from "@/components/AnnotatedEssay";
 import SuggestedActionsBox from "@/components/SuggestedActionsBox";
 
@@ -36,20 +37,23 @@ export default function RubricResult({
   showAnnotationList = true,
 }) {
   const rubric = rubricVariant ? getRubric(rubricVariant) : null;
+  // TOEIC: 1 dòng "Score" (x/max) thay cho bảng 4 tiêu chí band; tag lỗi theo khía cạnh của dạng đề.
+  const toeic = isToeicVariant(rubricVariant);
+  const toeicMax = toeic ? scoreRange(rubricVariant).max : null;
   const byKey = {};
   (rubric?.criteria || []).forEach((c) => (byKey[c.key] = c));
 
   // Màn học sinh (Speaking): chữa lỗi + ghi chú phát âm/fluency được gộp thẳng
   // vào ô của tiêu chí tương ứng trong bảng, không tách thành khung riêng.
   const mergeIntoTable = !!audioUrl && !showTranscript;
-  const KNOWN_CRIT = ["FC", "LR", "GRA", "PR"];
+  const KNOWN_CRIT = annotationCriteria(rubricVariant) || ["FC", "LR", "GRA", "PR"];
   const critAnns = (key) =>
     mergeIntoTable && Array.isArray(annotations)
-      ? annotations.filter((a) => (key === "GRA" ? a.criterion === "GRA" || !KNOWN_CRIT.includes(a.criterion) : a.criterion === key))
+      ? annotations.filter((a) => toeic || (key === "GRA" ? a.criterion === "GRA" || !KNOWN_CRIT.includes(a.criterion) : a.criterion === key)) // TOEIC: 1 dòng "score" gom hết
       : [];
   const critNotes = (key) =>
     mergeIntoTable && Array.isArray(speakingNotes)
-      ? speakingNotes.filter((n) => (key === "GRA" ? n.criterion === "GRA" || !KNOWN_CRIT.includes(n.criterion) : n.criterion === key))
+      ? speakingNotes.filter((n) => toeic || (key === "GRA" ? n.criterion === "GRA" || !KNOWN_CRIT.includes(n.criterion) : n.criterion === key))
       : [];
 
   return (
@@ -76,7 +80,7 @@ export default function RubricResult({
             <ul className="ea-readlist">
               {speakingNotes.map((n, i) => (
                 <li key={i}>
-                  <span className="pill pill-info">{n.criterion || CAT_LABEL[n.category] || n.category}</span>{" "}
+                  <span className="pill pill-info">{ASPECT_LABELS[n.criterion] || n.criterion || CAT_LABEL[n.category] || n.category}</span>{" "}
                   {n.atSeconds != null ? <b>{fmtT(n.atSeconds)} · </b> : null}
                   {n.comment}
                 </li>
@@ -87,7 +91,7 @@ export default function RubricResult({
       )}
       {showBandHeader && (
         <div className="rubric-result-band">
-          Band <span>{manualScore != null ? manualScore : "—"}</span>
+          {toeic ? "Score" : "Band"} <span>{manualScore != null ? (toeic ? `${manualScore}/${toeicMax}` : manualScore) : "—"}</span>
           {rubric && <small>{rubric.label}</small>}
         </div>
       )}
@@ -98,7 +102,7 @@ export default function RubricResult({
             {!showBandHeader && (
               <tr className="rubric-overall-row">
                 <td className="b">{manualScore != null ? manualScore : "—"}</td>
-                <td><div className="crit">Overall band</div></td>
+                <td><div className="crit">{toeic ? "Score" : "Overall band"}</div></td>
               </tr>
             )}
             {criteria.map((c) => {
@@ -109,7 +113,7 @@ export default function RubricResult({
                   <td className="b">{c.band}</td>
                   <td>
                     <div className="crit">
-                      {meta ? meta.label : c.key} <span style={{ color: "var(--muted)", fontWeight: 500 }}>({c.key})</span>
+                      {meta ? meta.label : c.key}{!toeic && <> <span style={{ color: "var(--muted)", fontWeight: 500 }}>({c.key})</span></>}
                     </div>
                     {showDescriptors && bd && (
                       <div className="note">

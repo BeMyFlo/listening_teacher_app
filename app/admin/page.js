@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { readSession } from "@/lib/client/session";
+import { formatScore } from "@/lib/scoreLabel";
 import { DashStat, CardHead, Empty, timeAgo } from "@/components/dash/DashKit";
 
 function greeting() {
@@ -112,7 +113,7 @@ export default function AdminDashboard() {
                         <h4>{r.studentName} — {r.testTitle || r.exerciseTitle || r.kind}</h4>
                         <p>
                           {r.kind === "writing" || r.kind === "speaking"
-                            ? (r.gradingStatus === "graded" ? `Band ${r.manualScore ?? "?"}` : r.gradingStatus)
+                            ? (r.gradingStatus === "graded" ? formatScore(r, { missing: "?" }) : r.gradingStatus)
                             : `${r.score}/${r.total}`}
                           {" · "}{timeAgo(r.submittedAt)}
                         </p>

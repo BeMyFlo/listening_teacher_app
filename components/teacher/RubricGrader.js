@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getRubric, resolveVariant, overallBand } from "@/lib/grading/rubric";
+import { getRubric, resolveVariant, overallBand, isToeicVariant, scoreRange, taskScore } from "@/lib/grading/rubric";
 import { resumeAiGrade } from "@/lib/client/aiGrade";
 import { useDialog } from "@/components/ui/Dialog";
 import EssayAnnotator from "./EssayAnnotator";
@@ -43,6 +43,11 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
 
   const [variant, setVariant] = useState(initialVariant);
   const rubric = getRubric(variant);
+  // TOEIC: 1 criterion "score" 0..max, không có Task 1/Task 2, không override.
+  const toeic = isToeicVariant(variant);
+  const levels = toeic
+    ? Array.from({ length: scoreRange(variant).max + 1 }, (_, i) => scoreRange(variant).max - i)
+    : BANDS;
 
   const seed = useMemo(() => {
     const m = {};
@@ -90,16 +95,16 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
     comment: notes[c.key] || "",
   }));
   const filled = criteriaArr.filter((c) => c.band != null);
-  const auto = overallBand(filled);
+  const auto = toeic ? taskScore(variant, filled) : overallBand(filled);
   const rawMean = filled.length ? filled.reduce((a, c) => a + c.band, 0) / filled.length : null;
   const allFilled = criteriaArr.every((c) => c.band != null);
-  const finalBand = override && overrideVal !== "" ? Number(overrideVal) : auto;
+  const finalBand = !toeic && override && overrideVal !== "" ? Number(overrideVal) : auto;
 
   // publish=true -> xuất bản (học sinh thấy); publish=false -> lưu nháp.
   function save(publish) {
     if (publish) {
       if (!allFilled) {
-        setErr("Please choose a band for every criterion.");
+        setErr(toeic ? "Please choose a score." : "Please choose a band for every criterion.");
         return;
       }
       if (!feedback.trim()) {
@@ -200,6 +205,7 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
           essayText={submission.essayText}
           annotations={annotations}
           kind={submission.kind}
+          variant={variant}
           onChange={setAnnotations}
           onAiGrade={onAiGrade ? runAi : undefined}
           aiBusy={aiBusy}
@@ -207,6 +213,7 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
       )}
       {isSpeaking && (
         <SpeakingReview
+          variant={variant}
           audioUrl={submission.audioUrl}
           transcript={transcript}
           notes={speakingNotes}
@@ -220,7 +227,7 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
       )}
       {aiNote && <p className="notice info" style={{ marginTop: 8 }}>{aiNote}</p>}
 
-      {isWriting && (
+      {isWriting && !toeic && (
         <div className="rubric-tasktoggle">
           <span>Rubric:</span>
           {[
@@ -246,16 +253,16 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
           <div className="rubric-crit" key={c.key}>
             <div className="rubric-crit-head">
               <span className="rubric-crit-name">
-                {c.label} <span className="rubric-crit-key">({c.key})</span>
+                {c.label}{!toeic && <> <span className="rubric-crit-key">({c.key})</span></>}
               </span>
               <select
                 value={chosen}
                 onChange={(e) => setBands((b) => ({ ...b, [c.key]: e.target.value }))}
               >
-                <option value="">— band —</option>
-                {BANDS.map((b) => (
+                <option value="">{toeic ? "— score —" : "— band —"}</option>
+                {levels.map((b) => (
                   <option key={b} value={b}>
-                    Band {b}
+                    {toeic ? `${b} / ${scoreRange(variant).max}` : `Band ${b}`}
                   </option>
                 ))}
               </select>
@@ -264,7 +271,7 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
                 className="rubric-showbands"
                 onClick={() => setExpanded((x) => ({ ...x, [c.key]: !x[c.key] }))}
               >
-                {expanded[c.key] ? "Hide bands" : "All bands"}
+                {expanded[c.key] ? (toeic ? "Hide scores" : "Hide bands") : (toeic ? "All scores" : "All bands")}
               </button>
             </div>
 
@@ -278,7 +285,7 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
             {expanded[c.key] && (
               <table className="rubric-bandtable">
                 <tbody>
-                  {BANDS.map((b) => (
+                  {levels.map((b) => (
                     <tr
                       key={b}
                       className={String(b) === String(chosen) ? "active" : ""}
@@ -300,7 +307,7 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
             <input
               type="text"
               className="rubric-crit-note"
-              placeholder={`Note on ${c.key} (optional)`}
+              placeholder={toeic ? "Note (optional)" : `Note on ${c.key} (optional)`}
               value={notes[c.key]}
               onChange={(e) => setNotes((n) => ({ ...n, [c.key]: e.target.value }))}
             />
@@ -310,16 +317,16 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
 
       <div className="rubric-overall">
         <div>
-          <span className="rubric-overall-label">Overall band</span>
-          <span className="rubric-overall-value">{finalBand != null ? finalBand : "—"}</span>
-          {rawMean != null && !override && (
+          <span className="rubric-overall-label">{toeic ? "Score" : "Overall band"}</span>
+          <span className="rubric-overall-value">{finalBand != null ? (toeic ? `${finalBand}/${scoreRange(variant).max}` : finalBand) : "—"}</span>
+          {!toeic && rawMean != null && !override && (
             <span className="rubric-overall-auto">
               auto · mean {rawMean.toFixed(2)}
               {allFilled ? "" : ` (${filled.length}/${criteriaArr.length} criteria)`}
             </span>
           )}
         </div>
-        <label className="rubric-override">
+        {!toeic && <label className="rubric-override">
           <input
             type="checkbox"
             checked={override}
@@ -331,8 +338,8 @@ export default function RubricGrader({ submission, busy, onSave, onAiGrade }) {
             }}
           />
           Adjust manually
-        </label>
-        {override && (
+        </label>}
+        {!toeic && override && (
           <input
             type="number"
             min="0"

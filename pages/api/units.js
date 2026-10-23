@@ -84,8 +84,8 @@ function toPublicUnit(unit, cls, levelName) {
     isOverdue: overdue(unitDue),
     // Hạn sớm nhất bất kỳ (cho chip "Due in N days").
     nextDueAt: iso(earliestDeadline(unit, cid)),
-    // Chỉ gửi category thuộc kỹ năng của chương trình (vd TOEIC 8A không có
-    // writing/speaking) — lọc ở server, không chỉ ẩn ở client. IELTS: đủ 6 key
+    // Chỉ gửi category thuộc kỹ năng của chương trình (kỹ năng chương trình đó
+    // không mở) — lọc ở server, không chỉ ẩn ở client. IELTS: đủ 6 key
     // nên giữ nguyên toàn bộ.
     categories: (unit.categories || []).filter((c) => lessonSkills.includes(c.key)).map((c) => {
       // Kỹ năng bị khóa cho lớp này: trả về rỗng để KHÔNG lộ nội dung, chỉ

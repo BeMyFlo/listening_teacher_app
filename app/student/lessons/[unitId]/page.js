@@ -6,6 +6,7 @@ import { api } from "@/lib/client/api";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { LESSON_CATS, PROMPT_CATS } from "@/lib/student/constants";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { formatScore } from "@/lib/scoreLabel";
 import {
   categoryStats,
   latestExerciseSub,
@@ -25,7 +26,7 @@ import VocabReviewPane from "@/components/student/VocabReviewPane";
 
 const LESSON_LIST_CATS = ["grammar", "vocabulary"];
 
-// Tab kỹ năng của 1 Unit = lessonSkills của chương trình (TOEIC 8A: không có Writing/
+// Tab kỹ năng của 1 Unit = lessonSkills của chương trình (TOEIC từ 8B cũng có Writing/
 // Speaking). Server cũng không gửi category ngoài danh sách này. IELTS: đủ 6 tab như cũ.
 function tabsForUnit(unit) {
   const allowed = PROGRAMS[programOf(unit)].lessonSkills;
@@ -620,7 +621,7 @@ function PromptList({ unitId, cat, subs, onSubmitted }) {
         let badge;
         if (!last) badge = <span className="pill pill-muted">Not started</span>;
         else if (last.gradingStatus === "graded")
-          badge = <span className="pill pill-ok">Graded · Band {last.manualScore}</span>;
+          badge = <span className="pill pill-ok">Graded · {formatScore(last)}</span>;
         else badge = <span className="pill pill-warn">Pending review</span>;
         return (
           <div className="lesson-block" key={p.id}>
@@ -664,7 +665,7 @@ function PromptList({ unitId, cat, subs, onSubmitted }) {
                 (last.gradingStatus === "graded" ? (
                   <div className="notice success" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                     <span>
-                      <svg className="icon"><use href="#icon-check-circle" /></svg> Graded by your teacher · Band {last.manualScore}
+                      <svg className="icon"><use href="#icon-check-circle" /></svg> Graded by your teacher · {formatScore(last)}
                     </span>
                     <button
                       type="button"

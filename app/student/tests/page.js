@@ -7,6 +7,7 @@ import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { SKILL_TABS, QUESTION_SKILLS } from "@/lib/student/constants";
 import { latestExamSub } from "@/lib/student/submissions";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { formatScore, toeicSkillSummary } from "@/lib/scoreLabel";
 import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
 
 // Kỹ năng hiển thị của 1 đề = testSkills của chương trình (API cũng trả kỹ năng ẩn là rỗng).
@@ -123,7 +124,12 @@ function TestCard({ row, subs }) {
     if (!sub) return;
     if (tab.key === "listening" || tab.key === "reading")
       bits.push(`${tab.label}: ${toeic ? toeicResultLine(tab.key, sub.score, sub.total) : `${sub.score}/${sub.total}`}`);
-    else if (sub.gradingStatus === "graded") bits.push(`${tab.label}: Band ${sub.manualScore}`);
+    else {
+      // TOEIC Writing/Speaking: tổng điểm thô các đề ("Speaking: 27/35 points"), chưa đủ thì "x/y graded".
+      const sw = toeicSkillSummary(subs, row.id, tab.key, row.skills?.[tab.key]?.count);
+      if (sw) bits.push(`${tab.label}: ${sw.text}`);
+      else if (sub.gradingStatus === "graded") bits.push(`${tab.label}: ${formatScore(sub)}`);
+    }
   });
   if (toeic) {
     const totalText = formatToeicTotalFromSubs(latestExamSub(subs, row.id, "listening"), latestExamSub(subs, row.id, "reading"));
@@ -155,6 +161,7 @@ function SkillBox({ row, tab, meta, subs }) {
   const sub = latestExamSub(subs, row.id, tab.key);
   const isQuestion = QUESTION_SKILLS.includes(tab.key);
 
+  const sw = !isQuestion ? toeicSkillSummary(subs, row.id, tab.key, meta.count) : null;
   let statusNode;
   let cta = "Start";
   if (!sub) {
@@ -172,8 +179,11 @@ function SkillBox({ row, tab, meta, subs }) {
       </>
     );
     cta = "Retake";
+  } else if (sw) {
+    statusNode = sw.complete ? <b>Graded: {sw.text}</b> : <span className="muted">Submitted — {sw.text}</span>;
+    cta = "Redo";
   } else if (sub.gradingStatus === "graded") {
-    statusNode = <b>Graded: Band {sub.manualScore}</b>;
+    statusNode = <b>Graded: {formatScore(sub)}</b>;
     cta = "Redo";
   } else {
     statusNode = <span className="muted">Submitted — pending review</span>;

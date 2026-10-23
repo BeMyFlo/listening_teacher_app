@@ -8,7 +8,7 @@ import { LESSON_CATS } from "@/lib/student/constants";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
 import { unitProgress } from "@/lib/student/submissions";
 
-// Kỹ năng hiển thị của 1 Unit theo chương trình (IELTS: đủ 6 như cũ; TOEIC 8A: 4).
+// Kỹ năng hiển thị của 1 Unit theo chương trình (IELTS: đủ 6 như cũ; số kỹ năng theo lessonSkills của chương trình).
 const catsOf = (unit) => LESSON_CATS.filter((c) => PROGRAMS[programOf(unit)].lessonSkills.includes(c.key));
 
 // Chip hạn nộp cho lesson list. null nếu Unit không có hạn hoặc đã làm xong.
