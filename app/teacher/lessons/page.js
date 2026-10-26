@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
-import { DEFAULT_PROGRAM, PROGRAMS, programOf, levelWordOf } from "@/lib/curriculum";
+import { DEFAULT_PROGRAM, PROGRAMS, programOf, levelWordOf, skillLabel } from "@/lib/curriculum";
 import { programParam, usePrograms } from "@/lib/client/program";
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -189,7 +189,7 @@ function LessonsInner() {
                   <div className="program-section-head">
                     <div>
                       <h2>{PROGRAMS[k].label}</h2>
-                      <p>{PROGRAMS[k].lessonSkills.map(cap).join(", ")}</p>
+                      <p>{PROGRAMS[k].lessonSkills.map((key) => skillLabel(k, key, cap(key))).join(", ")}</p>
                     </div>
                     <button
                       type="button"
@@ -240,7 +240,7 @@ function LessonsInner() {
           <input type="text" placeholder="e.g. UNIT 1" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="form-row">
-          <label>Level</label>
+          <label>{levelWordOf(labelProgram)}</label>
           <input type="number" min="1" step="1" value={formLevel} onChange={(e) => setFormLevel(e.target.value)} />
         </div>
         <div className="form-row">

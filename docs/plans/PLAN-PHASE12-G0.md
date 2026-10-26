@@ -5,7 +5,7 @@
 >
 > **Người thi hành đọc kỹ mục 0 và mục 2 trước khi gõ dòng code đầu tiên.**
 
-Trạng thái: ☐ chưa làm · Ngày lập: 2026-10-26
+Trạng thái: ◐ code xong trên branch `phase-12-general-g0`, đã kiểm (probe + trình duyệt), chưa merge · Ngày lập: 2026-10-26
 Tiền đề: **Phase 8 (TOEIC 8A + 8B) đã merge vào `main`.** Branch `phase-12-general-g0` cắt từ `main` sau khi merge.
 Số dòng trong file này lấy theo `phase-8-toeic` @ `6be9d50`; sau merge có thể lệch vài dòng, tìm theo đoạn code trích.
 
@@ -373,4 +373,30 @@ deploy lại.
 
 ## 6. Nhật ký
 
-*(trống — ghi khi thi hành)*
+### 2026-10-26 — G0 bước 1–6
+
+Chia việc theo [PLAN-PHASE12-G0-PROMPTS.md](PLAN-PHASE12-G0-PROMPTS.md): bước 1, 5 Sonnet; bước 2, 3, 4 Antigravity
+(branch `g0-stepN-antigravity`, Claude Code review rồi merge `--no-ff`); bước 6 Claude Code + Sonnet.
+
+- **Bước 1** (`b085435`): key registry + helper + `tests/aiPromptPin.test.js` ghim toàn văn 18 prompt IELTS/TOEIC.
+- **Bước 2** (`8dfb1e9`, merge `dd77bc7`): `general`, level cố định 6–12, server chặn level. **Sửa khi review**
+  (`72ac3cb`): plan bảo `levelAllowed` chặn trần 50 cho IELTS/TOEIC, nhưng route cũ chỉ đòi số nguyên ≥ 1 → bỏ trần
+  (lỗi của plan, không phải của người thi hành).
+- **Bước 3** (`4553c6d`, merge `5ccbd21`): rà nhánh UI, nhãn Grade, chip theo chương trình đang dùng, badge, test chặn
+  tái phát. **Sửa khi review** (`a467794`): nhãn ô level của form lớp, "Written paper" ở trang làm bài.
+- **Bước 4** (`e4dd2ea`, merge `cd6e7fa`): prompt AI General; fixture pin không đổi. **Sửa khi review**
+  (`a5d86fb`): ô trình độ bỏ trống thì độ khó lấy theo khối lớp của Unit (trước đó luôn "core"); "15" không thành
+  "Grade 15".
+- **Bước 5** (`6c623bd`): `lib/tenPoint.js` + 6 chỗ hiển thị.
+- **Bước 6:** `next build` sạch (worktree riêng). `npm test` 211 pass / 0 fail. `check-tenant-scope --strict` 0 vi phạm.
+  Probe `scripts/_probe-g0-TMP.js` (tạm, không commit) **96/96** trên dev DB. Trình duyệt (dev server :3000, tài khoản
+  `probe.g0.*`): form lớp General "Grade" 6–12 không có "+ New level"; tab Levels General không thêm/xoá; Unit editor 4
+  tab "Vocabulary & Pronunciation", "Students (Grade 7)", badge xanh lá; học sinh: tab đúng, "Grade 7 · Core", Mock Tests
+  "Written paper: 7.5 / 10 (6/8)", dashboard "8/10", không có chữ "Band"/"IELTS"; workspace chỉ IELTS: không chip, không
+  badge, "Level 1" / "+ New level…" như cũ — chỉ thêm lựa chọn "General English" trong ô Program (đúng thiết kế).
+  Sửa thêm 3 chữ sót (commit kế tiếp): nhãn "Grade" ở form tạo Unit/Test, mô tả nhóm General ở Lessons, tên kỹ năng
+  ở dòng hoạt động dashboard.
+- **Chưa kiểm:** gọi Gemini thật với prompt General; dark mode (app chưa có dark mode thật); điện thoại 375px;
+  import Excel vào Unit General (R7).
+- **Ghi chú cho G1:** ô Level của form tạo Unit/Test vẫn là ô nhập số tự do (server chặn ngoài 6–12) — nên đổi sang
+  dropdown `LevelField`; phụ đề Mock Tests của học sinh liệt kê "Listening" kể cả khi đề chỉ có Written paper.

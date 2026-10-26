@@ -198,7 +198,7 @@ function TestBuilderInner() {
           <input type="text" placeholder="e.g. Unit 2" value={b.unit} onChange={(e) => setField("unit", e.target.value)} />
         </div>
         <div className="form-row">
-          <label>Level</label>
+          <label>{levelWordOf(b.program)}</label>
           <input
             type="number"
             min="1"
