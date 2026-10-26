@@ -4,7 +4,7 @@ const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant")
 const Test = require("../../../lib/models/Test");
 const Class = require("../../../lib/models/Class");
 const { normalizeSections, validateSections, normalizePrompts, validatePrompts } = require("../../../lib/testSections");
-const { DEFAULT_PROGRAM, isProgram, programOf, programFilter } = require("../../../lib/curriculum");
+const { PROGRAMS, DEFAULT_PROGRAM, isProgram, programOf, programFilter, levelAllowed } = require("../../../lib/curriculum");
 const { programLockReason, resolveProgramChange } = require("../../../lib/curriculumServer");
 
 // Lọc classIds hợp lệ: ObjectId có thật, thuộc workspace, đúng level VÀ đúng
@@ -127,14 +127,17 @@ async function handler(req, res) {
     if (!title || !String(title).trim()) {
       return res.status(400).json({ ok: false, error: "Missing test title" });
     }
-    if (!Number.isInteger(level) || level < 1) {
-      return res.status(400).json({ ok: false, error: "Please select a valid level" });
-    }
 
     // Không gửi program -> IELTS (client cũ giữ hành vi cũ); gửi giá trị lạ -> 400.
     const rawProgram = req.body && req.body.program;
     const program = rawProgram == null ? DEFAULT_PROGRAM : rawProgram;
     if (!isProgram(program)) return res.status(400).json({ ok: false, error: "Invalid program" });
+    if (!levelAllowed(program, level)) {
+      return res.status(400).json({
+        ok: false,
+        error: PROGRAMS[program].fixedLevels ? "Choose a grade from 6 to 12." : "Please select a valid level",
+      });
+    }
 
     const built = buildSkillsFromBody(req.body || {});
     if (built.error) return res.status(400).json({ ok: false, error: built.error });
@@ -189,22 +192,23 @@ async function handler(req, res) {
       test.title = String(title).trim();
     }
     if (unit != null) test.unit = String(unit).trim();
-    if (level != null) {
-      const lvl = Number(level);
-      if (!Number.isInteger(lvl) || lvl < 1) {
-        return res.status(400).json({ ok: false, error: "Invalid level" });
-      }
-      test.level = lvl;
-    }
+    if (level != null) test.level = Number(level);
     if (programChange.changed) test.program = program;
+    const testProgram = programOf(test);
+    if (!levelAllowed(testProgram, test.level)) {
+      return res.status(400).json({
+        ok: false,
+        error: PROGRAMS[testProgram].fixedLevels ? "Choose a grade from 6 to 12." : "Invalid level",
+      });
+    }
     if (req.body && req.body.classIds != null) {
-      test.classIds = await sanitizeClassIds(req.ws, req.body.classIds, test.level, programOf(test));
+      test.classIds = await sanitizeClassIds(req.ws, req.body.classIds, test.level, testProgram);
     }
 
     if (req.body && req.body.skills != null) {
       const built = buildSkillsFromBody(req.body);
       if (built.error) return res.status(400).json({ ok: false, error: built.error });
-      const error = await validateAllSkills(req.ws, built.skills, programOf(test));
+      const error = await validateAllSkills(req.ws, built.skills, testProgram);
       if (error) return res.status(400).json({ ok: false, error });
       test.skills = built.skills;
     }

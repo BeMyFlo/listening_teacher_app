@@ -86,7 +86,7 @@ Helper mới trong cùng file (export, có test ở `tests/curriculum.test.js`):
 function skillLabel(program, key, fallback)      // PROGRAMS[p].skillLabels[key] || fallback
 function testSkillLabel(program, key, fallback)
 function levelWordOf(program)                    // "Grade" | "Level"
-function levelAllowed(program, level)            // fixedLevels ? fixedLevels.includes(level) : validLevel
+function levelAllowed(program, level)            // fixedLevels ? fixedLevels.includes(level) : số nguyên >= 1 (luật cũ của route, không trần)
 ```
 
 `fallback` = nhãn đang hiện hôm nay (vd "Vocabulary"), để chỗ gọi không phải biết nhãn mặc định nằm ở đâu.
