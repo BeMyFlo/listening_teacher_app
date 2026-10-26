@@ -163,8 +163,7 @@ test("lessonSkillAllowed / testSkillAllowed đọc registry theo chương trình
 
 // ------------------------------------------- Phase 12 G0 bước 1: key mới + helper
 
-const { skillLabel, testSkillLabel, levelWordOf, levelAllowed, LEVEL_MAX_LOCAL } = require("../lib/curriculum");
-const { LEVEL_MAX } = require("../lib/levelNames");
+const { skillLabel, testSkillLabel, levelWordOf, levelAllowed } = require("../lib/curriculum");
 
 test("registry: mọi chương trình có đủ key G0 đúng kiểu", () => {
   for (const k of PROGRAM_KEYS) {
@@ -219,15 +218,15 @@ test("skillLabel / testSkillLabel: rỗng -> fallback; general đè nhãn; level
   assert.equal(levelWordOf("general"), "Grade");
 });
 
-test("levelAllowed: ielts/toeic 1..50; general chỉ 6..12; chương trình lạ = ielts", () => {
+test("levelAllowed: ielts/toeic số nguyên >= 1 (không trần); general chỉ 6..12; chương trình lạ = ielts", () => {
   assert.equal(levelAllowed("ielts", 1), true);
   assert.equal(levelAllowed("toeic", 50), true);
-  assert.equal(levelAllowed("ielts", 51), false);
+  assert.equal(levelAllowed("ielts", 51), true);
   assert.equal(levelAllowed("ielts", 0), false);
   assert.equal(levelAllowed("ielts", 1.5), false);
   assert.equal(levelAllowed("ielts", "3"), false);
   assert.equal(levelAllowed("bogus", 3), true);
-  assert.equal(levelAllowed(undefined, 51), false);
+  assert.equal(levelAllowed(undefined, 51), true);
   for (const g of [6, 7, 8, 9, 10, 11, 12]) {
     assert.equal(levelAllowed("general", g), true, `grade ${g}`);
   }
@@ -265,6 +264,3 @@ test("Schema Class/Unit/Test/Submission nhận program: 'general'", () => {
   );
 });
 
-test("LEVEL_MAX_LOCAL khớp LEVEL_MAX của levelNames", () => {
-  assert.equal(LEVEL_MAX_LOCAL, LEVEL_MAX);
-});
