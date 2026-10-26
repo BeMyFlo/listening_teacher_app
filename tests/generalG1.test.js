@@ -661,3 +661,18 @@ test("questionFormatsFor General: kiểm tra cờ trên từng format", () => {
   // Kind reorder
   assert.equal(byKey["g-reorder"].kind, "reorder");
 });
+
+// Review G1 bước 3: giáo viên gõ câu đúng kèm "/" -> đáp án lưu không có "/", câu học sinh ghép được chấm đúng.
+test("reorder: đáp án gõ kèm '/' được bỏ '/' ở cả builder lẫn server", () => {
+  const { isCorrect } = require("../lib/grade");
+  const editorField = { ...emptyField(9), kind: "reorder", matchMode: "sentence", tokens: ["early.", "She", "gets up", "always"], answersText: "She / always / gets up / early." };
+  const serverField = fieldToServer(editorField);
+  assert.deepEqual(serverField.answers, ["She always gets up early."]);
+  const raw = { ...serverField, answers: ["She / always / gets up / early."] };
+  const norm = normalizeSections([{ fields: [raw] }])[0].fields[0];
+  assert.deepEqual(norm.answers, ["She always gets up early."]);
+  assert.equal(isCorrect(norm, "She always gets up early."), true);
+  // câu fill thường (không tokens) giữ nguyên dấu "/"
+  const plain = normalizeSections([{ fields: [{ id: 1, type: "fill", answers: ["and/or"] }] }])[0].fields[0];
+  assert.deepEqual(plain.answers, ["and/or"]);
+});
