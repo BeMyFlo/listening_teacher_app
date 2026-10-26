@@ -4289,3 +4289,26 @@ tr:hover td { background: var(--pink-wash-2); }
 .toeic-ref-timer.is-expired .icon,
 .toeic-ref-timer.is-expired .toeic-ref-phase { color: var(--red); }
 .toeic-timer-btn { padding: 4px 10px; font-size: .8rem; }
+
+/* Phase 8B bước 6 — Mock Test Speaking TOEIC runner. */
+.toeic-mic-box { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.toeic-mic-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toeic-rec-dot {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--red, #dc2626); margin-right: 6px; vertical-align: middle;
+}
+.toeic-runner-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toeic-runner-step { font-size: .84rem; font-weight: 700; color: var(--muted); }
+.toeic-runner-stage {
+  margin-top: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+}
+.toeic-runner-stage.stage-audio {
+  display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--blue);
+  border-color: var(--blue); background: var(--blue-light);
+}
+.toeic-runner-stage.stage-prep { border-color: var(--blue); background: var(--blue-light); }
+.toeic-runner-stage.stage-record { border-color: var(--red, #dc2626); background: var(--red-light); }
+.toeic-stage-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.toeic-stage-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.toeic-stage-clock { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.toeic-bg-upload-note { margin: 10px 0 0; font-size: .82rem; color: var(--muted); }

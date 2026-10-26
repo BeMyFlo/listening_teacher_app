@@ -17,6 +17,8 @@ import NotebookFab from "@/components/student/NotebookFab";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
 import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
 import { groupFieldsByPart, groupPromptsByTask } from "@/lib/partGroups";
+import { isToeicTaskType, toeicTask } from "@/lib/toeicTasks";
+import ToeicSpeakingRunner, { isToeicSpeakingCompleted } from "@/components/student/ToeicSpeakingRunner";
 
 export default function TakeTestPage() {
   const { testId, skill } = useParams();
@@ -29,10 +31,23 @@ export default function TakeTestPage() {
   const [promptsDone, setPromptsDone] = useState(false);
   const { subs, loaded: subsLoaded, refresh } = useMySubmissions();
   const promptRefs = useRef({});
+  const initialToeicDoneRef = useRef(null);
 
   const skillData = test && test.skills[skill];
   const isQuestion = QUESTION_SKILLS.includes(skill);
-  const canGuardPrompts = !!(test && !locked && !isQuestion && tab && !promptsDone);
+  const promptsList = (skillData && skillData.prompts) || [];
+  const toeicSpeaking =
+    skill === "speaking" &&
+    !!test &&
+    programOf(test) === "toeic" &&
+    promptsList.length > 0 &&
+    promptsList.every((p) => isToeicTaskType(p.taskType) && toeicTask(p.taskType)?.skill === "speaking");
+  if (toeicSpeaking && subsLoaded && initialToeicDoneRef.current === null) {
+    const sid = (readSession("student")?.payload?.studentId) || "anon";
+    initialToeicDoneRef.current = isToeicSpeakingCompleted(sid, test.id, promptsList, subs);
+  }
+  const toeicSpeakingDone = toeicSpeaking && !!initialToeicDoneRef.current;
+  const canGuardPrompts = !!(test && !locked && !isQuestion && tab && !promptsDone && !toeicSpeakingDone);
 
   // Nộp ngay bài đang làm dở của MỌI prompt (nếu có nội dung) rồi quay lại
   // danh sách test — dùng chung cho cả vi phạm tab-switch và hết giờ đếm ngược.
@@ -89,7 +104,7 @@ export default function TakeTestPage() {
   // Kỹ năng ngoài testSkills của chương trình (chương trình nào mở kỹ năng nào do lib/curriculum.js quyết định) coi như không tồn tại.
   const skillHidden = !!(test && test.program && !PROGRAMS[programOf(test)].testSkills.includes(skill));
   if (!tab || skillHidden) return <section><div className="card">{backLink}<p>Invalid skill.</p></div></section>;
-  if (!test)
+  if (!test || (toeicSpeaking && !subsLoaded))
     return (
       <section>
         <div className="card">
@@ -119,7 +134,7 @@ export default function TakeTestPage() {
       <section>
         <div className="card">
           {backLink}
-          {skillData.durationMinutes && !promptsDone && !allSubmitted ? (
+          {!toeicSpeaking && skillData.durationMinutes && !promptsDone && !allSubmitted ? (
             <Countdown
               minutes={Number(skillData.durationMinutes)}
               onExpire={forceSubmitPrompts}
@@ -131,7 +146,20 @@ export default function TakeTestPage() {
           {skillData.instructions && (
             <p style={{ color: "var(--muted)", marginBottom: 20 }}>{skillData.instructions}</p>
           )}
-          {promptGroups.map((g, gi) => (
+          {toeicSpeaking && !toeicSpeakingDone ? (
+            <ToeicSpeakingRunner
+              ref={(el) => (promptRefs.current.__runner = el)}
+              test={test}
+              prompts={promptsList}
+              subs={subs}
+              studentId={studentId}
+              durationMinutes={skillData.durationMinutes}
+              timerKey={timerKey}
+              onSubmitted={refresh}
+              onFinished={() => setPromptsDone(true)}
+              onExit={() => router.push("/student/tests")}
+            />
+          ) : promptGroups.map((g, gi) => (
             <Fragment key={gi}>
               {g.label && <h4 className="part-heading">{g.label}</h4>}
               {g.prompts.map((p) => {
@@ -155,6 +183,7 @@ export default function TakeTestPage() {
 
                 const workAndStatus = (
                   <>
+                    {!toeicSpeaking && (
                     <div className="prompt-work" style={skill === "writing" ? undefined : { marginTop: 12 }}>
                       {skill === "writing" ? (
                         <WritingPrompt
@@ -172,7 +201,11 @@ export default function TakeTestPage() {
                         />
                       )}
                     </div>
+                    )}
                     <div className="prompt-status" style={{ marginTop: 12 }}>
+                      {!last && toeicSpeaking && (
+                        <div className="notice info">Not recorded.</div>
+                      )}
                       {last &&
                         (last.gradingStatus === "graded" ? (
                           <div className="notice success">
