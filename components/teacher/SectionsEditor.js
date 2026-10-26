@@ -30,6 +30,10 @@ import {
 } from "@/lib/generalFormats";
 import { parseUnderline, underlinedParts } from "@/lib/underline";
 
+// Kiểu câu cơ bản cho danh sách khi không có dạng bài (IELTS/TOEIC Grammar, Vocab): "reorder" chỉ
+// vào qua dạng bài General nên không liệt kê ở đây — builder IELTS/TOEIC giữ nguyên lựa chọn cũ.
+const BASIC_KINDS = QUESTION_KINDS.filter((k) => k !== "reorder");
+
 // letterOptions(n) (dạng server {value,label}) -> dạng editor {id,text}.
 const editorLetterOptions = (n) => letterOptions(n).map((o) => ({ id: o.value, text: o.label }));
 
@@ -449,7 +453,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
                         {f.label}
                       </button>
                     ))
-                  : QUESTION_KINDS.map((k) => (
+                  : BASIC_KINDS.map((k) => (
                       <button
                         key={k}
                         type="button"
@@ -913,7 +917,7 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
           </select>
         ) : (
           <select className="f-kind" value={f.kind} onChange={(e) => changeKind(e.target.value)}>
-            {QUESTION_KINDS.map((k) => (
+            {(f.kind === "reorder" ? QUESTION_KINDS : BASIC_KINDS).map((k) => (
               <option key={k} value={k}>
                 {QUESTION_KIND_LABELS[k]}
               </option>
