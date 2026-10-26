@@ -15,7 +15,7 @@ const fmtSec = (n) => (n >= 60 && n % 60 === 0 ? n / 60 + " min" : n + "s");
 export default function PromptsEditor({ prompts, media, onChange, skill, program, standardSet: allowSet }) {
   const dialog = useDialog();
   const isWriting = skill === "writing";
-  const toeic = program === "toeic";
+  const toeic = program === "toeic"; // G5: general.writing
 
   function patch(mut) {
     const draft = structuredClone(prompts);

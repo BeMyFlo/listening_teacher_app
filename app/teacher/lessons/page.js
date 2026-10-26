@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
-import { DEFAULT_PROGRAM, PROGRAMS, programOf } from "@/lib/curriculum";
+import { DEFAULT_PROGRAM, PROGRAMS, programOf, levelWordOf } from "@/lib/curriculum";
 import { programParam, usePrograms } from "@/lib/client/program";
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -247,7 +247,7 @@ function LessonsInner() {
           <label>Assign to classes (required for publishing — không tick lớp nào thì không học sinh nào thấy Unit này)</label>
           {classesAtLevel(Number(formLevel)).length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: ".85rem", margin: 0 }}>
-              No classes at Level {formLevel} yet.
+              No classes at {levelWordOf(labelProgram)} {formLevel} yet.
             </p>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
@@ -312,7 +312,7 @@ function LessonsInner() {
                     {u.name} <span className={"status-pill " + u.status}>{u.status === "published" ? "Published" : "Draft"}</span>
                   </h4>
                   <p>
-                    {assigned.length ? "Classes: " + assigned.join(", ") : "All students at Level " + u.level} · {ex}{" "}
+                    {assigned.length ? "Classes: " + assigned.join(", ") : `All students at ${levelWordOf(programOf(u))} ${u.level}`} · {ex}{" "}
                     exercises · {pr} prompts
                   </p>
                 </div>

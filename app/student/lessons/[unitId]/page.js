@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { LESSON_CATS, PROMPT_CATS } from "@/lib/student/constants";
-import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { PROGRAMS, programOf, skillLabel, levelWordOf } from "@/lib/curriculum";
 import { formatScore } from "@/lib/scoreLabel";
 import {
   categoryStats,
@@ -29,8 +29,12 @@ const LESSON_LIST_CATS = ["grammar", "vocabulary"];
 // Tab kỹ năng của 1 Unit = lessonSkills của chương trình (TOEIC từ 8B cũng có Writing/
 // Speaking). Server cũng không gửi category ngoài danh sách này. IELTS: đủ 6 tab như cũ.
 function tabsForUnit(unit) {
-  const allowed = PROGRAMS[programOf(unit)].lessonSkills;
-  return LESSON_CATS.filter((c) => allowed.includes(c.key));
+  const p = programOf(unit);
+  const allowed = PROGRAMS[p].lessonSkills;
+  return LESSON_CATS.filter((c) => allowed.includes(c.key)).map((c) => ({
+    ...c,
+    label: skillLabel(p, c.key, c.label),
+  }));
 }
 
 const fmtDeadline = (d) =>
@@ -152,7 +156,7 @@ export default function UnitDetailPage() {
           <svg className="icon"><use href="#icon-arrow-left" /></svg> Back to lesson list
         </p>
         <h2>{unit.name}</h2>
-        {unit.levelName && <p className="page-sub" style={{ margin: "-4px 0 8px" }}>Level {unit.level} · {unit.levelName}</p>}
+        {unit.levelName && <p className="page-sub" style={{ margin: "-4px 0 8px" }}>{levelWordOf(unit.program)} {unit.level} · {unit.levelName}</p>}
         <DeadlineBanner dueAt={unit.dueAt} />
 
         <div className="unit-cat-tabs">

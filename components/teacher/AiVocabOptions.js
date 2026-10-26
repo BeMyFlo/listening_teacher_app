@@ -3,14 +3,7 @@
 // Phần form tuỳ chọn AI dùng chung cho các hộp thoại/tab soạn từ vựng bằng AI
 // (AiVocabDialog, Vocab Review): trình độ học sinh, ngôn ngữ, cột của bảng từ,
 // ghi chú. Mỗi nơi tự ghép các mảnh này theo bố cục của mình.
-
-export const LEVEL_SUGGESTIONS = [
-  "3.0", "3.5", "4.0", "4.5", "5.0", "5.5", "6.0", "6.5", "7.0", "7.5", "8.0",
-  "A1", "A2", "B1", "B2", "C1",
-];
-
-// Gợi ý trình độ cho chương trình TOEIC (điểm Listening + Reading).
-export const TOEIC_LEVEL_SUGGESTIONS = ["300", "400", "450", "500", "550", "600", "650", "700", "750", "800", "850"];
+import { PROGRAMS, programOf } from "@/lib/curriculum";
 
 export const LANGUAGES = [
   ["vi", "Vietnamese meanings & explanations"],
@@ -44,20 +37,21 @@ export function Check({ checked, onChange, children }) {
 
 // Trình độ học sinh + ngôn ngữ, 2 cột. `studentLevel` / `language` / `onChange(key, value)`.
 export function LevelLanguageFields({ studentLevel, language, onChange, languages = LANGUAGES, listId = "ai-vocab-level-suggestions", program }) {
-  const toeic = program === "toeic";
+  const p = programOf({ program });
+  const aiLevel = PROGRAMS[p]?.aiLevel || PROGRAMS.ielts.aiLevel;
   return (
     <div className="builder-2col" style={{ marginBottom: 12 }}>
       <div className="form-row" style={{ marginBottom: 0 }}>
-        <label>{toeic ? "Students' level (TOEIC score)" : "Students' level (IELTS band or CEFR)"}</label>
+        <label>{aiLevel.label}</label>
         <input
           type="text"
           list={listId}
-          placeholder={toeic ? "e.g. 550, 450–600, 750+" : "e.g. 6.5, 5.0–5.5, B1"}
+          placeholder={aiLevel.placeholder}
           value={studentLevel}
           onChange={(e) => onChange("studentLevel", e.target.value)}
         />
         <datalist id={listId}>
-          {(toeic ? TOEIC_LEVEL_SUGGESTIONS : LEVEL_SUGGESTIONS).map((v) => (
+          {aiLevel.suggestions.map((v) => (
             <option key={v} value={v} />
           ))}
         </datalist>

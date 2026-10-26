@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
-import { PROGRAMS, PROGRAM_KEYS, programOf } from "@/lib/curriculum";
+import { PROGRAMS, PROGRAM_KEYS, programOf, levelWordOf } from "@/lib/curriculum";
 import { programParam, usePrograms } from "@/lib/client/program";
 import ProgramBadge from "@/components/ProgramBadge";
 import { useMediaLibraries } from "@/lib/teacher/useMediaLibraries";
@@ -156,7 +156,7 @@ function TestBuilderInner() {
   // Tab kỹ năng theo chương trình của đề (IELTS = đủ 4 như cũ).
   const skillTabs = testSkillsFor(b.program);
   const activeKey = skillTabs.some((s) => s.key === active) ? active : skillTabs[0].key;
-  const skillMeta = TEST_SKILLS.find((s) => s.key === activeKey);
+  const skillMeta = skillTabs.find((s) => s.key === activeKey) || TEST_SKILLS.find((s) => s.key === activeKey);
   const skill = b.skills[activeKey];
 
   return (
@@ -213,7 +213,7 @@ function TestBuilderInner() {
           <label>Assign to classes (required — không tick lớp nào thì không học sinh nào thấy bài)</label>
           {levelClasses.length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: ".85rem", margin: 0 }}>
-              No classes at Level {b.level}.
+              No classes at {levelWordOf(b.program)} {b.level}.
             </p>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>

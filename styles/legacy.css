@@ -38,6 +38,9 @@
   --program-toeic: #7A4FD0;
   --program-toeic-bg: #EEE8FB;
   --program-toeic-border: #D6C9F3;
+  --program-general: #2E8B57;
+  --program-general-bg: #E6F4EC;
+  --program-general-border: #C3E3D0;
   /* Dẫn xuất từ màu chính — themeToCss ghi đè khi workspace đổi màu gốc. */
   --red-light: #FFE0E2;
   --blue-border: #C1E9E1;
@@ -1354,6 +1357,7 @@ tr:hover td { background: var(--pink-wash-2); }
 }
 .program-badge.program-ielts { color: var(--program-ielts); background: var(--program-ielts-bg); border-color: var(--program-ielts-border); }
 .program-badge.program-toeic { color: var(--program-toeic); background: var(--program-toeic-bg); border-color: var(--program-toeic-border); }
+.program-badge.program-general { color: var(--program-general); background: var(--program-general-bg); border-color: var(--program-general-border); }
 
 .program-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
 .program-chip {
@@ -1387,6 +1391,9 @@ tr:hover td { background: var(--pink-wash-2); }
   --program-toeic: #C3AEF2;
   --program-toeic-bg: rgba(139, 111, 217, .18);
   --program-toeic-border: rgba(139, 111, 217, .4);
+  --program-general: #7FD8A7;
+  --program-general-bg: rgba(46, 139, 87, .2);
+  --program-general-border: rgba(46, 139, 87, .45);
 }
 
 .builder-section {

@@ -5,6 +5,7 @@ import { api } from "@/lib/client/api";
 import { sectionsToEditor } from "@/lib/teacher/sectionTransforms";
 import { emptyWord } from "./VocabWordTable";
 import { COLUMNS, Check, toggle, LevelLanguageFields, ColumnChecks, NotesField } from "./AiVocabOptions";
+import { levelWordOf } from "@/lib/curriculum";
 
 const EXERCISE_TYPES = [
   ["context", "Choose the word for the gap"],
@@ -76,7 +77,7 @@ function CheckNote({ check }) {
 // trước, chọn nhóm muốn giữ -> thêm vào bài (chưa lưu, vẫn phải bấm Save).
 export default function AiVocabDialog({ context, existingWords, onAdd, onClose }) {
   const [form, setForm] = useState({
-    level: context && context.level ? `Level ${context.level}` : "",
+    level: context && context.level ? `${levelWordOf(context.program)} ${context.level}` : "",
     unitName: (context && context.unitName) || "",
     topics: "",
     // Mặc định = tên level của Unit (nếu có); giáo viên sửa tự do.

@@ -19,6 +19,7 @@ import {
 import SpreadsheetImport from "./SpreadsheetImport";
 import { questionFormatsFor } from "@/lib/teacher/questionFormats";
 import { LETTERS, letterOptions, isLetterEditorField } from "@/lib/letterQuestion";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
 
 // letterOptions(n) (dạng server {value,label}) -> dạng editor {id,text}.
 const editorLetterOptions = (n) => letterOptions(n).map((o) => ({ id: o.value, text: o.label }));
@@ -127,7 +128,7 @@ function addNoteBlock(s, id) {
 // firstId: số câu đầu tiên của kỹ năng khi chưa có câu nào (TOEIC Reading = 101).
 export default function SectionsEditor({ sections, subject, media, onChange, showTranscript = false, program, firstId = 1 }) {
   const [importing, setImporting] = useState(false);
-  const canImport = program !== "toeic";
+  const canImport = !!PROGRAMS[programOf({ program })]?.excelImport;
 
   function patch(mut) {
     const draft = structuredClone(sections);
@@ -749,9 +750,10 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
   // thì mới hiện đại diện đầu tiên khớp cơ chế đó.
   // TOEIC: nhiều Part chung 1 cơ chế (mcq) nên KHÔNG đoán theo cơ chế — câu chưa có
   // formatLabel hiện ô "Choose a Part" thay vì nhận bừa Part 3.
+  const progConf = PROGRAMS[programOf({ program })] || PROGRAMS.ielts;
   const currentFormatKey = formats
     ? ((formats.find((x) => x.label === f.formatLabel) ||
-        (program === "toeic" ? null : formats.find((x) => x.kind === f.kind))) || {}).key || ""
+        (progConf.legacyFormatGuess ? formats.find((x) => x.kind === f.kind) : null)) || {}).key || ""
     : "";
   const currentFormat = formats ? formats.find((x) => x.key === currentFormatKey) : null;
 
@@ -853,7 +855,9 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
               if (fmt) changeFormat(fmt);
             }}
           >
-            {program === "toeic" && !currentFormatKey && <option value="" disabled>Choose a Part…</option>}
+            {progConf.formatPlaceholder != null && !currentFormatKey && (
+              <option value="" disabled>{progConf.formatPlaceholder}</option>
+            )}
             {formats.map((fmt) => (
               <option key={fmt.key} value={fmt.key}>
                 {fmt.label}

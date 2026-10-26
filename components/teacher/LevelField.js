@@ -8,7 +8,7 @@ import { useEffect, useMemo } from "react";
 import { useDialog } from "@/components/ui/Dialog";
 import { useLevels, validateLevelName } from "@/lib/client/levels";
 import { formatLevelLabel } from "@/lib/levelNames";
-import { PROGRAMS } from "@/lib/curriculum";
+import { PROGRAMS, programOf, levelWordOf } from "@/lib/curriculum";
 
 const NEW = "__new";
 
@@ -17,6 +17,8 @@ const NEW = "__new";
 export default function LevelField({ program, value, onChange, keepLevels = [], label = "Level" }) {
   const dialog = useDialog();
   const { levels, loaded, error, addLevel } = useLevels();
+  const prog = PROGRAMS[programOf({ program })] || PROGRAMS.ielts;
+  const hasFixedLevels = Array.isArray(prog.fixedLevels);
 
   const options = useMemo(() => {
     const rows = new Map(((levels && levels[program]) || []).map((r) => [r.level, r.name]));
@@ -38,11 +40,11 @@ export default function LevelField({ program, value, onChange, keepLevels = [], 
   }, [loaded, valid, options, current]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function createNew() {
-    const progLabel = PROGRAMS[program] ? PROGRAMS[program].label + " " : "";
+    const progLabel = prog.label ? prog.label + " " : "";
     const name = await dialog.prompt({
       title: options.length ? `New ${progLabel}level` : `Create the first ${progLabel}level`,
       label: "Level name",
-      placeholder: program === "toeic" ? "e.g. 300–450" : "e.g. Band 3.5–5.0",
+      placeholder: prog.levelNamePlaceholder,
       validate: validateLevelName,
     });
     if (name == null) return;
@@ -78,9 +80,11 @@ export default function LevelField({ program, value, onChange, keepLevels = [], 
           </option>
         )}
         {options.map((o) => (
-          <option key={o.level} value={o.level}>{formatLevelLabel(o.level, o.name)}</option>
+          <option key={o.level} value={o.level}>{formatLevelLabel(o.level, o.name, prog.levelWord)}</option>
         ))}
-        <option value={NEW}>{options.length ? "+ New level…" : "+ Create the first level"}</option>
+        {!hasFixedLevels && (
+          <option value={NEW}>{options.length ? "+ New level…" : "+ Create the first level"}</option>
+        )}
       </select>
       {error && <p className="program-hint" style={{ marginTop: 4, color: "var(--red)" }}>{error}</p>}
     </div>

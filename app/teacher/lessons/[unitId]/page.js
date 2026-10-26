@@ -17,7 +17,7 @@ import {
   saveAiOptions,
 } from "@/lib/teacher/vocabReviewClient";
 import { useBranding } from "@/lib/client/branding";
-import { PROGRAMS, PROGRAM_KEYS, programOf } from "@/lib/curriculum";
+import { PROGRAMS, PROGRAM_KEYS, programOf, skillLabel, levelWordOf } from "@/lib/curriculum";
 import { usePrograms } from "@/lib/client/program";
 import ProgramBadge from "@/components/ProgramBadge";
 import { sectionsToEditor, sectionsToPayload, refId } from "@/lib/teacher/sectionTransforms";
@@ -599,7 +599,7 @@ export default function UnitEditorPage() {
               </div>
             </div>
             <div className="unit-overview-stats">
-              <div className="unit-overview-stat"><span className="value">{ov.totalStudents}</span><span className="label">Students (Level {unit.level})</span></div>
+              <div className="unit-overview-stat"><span className="value">{ov.totalStudents}</span><span className="label">Students ({levelWordOf(program)} {unit.level})</span></div>
               <div className="unit-overview-stat"><span className="value">{ov.totalSubmissions}</span><span className="label">Total Submissions</span></div>
               <div className="unit-overview-stat"><span className="value">{ov.avgCompletionPct}%</span><span className="label">Avg Completion</span></div>
               <div className="unit-overview-stat"><span className="value">{ov.avgScorePct != null ? ov.avgScorePct + "%" : "—"}</span><span className="label">Avg Score</span></div>
@@ -630,7 +630,7 @@ export default function UnitEditorPage() {
                   setSubTab("theory");
                 }}
               >
-                <svg className="icon"><use href={"#icon-" + CAT_ICONS[c.key]} /></svg> {CAT_LABELS[c.key]}
+                <svg className="icon"><use href={"#icon-" + CAT_ICONS[c.key]} /></svg> {skillLabel(program, c.key, CAT_LABELS[c.key])}
                 {catHasContent(cc) && (
                   <span className="cat-done"><svg className="icon"><use href="#icon-check" /></svg></span>
                 )}
@@ -692,7 +692,7 @@ export default function UnitEditorPage() {
               <div className="settings-row-control">
                 {levelClasses.length === 0 ? (
                   <p className="settings-hint">
-                    {isMulti ? `No ${programLabel} classes at Level ${unit.level} yet.` : `No classes at Level ${unit.level} yet.`}
+                    {isMulti ? `No ${programLabel} classes at ${levelWordOf(program)} ${unit.level} yet.` : `No classes at ${levelWordOf(program)} ${unit.level} yet.`}
                   </p>
                 ) : (
                   <>

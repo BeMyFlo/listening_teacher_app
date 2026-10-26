@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { TEST_SKILLS } from "@/lib/teacher/testBuilder";
 import { useDialog } from "@/components/ui/Dialog";
-import { programOf } from "@/lib/curriculum";
+import { programOf, levelWordOf } from "@/lib/curriculum";
 import { programParam, usePrograms } from "@/lib/client/program";
 import ProgramChips, { ProgramEmpty } from "@/components/teacher/ProgramChips";
 import ProgramBadge from "@/components/ProgramBadge";
@@ -57,7 +57,7 @@ function TeacherTestsInner() {
   // Nhãn level ở bộ lọc: theo chip đang chọn, hoặc chương trình duy nhất. Chip All + nhiều
   // chương trình: một số level chung cho cả hai chương trình -> giữ "Level N" như cũ.
   const labelProgram = program || (isMulti ? null : programs[0]);
-  const filterLabel = (l) => (labelProgram ? levelLabel(labelProgram, l) : "Level " + l);
+  const filterLabel = (l) => (labelProgram ? levelLabel(labelProgram, l) : `${levelWordOf(labelProgram)} ${l}`);
 
   const filtered = progRows.filter((t) => {
     if (levelFilter !== "all" && t.level !== Number(levelFilter)) return false;
