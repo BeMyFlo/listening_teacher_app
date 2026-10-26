@@ -188,7 +188,7 @@ export default function UnitDetailPage() {
               <div>Your teacher hasn&apos;t opened this skill for your class yet.</div>
             </div>
           ) : cat && LESSON_LIST_CATS.includes(catKey) ? (
-            <LessonTopicPane cat={cat} unitId={unit.id} unitName={unit.name} subs={subs} onSubmitted={refresh} />
+            <LessonTopicPane cat={cat} unitId={unit.id} unitName={unit.name} program={programOf(unit)} subs={subs} onSubmitted={refresh} />
           ) : !cat ? null : (
             <>
               <div className="lesson-header-card">
@@ -279,7 +279,7 @@ export default function UnitDetailPage() {
                       </button>
                     </div>
                   )}
-                  <ExerciseList unitId={unit.id} unitName={unit.name} cat={cat} subs={subs} onSubmitted={refresh} />
+                  <ExerciseList unitId={unit.id} unitName={unit.name} program={programOf(unit)} cat={cat} subs={subs} onSubmitted={refresh} />
                 </>
               )}
             </>
@@ -300,7 +300,7 @@ export default function UnitDetailPage() {
   );
 }
 
-function LessonTopicPane({ cat, unitId, unitName, subs, onSubmitted }) {
+function LessonTopicPane({ cat, unitId, unitName, program, subs, onSubmitted }) {
   const isGrammar = cat.key === "grammar";
   const items = isGrammar ? cat.topics || [] : cat.groups || [];
   const [openId, setOpenId] = useState(null);
@@ -408,6 +408,7 @@ function LessonTopicPane({ cat, unitId, unitName, subs, onSubmitted }) {
             ex={ex}
             unitId={unitId}
             unitName={unitName}
+            program={program}
             categoryKey={cat.key}
             skill="other"
             last={latestExerciseSub(subs, ex.id)}
@@ -455,7 +456,7 @@ function TheoryView({ theory, noteSource }) {
   );
 }
 
-function ExerciseList({ unitId, unitName, cat, subs, onSubmitted }) {
+function ExerciseList({ unitId, unitName, program, cat, subs, onSubmitted }) {
   if (!cat.exercises.length)
     return <div className="empty-state">No exercises available for this section.</div>;
   return (
@@ -467,6 +468,7 @@ function ExerciseList({ unitId, unitName, cat, subs, onSubmitted }) {
           ex={ex}
           unitId={unitId}
           unitName={unitName}
+          program={program}
           categoryKey={cat.key}
           skill={cat.key === "reading" ? "reading" : "other"}
           last={latestExerciseSub(subs, ex.id)}
@@ -487,7 +489,7 @@ function detailByIdFrom(last) {
   return detailById;
 }
 
-function ExerciseBlock({ index, ex, unitId, unitName, categoryKey, skill, last, onSubmitted }) {
+function ExerciseBlock({ index, ex, unitId, unitName, program, categoryKey, skill, last, onSubmitted }) {
   const dialog = useDialog();
   const [open, setOpen] = useState(false);
   const answersApi = useAnswers(last ? last.answers : null);
@@ -549,6 +551,7 @@ function ExerciseBlock({ index, ex, unitId, unitName, categoryKey, skill, last, 
         open={!!popup}
         onClose={() => setPopup(null)}
         variant="exercise"
+        program={program}
         score={popup?.score}
         total={popup?.total}
         isLate={popup?.isLate}

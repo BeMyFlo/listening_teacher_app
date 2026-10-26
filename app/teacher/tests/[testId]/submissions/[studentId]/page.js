@@ -9,6 +9,7 @@ import { useDialog } from "@/components/ui/Dialog";
 import { pollAiGrade } from "@/lib/client/aiGrade";
 import { testSkillsFor } from "@/lib/teacher/testBuilder";
 import { programOf } from "@/lib/curriculum";
+import { usesTenPoint, formatTenPoint } from "@/lib/tenPoint";
 import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
 
 function pct(score, total) {
@@ -266,7 +267,7 @@ function FormatStatsPanel({ stats }) {
   );
 }
 
-function AutoSkillPanel({ skill, toeic }) {
+function AutoSkillPanel({ skill, toeic, ten }) {
   if (!skill.submissionId) {
     return <div className="empty-state">Student hasn't attempted this skill yet.</div>;
   }
@@ -286,6 +287,11 @@ function AutoSkillPanel({ skill, toeic }) {
           <h2 style={{ margin: "2px 0 8px" }}>
             {skill.score}/{skill.total} <span style={{ color: "var(--muted)", fontWeight: 600, fontSize: "1rem" }}>({pct(skill.score, skill.total)}%)</span>
           </h2>
+          {ten && formatTenPoint(skill.score, skill.total) && (
+            <p style={{ margin: "4px 0", fontWeight: 600 }}>
+              {formatTenPoint(skill.score, skill.total)} ({skill.score}/{skill.total} correct)
+            </p>
+          )}
           {toeic && (
             <p style={{ margin: "4px 0", fontWeight: 600 }}>
               {toeicResultLine(skill.key, skill.score, skill.total)}
@@ -532,6 +538,7 @@ function Inner() {
   const skillByKey = Object.fromEntries(data.skills.map((s) => [s.key, s]));
   const activeSkill = skillByKey[active];
   const toeic = usesToeicScale(programOf(data.test));
+  const ten = usesTenPoint(programOf(data.test));
   const toeicTotal = toeic
     ? formatToeicTotalFromSubs(
         skillByKey.listening && skillByKey.listening.submissionId ? skillByKey.listening : null,
@@ -578,7 +585,7 @@ function Inner() {
       ) : (
         <div className="card">
           {activeSkill.kind === "auto" ? (
-            <AutoSkillPanel skill={activeSkill} toeic={toeic} />
+            <AutoSkillPanel skill={activeSkill} toeic={toeic} ten={ten} />
           ) : (
             <PromptSkillPanel skill={activeSkill} onGraded={load} />
           )}

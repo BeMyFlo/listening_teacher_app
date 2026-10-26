@@ -15,6 +15,7 @@ import { useDialog } from "@/components/ui/Dialog";
 import RubricResult from "@/components/RubricResult";
 import NotebookFab from "@/components/student/NotebookFab";
 import { PROGRAMS, programOf, testSkillLabel } from "@/lib/curriculum";
+import { usesTenPoint, formatTenPoint } from "@/lib/tenPoint";
 import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
 import { groupFieldsByPart, groupPromptsByTask } from "@/lib/partGroups";
 import { isToeicTaskType, toeicTask } from "@/lib/toeicTasks";
@@ -292,6 +293,8 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
   const isListening = skill === "listening";
   // Đề TOEIC (thang quy đổi): tiêu đề Part + điểm ước tính. IELTS không đổi.
   const toeic = usesToeicScale(programOf(test));
+  // General: điểm thang 10.
+  const ten = usesTenPoint(programOf(test));
 
   const setSectionPhase = (si) => (p) =>
     setAudioPhase((prev) => (prev[si] === p ? prev : { ...prev, [si]: p }));
@@ -405,6 +408,11 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
                 / <span>{result.total}</span>
               </span>
             </div>
+            {ten && formatTenPoint(result.score, result.total) && (
+              <div className="toeic-estimate">
+                <div>{formatTenPoint(result.score, result.total)} ({result.score}/{result.total} correct)</div>
+              </div>
+            )}
             {toeic && (
               <div className="toeic-estimate">
                 <div>{toeicResultLine(skill, result.score, result.total)}</div>

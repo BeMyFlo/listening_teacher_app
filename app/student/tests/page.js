@@ -8,6 +8,7 @@ import { SKILL_TABS, QUESTION_SKILLS } from "@/lib/student/constants";
 import { latestExamSub } from "@/lib/student/submissions";
 import { PROGRAMS, programOf, testSkillLabel, levelWordOf } from "@/lib/curriculum";
 import { formatScore, toeicSkillSummary } from "@/lib/scoreLabel";
+import { usesTenPoint, formatTenPoint } from "@/lib/tenPoint";
 import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
 
 // Kỹ năng hiển thị của 1 đề = testSkills của chương trình (API cũng trả kỹ năng ẩn là rỗng).
@@ -124,13 +125,15 @@ function TestCard({ row, subs }) {
 
   // Mock Test TOEIC: "38/50 correct · ≈ 385 / 495 (estimated)" + tổng L+R. IELTS giữ "score/total".
   const toeic = usesToeicScale(programOf(row));
+  // General: điểm thang 10 "7.75 / 10 (31/40)".
+  const ten = usesTenPoint(programOf(row));
   const rowTabs = tabsForRow(row);
   const bits = [];
   rowTabs.forEach((tab) => {
     const sub = latestExamSub(subs, row.id, tab.key);
     if (!sub) return;
     if (tab.key === "listening" || tab.key === "reading")
-      bits.push(`${tab.label}: ${toeic ? toeicResultLine(tab.key, sub.score, sub.total) : `${sub.score}/${sub.total}`}`);
+      bits.push(`${tab.label}: ${toeic ? toeicResultLine(tab.key, sub.score, sub.total) : ten && formatTenPoint(sub.score, sub.total) ? `${formatTenPoint(sub.score, sub.total)} (${sub.score}/${sub.total})` : `${sub.score}/${sub.total}`}`);
     else {
       // TOEIC Writing/Speaking: tổng điểm thô các đề ("Speaking: 27/35 points"), chưa đủ thì "x/y graded".
       const sw = toeicSkillSummary(subs, row.id, tab.key, row.skills?.[tab.key]?.count);
@@ -182,7 +185,7 @@ function SkillBox({ row, tab, meta, subs }) {
       <>
         <span className="muted">{meta.count}/{meta.count} questions done</span>
         <br />
-        <b>Score: {sub.score}/{sub.total}</b>
+        <b>Score: {usesTenPoint(programOf(row)) && formatTenPoint(sub.score, sub.total) ? `${formatTenPoint(sub.score, sub.total)} (${sub.score}/${sub.total})` : `${sub.score}/${sub.total}`}</b>
       </>
     );
     cta = "Retake";
