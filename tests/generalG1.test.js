@@ -73,7 +73,7 @@ test("round-trip kind 'reorder': fieldToServer -> normalizeSections -> fieldFrom
   assert.equal(backToEditor.answersText, "she hasn't finished it?\nshe has not finished it?");
 });
 
-test("round-trip kind 'fill' với matchMode 'sentence': giữ nguyên kind fill và tokens []", () => {
+test("round-trip kind 'fill' với matchMode 'sentence': giữ nguyên kind fill, không gửi tokens", () => {
   const editorField = {
     ...emptyField(2),
     kind: "fill",
@@ -86,7 +86,7 @@ test("round-trip kind 'fill' với matchMode 'sentence': giữ nguyên kind fill
   const serverField = fieldToServer(editorField);
   assert.equal(serverField.type, "fill");
   assert.equal(serverField.matchMode, "sentence");
-  assert.deepEqual(serverField.tokens, []);
+  assert.equal(serverField.tokens, undefined);
 
   const normalized = normalizeSections([{ fields: [serverField] }]);
   const normField = normalized[0].fields[0];
@@ -99,7 +99,7 @@ test("round-trip kind 'fill' với matchMode 'sentence': giữ nguyên kind fill
   assert.deepEqual(backToEditor.tokens, []);
 });
 
-test("round-trip kind 'mcq': tokens luôn [] và matchMode ''", () => {
+test("round-trip kind 'mcq': không gửi tokens/matchMode, đọc lại ra [] và ''", () => {
   const editorField = {
     ...emptyField(3),
     kind: "mcq",
@@ -114,8 +114,8 @@ test("round-trip kind 'mcq': tokens luôn [] và matchMode ''", () => {
 
   const serverField = fieldToServer(editorField);
   assert.equal(serverField.type, "choice");
-  assert.equal(serverField.matchMode, "");
-  assert.deepEqual(serverField.tokens, []);
+  assert.equal(serverField.matchMode, undefined);
+  assert.equal(serverField.tokens, undefined);
 
   const normalized = normalizeSections([{ fields: [serverField] }]);
   const backToEditor = fieldFromServer(normalized[0].fields[0], normalized[0]);

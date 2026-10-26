@@ -29,7 +29,8 @@ function toPublicQuestionSkill(skill) {
         label: f.label,
         imageUrl: f.imageId && f.imageId.cloudinaryUrl,
         type: f.type,
-        tokens: f.tokens || [],
+        // Chỉ câu sắp xếp từ (G1) có tokens (đã xáo) — câu khác giữ shape cũ.
+        ...(f.tokens && f.tokens.length ? { tokens: f.tokens } : {}),
         pre: f.pre,
         post: f.post,
         hint: f.hint || "",
