@@ -136,3 +136,71 @@ test("lessonSkillAllowed / testSkillAllowed đọc registry theo chương trình
   assert.equal(lessonSkillAllowed({ program: "toeic" }, undefined), false);
   assert.equal(testSkillAllowed({ program: "ielts" }, "constructor"), false);
 });
+
+// ------------------------------------------- Phase 12 G0 bước 1: key mới + helper
+
+const { skillLabel, testSkillLabel, levelWordOf, levelAllowed, LEVEL_MAX_LOCAL } = require("../lib/curriculum");
+const { LEVEL_MAX } = require("../lib/levelNames");
+
+test("registry: mọi chương trình có đủ key G0 đúng kiểu", () => {
+  for (const k of PROGRAM_KEYS) {
+    const p = PROGRAMS[k];
+    assert.equal(typeof p.levelWord, "string", k);
+    assert.ok(p.fixedLevels === null || Array.isArray(p.fixedLevels), k);
+    assert.equal(typeof p.skillLabels, "object", k);
+    assert.equal(typeof p.testSkillLabels, "object", k);
+    assert.equal(typeof p.excelImport, "boolean", k);
+    assert.equal(typeof p.legacyFormatGuess, "boolean", k);
+    assert.ok(p.formatPlaceholder === null || typeof p.formatPlaceholder === "string", k);
+    assert.equal(typeof p.aiLevel.label, "string", k);
+    assert.equal(typeof p.aiLevel.placeholder, "string", k);
+    assert.ok(Array.isArray(p.aiLevel.suggestions) && p.aiLevel.suggestions.length > 0, k);
+    assert.equal(typeof p.levelNamePlaceholder, "string", k);
+  }
+});
+
+test("registry: giá trị ielts/toeic y hệt code viết cứng trước G0", () => {
+  const i = PROGRAMS.ielts;
+  const t = PROGRAMS.toeic;
+  assert.equal(i.levelWord, "Level");
+  assert.equal(t.levelWord, "Level");
+  assert.equal(i.excelImport, true);
+  assert.equal(t.excelImport, false);
+  assert.equal(i.legacyFormatGuess, true);
+  assert.equal(t.legacyFormatGuess, false);
+  assert.equal(i.formatPlaceholder, null);
+  assert.equal(t.formatPlaceholder, "Choose a Part…");
+  assert.equal(i.aiLevel.label, "Students' level (IELTS band or CEFR)");
+  assert.equal(i.aiLevel.placeholder, "e.g. 6.5, 5.0–5.5, B1");
+  assert.deepEqual(i.aiLevel.suggestions, [
+    "3.0", "3.5", "4.0", "4.5", "5.0", "5.5", "6.0", "6.5", "7.0", "7.5", "8.0", "A1", "A2", "B1", "B2", "C1",
+  ]);
+  assert.equal(t.aiLevel.label, "Students' level (TOEIC score)");
+  assert.equal(t.aiLevel.placeholder, "e.g. 550, 450–600, 750+");
+  assert.deepEqual(t.aiLevel.suggestions, ["300", "400", "450", "500", "550", "600", "650", "700", "750", "800", "850"]);
+  assert.equal(i.levelNamePlaceholder, "e.g. Band 3.5–5.0");
+  assert.equal(t.levelNamePlaceholder, "e.g. 300–450");
+});
+
+test("skillLabel / testSkillLabel: rỗng -> fallback; levelWordOf", () => {
+  for (const p of ["ielts", "toeic", "bogus", undefined]) {
+    assert.equal(skillLabel(p, "vocabulary", "Vocabulary"), "Vocabulary");
+    assert.equal(testSkillLabel(p, "reading", "Reading"), "Reading");
+    assert.equal(levelWordOf(p), "Level");
+  }
+});
+
+test("levelAllowed: số nguyên 1..50, chương trình lạ = ielts", () => {
+  assert.equal(levelAllowed("ielts", 1), true);
+  assert.equal(levelAllowed("toeic", 50), true);
+  assert.equal(levelAllowed("ielts", 51), false);
+  assert.equal(levelAllowed("ielts", 0), false);
+  assert.equal(levelAllowed("ielts", 1.5), false);
+  assert.equal(levelAllowed("ielts", "3"), false);
+  assert.equal(levelAllowed("bogus", 3), true);
+  assert.equal(levelAllowed(undefined, 51), false);
+});
+
+test("LEVEL_MAX_LOCAL khớp LEVEL_MAX của levelNames", () => {
+  assert.equal(LEVEL_MAX_LOCAL, LEVEL_MAX);
+});
