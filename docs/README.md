@@ -19,6 +19,7 @@
 - [PLAN-LANDING-PAGE.md](plans/PLAN-LANDING-PAGE.md): Phase 11, trang giới thiệu www.bemyflo.com
 - [PLAN-PHASE12-GENERAL-ENGLISH.md](plans/PLAN-PHASE12-GENERAL-ENGLISH.md): Phase 12, chương trình General English lớp 6–12 (phân tích + lộ trình, đã chốt Q1–Q10)
 - [PLAN-PHASE12-G0.md](plans/PLAN-PHASE12-G0.md): Phase 12 đợt G0, bản thi hành (registry General, 27 chỗ `=== "toeic"`, level Grade 6–12, điểm thang 10)
+- [PLAN-PHASE12-G1.md](plans/PLAN-PHASE12-G1.md): Phase 12 đợt G1, đủ dạng bài phổ thông (gạch chân, sắp xếp từ, viết lại câu, Accept this answer)
 
 ## Multi-tenant (`plans/multi-tenant/`)
 
