@@ -338,6 +338,7 @@ export const SpeakingPrompt = forwardRef(function SpeakingPrompt(
         audioPublicId,
       });
       clear();
+      setBusy(false);
       setResult({ isLate: !!(res && res.isLate), dueAt: res && res.dueAt });
       onSubmitted && (await onSubmitted());
     } catch (e) {
