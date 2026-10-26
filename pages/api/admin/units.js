@@ -11,7 +11,7 @@ const { sanitizeYouTube } = require("../../../lib/lessonImport");
 const { sanitizeVocabReview } = require("../../../lib/vocabReviewSource");
 const { announceDeadlines } = require("../../../lib/notifications/deadlineAssign");
 const { regradeUnitSubmissions } = require("../../../lib/teacher/regrade");
-const { DEFAULT_PROGRAM, isProgram, programOf, programFilter } = require("../../../lib/curriculum");
+const { PROGRAMS, DEFAULT_PROGRAM, isProgram, programOf, programFilter, levelAllowed } = require("../../../lib/curriculum");
 const { programLockReason, resolveProgramChange } = require("../../../lib/curriculumServer");
 
 const S = (v) => String(v == null ? "" : v);
@@ -175,13 +175,16 @@ async function handler(req, res) {
     if (!name || !String(name).trim()) {
       return res.status(400).json({ ok: false, error: "Missing Unit name" });
     }
-    if (!Number.isInteger(level) || level < 1) {
-      return res.status(400).json({ ok: false, error: "Please select a valid level" });
-    }
     // Không gửi program -> IELTS (client cũ giữ hành vi cũ); gửi giá trị lạ -> 400.
     const rawProgram = req.body.program;
     const program = rawProgram == null ? DEFAULT_PROGRAM : rawProgram;
     if (!isProgram(program)) return res.status(400).json({ ok: false, error: "Invalid program" });
+    if (!levelAllowed(program, level)) {
+      return res.status(400).json({
+        ok: false,
+        error: PROGRAMS[program].fixedLevels ? "Choose a grade from 6 to 12." : "Please select a valid level",
+      });
+    }
     const deadlines = await sanitizeDeadlines(req.ws, req.body.deadlines, level, program);
     if (deadlines.error) return res.status(400).json({ ok: false, error: deadlines.error });
 
@@ -236,16 +239,16 @@ async function handler(req, res) {
       }
       unit.name = String(name).trim();
     }
-    if (level != null) {
-      const lvl = Number(level);
-      if (!Number.isInteger(lvl) || lvl < 1) {
-        return res.status(400).json({ ok: false, error: "Invalid level" });
-      }
-      unit.level = lvl;
-    }
+    if (level != null) unit.level = Number(level);
     if (programChange.changed) unit.program = program;
     // Từ đây mọi sanitize lọc lớp theo (workspace, level, program) của Unit.
     const unitProgram = programOf(unit);
+    if (!levelAllowed(unitProgram, unit.level)) {
+      return res.status(400).json({
+        ok: false,
+        error: PROGRAMS[unitProgram].fixedLevels ? "Choose a grade from 6 to 12." : "Invalid level",
+      });
+    }
     if (classIds != null) {
       unit.classIds = await sanitizeClassIds(req.ws, classIds, unit.level, unitProgram);
     }

@@ -7,14 +7,15 @@ const {
   isProgram,
   programOf,
   programFilter,
+  parseProgramParam,
   studentContentFilter,
   lessonSkillAllowed,
   testSkillAllowed,
 } = require("../lib/curriculum");
 const { activePrograms } = require("../lib/curriculumServer");
 
-test("registry: ielts và toeic đúng như plan 3.1", () => {
-  assert.deepEqual(PROGRAM_KEYS, ["ielts", "toeic"]);
+test("registry: ielts, toeic và general đúng như plan", () => {
+  assert.deepEqual(PROGRAM_KEYS, ["ielts", "toeic", "general"]);
   assert.equal(DEFAULT_PROGRAM, "ielts");
 
   assert.deepEqual(PROGRAMS.ielts.lessonSkills, ["grammar", "vocabulary", "listening", "reading", "writing", "speaking"]);
@@ -26,6 +27,25 @@ test("registry: ielts và toeic đúng như plan 3.1", () => {
   assert.deepEqual(PROGRAMS.toeic.testSkills, ["listening", "reading", "writing", "speaking"]);
   assert.deepEqual(PROGRAMS.toeic.defaultDurations, { listening: 45, reading: 75, writing: 60, speaking: 20 });
   assert.equal(PROGRAMS.toeic.scoring, "toeic-scaled");
+
+  assert.equal(PROGRAMS.general.label, "General English");
+  assert.deepEqual(PROGRAMS.general.lessonSkills, ["grammar", "vocabulary", "listening", "reading"]);
+  assert.deepEqual(PROGRAMS.general.testSkills, ["listening", "reading"]);
+  assert.deepEqual(PROGRAMS.general.defaultDurations, { listening: 15, reading: 45 });
+  assert.equal(PROGRAMS.general.scoring, "ten-point");
+  assert.equal(PROGRAMS.general.levelWord, "Grade");
+  assert.deepEqual(PROGRAMS.general.fixedLevels, [6, 7, 8, 9, 10, 11, 12]);
+  assert.deepEqual(PROGRAMS.general.skillLabels, { vocabulary: "Vocabulary & Pronunciation" });
+  assert.deepEqual(PROGRAMS.general.testSkillLabels, { reading: "Written paper" });
+  assert.equal(PROGRAMS.general.excelImport, true);
+  assert.equal(PROGRAMS.general.legacyFormatGuess, false);
+  assert.equal(PROGRAMS.general.formatPlaceholder, "Choose a question type…");
+  assert.deepEqual(PROGRAMS.general.aiLevel, {
+    label: "Students' level (grade or CEFR)",
+    placeholder: "e.g. Grade 7, A2",
+    suggestions: ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12", "A1", "A2", "B1"],
+  });
+  assert.equal(PROGRAMS.general.levelNamePlaceholder, "e.g. Grade 10 entrance prep");
 
   for (const k of PROGRAM_KEYS) {
     assert.equal(PROGRAMS[k].key, k);
@@ -40,6 +60,7 @@ test("registry: ielts và toeic đúng như plan 3.1", () => {
 test("isProgram", () => {
   assert.equal(isProgram("ielts"), true);
   assert.equal(isProgram("toeic"), true);
+  assert.equal(isProgram("general"), true);
   for (const bad of ["abc", "", "IELTS", null, undefined, 1, {}, "constructor", "__proto__", "toString"]) {
     assert.equal(isProgram(bad), false, String(bad));
   }
@@ -53,11 +74,14 @@ test("programOf: thiếu/sai -> ielts, hợp lệ giữ nguyên", () => {
   assert.equal(programOf({ program: "abc" }), "ielts");
   assert.equal(programOf({ program: "ielts" }), "ielts");
   assert.equal(programOf({ program: "toeic" }), "toeic");
+  assert.equal(programOf({ program: "general" }), "general");
 });
 
-test("programFilter: ielts khớp cả doc thiếu field, toeic khớp đúng", () => {
+test("programFilter và parseProgramParam: ielts khớp cả doc thiếu field; toeic/general khớp đúng", () => {
   assert.deepEqual(programFilter("ielts"), { program: { $in: ["ielts", null] } });
   assert.deepEqual(programFilter("toeic"), { program: "toeic" });
+  assert.deepEqual(programFilter("general"), { program: "general" });
+  assert.deepEqual(parseProgramParam("general"), { program: "general" });
 });
 
 // Model giả: distinct("program", filter) trả giá trị cho trước, ghi lại filter.
@@ -182,15 +206,20 @@ test("registry: giá trị ielts/toeic y hệt code viết cứng trước G0", 
   assert.equal(t.levelNamePlaceholder, "e.g. 300–450");
 });
 
-test("skillLabel / testSkillLabel: rỗng -> fallback; levelWordOf", () => {
+test("skillLabel / testSkillLabel: rỗng -> fallback; general đè nhãn; levelWordOf", () => {
   for (const p of ["ielts", "toeic", "bogus", undefined]) {
     assert.equal(skillLabel(p, "vocabulary", "Vocabulary"), "Vocabulary");
     assert.equal(testSkillLabel(p, "reading", "Reading"), "Reading");
     assert.equal(levelWordOf(p), "Level");
   }
+  assert.equal(skillLabel("general", "vocabulary", "Vocabulary"), "Vocabulary & Pronunciation");
+  assert.equal(skillLabel("general", "grammar", "Grammar"), "Grammar");
+  assert.equal(testSkillLabel("general", "reading", "Reading"), "Written paper");
+  assert.equal(testSkillLabel("general", "listening", "Listening"), "Listening");
+  assert.equal(levelWordOf("general"), "Grade");
 });
 
-test("levelAllowed: số nguyên 1..50, chương trình lạ = ielts", () => {
+test("levelAllowed: ielts/toeic 1..50; general chỉ 6..12; chương trình lạ = ielts", () => {
   assert.equal(levelAllowed("ielts", 1), true);
   assert.equal(levelAllowed("toeic", 50), true);
   assert.equal(levelAllowed("ielts", 51), false);
@@ -199,6 +228,41 @@ test("levelAllowed: số nguyên 1..50, chương trình lạ = ielts", () => {
   assert.equal(levelAllowed("ielts", "3"), false);
   assert.equal(levelAllowed("bogus", 3), true);
   assert.equal(levelAllowed(undefined, 51), false);
+  for (const g of [6, 7, 8, 9, 10, 11, 12]) {
+    assert.equal(levelAllowed("general", g), true, `grade ${g}`);
+  }
+  for (const bad of [0, 1, 5, 13, 50, 7.5, "7", null, undefined]) {
+    assert.equal(levelAllowed("general", bad), false, `bad grade ${String(bad)}`);
+  }
+});
+
+test("lessonSkillAllowed / testSkillAllowed: general chưa mở writing/speaking (G0)", () => {
+  for (const k of ["grammar", "vocabulary", "listening", "reading"]) {
+    assert.equal(lessonSkillAllowed({ program: "general" }, k), true, k);
+  }
+  assert.equal(lessonSkillAllowed({ program: "general" }, "writing"), false);
+  assert.equal(lessonSkillAllowed({ program: "general" }, "speaking"), false);
+  assert.equal(testSkillAllowed({ program: "general" }, "listening"), true);
+  assert.equal(testSkillAllowed({ program: "general" }, "reading"), true);
+  assert.equal(testSkillAllowed({ program: "general" }, "writing"), false);
+  assert.equal(testSkillAllowed({ program: "general" }, "speaking"), false);
+});
+
+test("Schema Class/Unit/Test/Submission nhận program: 'general'", () => {
+  const Class = require("../lib/models/Class");
+  const Unit = require("../lib/models/Unit");
+  const Test = require("../lib/models/Test");
+  const Submission = require("../lib/models/Submission");
+  const wsId = "64b000000000000000000001";
+  const stId = "64b000000000000000000002";
+
+  assert.equal(new Class({ workspaceId: wsId, name: "7A", level: 7, program: "general" }).validateSync(), undefined);
+  assert.equal(new Unit({ workspaceId: wsId, name: "U1", level: 7, program: "general" }).validateSync(), undefined);
+  assert.equal(new Test({ workspaceId: wsId, title: "T1", level: 7, program: "general" }).validateSync(), undefined);
+  assert.equal(
+    new Submission({ workspaceId: wsId, studentId: stId, studentName: "An", program: "general" }).validateSync(),
+    undefined
+  );
 });
 
 test("LEVEL_MAX_LOCAL khớp LEVEL_MAX của levelNames", () => {
