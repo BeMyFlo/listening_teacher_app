@@ -14,7 +14,7 @@ import { useTabSwitchGuard } from "@/components/student/useTabSwitchGuard";
 import { useDialog } from "@/components/ui/Dialog";
 import RubricResult from "@/components/RubricResult";
 import NotebookFab from "@/components/student/NotebookFab";
-import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { PROGRAMS, programOf, testSkillLabel } from "@/lib/curriculum";
 import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
 import { groupFieldsByPart, groupPromptsByTask } from "@/lib/partGroups";
 import { isToeicTaskType, toeicTask } from "@/lib/toeicTasks";
@@ -141,7 +141,7 @@ export default function TakeTestPage() {
               storageKey={timerKey}
             />
           ) : null}
-          <span className={"badge test " + skill}>{tab.label} Test</span>
+          <span className={"badge test " + skill}>{testSkillLabel(programOf(test), skill, tab.label)} Test</span>
           <h2>{(test.unit ? test.unit + " · " : "") + test.title}</h2>
           {skillData.instructions && (
             <p style={{ color: "var(--muted)", marginBottom: 20 }}>{skillData.instructions}</p>
@@ -396,7 +396,7 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
         <div className="card">
           <div className="score-box">
             <div style={{ color: "var(--muted)", fontWeight: 600 }}>
-              {test.unit} · {test.title} — {tab.label} — {studentName}
+              {test.unit} · {test.title} — {testSkillLabel(programOf(test), skill, tab.label)} — {studentName}
             </div>
             <div className="big">
               <span>{result.score}</span>
@@ -495,7 +495,7 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
         {skillData.durationMinutes ? (
           <Countdown minutes={Number(skillData.durationMinutes)} onExpire={submit} storageKey={timerKey} />
         ) : null}
-        <span className={"badge test " + skill}>{tab.label} Test</span>
+        <span className={"badge test " + skill}>{testSkillLabel(programOf(test), skill, tab.label)} Test</span>
         <h2>{test.unit} · {test.title}</h2>
         <p style={{ color: "var(--muted)", marginBottom: 20 }}>{skillData.instructions}</p>
         {sections.length > 1 && (

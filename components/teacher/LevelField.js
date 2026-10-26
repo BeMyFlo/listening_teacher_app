@@ -14,10 +14,12 @@ const NEW = "__new";
 
 // `value`: số level đang chọn, hoặc null (chưa chọn). `keepLevels`: level luôn có trong danh sách
 // (vd level hiện tại của lớp đang sửa, kể cả khi chưa có tên).
-export default function LevelField({ program, value, onChange, keepLevels = [], label = "Level" }) {
+export default function LevelField({ program, value, onChange, keepLevels = [], label }) {
   const dialog = useDialog();
   const { levels, loaded, error, addLevel } = useLevels();
   const prog = PROGRAMS[programOf({ program })] || PROGRAMS.ielts;
+  // Nhãn ô: "Level" (IELTS, TOEIC) | "Grade" (General), trừ khi nơi gọi truyền label riêng.
+  const fieldLabel = label || prog.levelWord;
   const hasFixedLevels = Array.isArray(prog.fixedLevels);
 
   const options = useMemo(() => {
@@ -67,16 +69,16 @@ export default function LevelField({ program, value, onChange, keepLevels = [], 
 
   return (
     <div className="form-row" style={{ marginBottom: 0 }}>
-      <label>{label}</label>
+      <label>{fieldLabel}</label>
       <select
         value={valid ? String(current) : ""}
         disabled={!loaded}
         onChange={(e) => onSelect(e.target.value)}
-        aria-label={label}
+        aria-label={fieldLabel}
       >
         {!valid && (
           <option value="" disabled hidden>
-            {loaded ? "Select a level" : "Loading…"}
+            {loaded ? `Select a ${prog.levelWord.toLowerCase()}` : "Loading…"}
           </option>
         )}
         {options.map((o) => (
