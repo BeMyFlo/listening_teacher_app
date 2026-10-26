@@ -1,14 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { TEST_SKILLS } from "@/lib/teacher/testBuilder";
 import { useDialog } from "@/components/ui/Dialog";
+import { programOf } from "@/lib/curriculum";
+import { programParam, usePrograms } from "@/lib/client/program";
+import ProgramChips, { ProgramEmpty } from "@/components/teacher/ProgramChips";
+import ProgramBadge from "@/components/ProgramBadge";
 
-export default function TeacherTestsPage() {
+function TeacherTestsInner() {
   const dialog = useDialog();
   const router = useRouter();
+  const search = useSearchParams();
+  const program = programParam(search); // null = All
+  const { isMulti, programs, levelLabel } = usePrograms();
   const [rows, setRows] = useState(null);
   const [classes, setClasses] = useState([]);
   const [listErr, setListErr] = useState("");
@@ -24,15 +31,35 @@ export default function TeacherTestsPage() {
       .catch((e) => setListErr(e.message));
   }
   useEffect(load, []);
+  // Đổi chip -> bỏ bộ lọc level/lớp cũ (có thể thuộc chương trình khác).
+  useEffect(() => {
+    setLevelFilter("all");
+    setClassFilter("all");
+  }, [program]);
 
   const classById = useMemo(() => Object.fromEntries(classes.map((c) => [String(c._id), c])), [classes]);
+  // Lọc theo chương trình (chip): đề và lớp của chương trình khác không xuất hiện
+  // ở danh sách, bộ lọc level, bộ lọc lớp. Không có chip = tất cả như trước.
+  const progRows = useMemo(
+    () => (rows || []).filter((t) => !program || programOf(t) === program),
+    [rows, program]
+  );
+  const progClasses = useMemo(
+    () => classes.filter((c) => !program || programOf(c) === program),
+    [classes, program]
+  );
   const levels = useMemo(() => {
-    const set = new Set((rows || []).map((t) => t.level));
-    classes.forEach((c) => set.add(c.level));
+    const set = new Set(progRows.map((t) => t.level));
+    progClasses.forEach((c) => set.add(c.level));
     return [...set].filter((x) => x != null).sort((a, b) => a - b);
-  }, [rows, classes]);
+  }, [progRows, progClasses]);
 
-  const filtered = (rows || []).filter((t) => {
+  // Nhãn level ở bộ lọc: theo chip đang chọn, hoặc chương trình duy nhất. Chip All + nhiều
+  // chương trình: một số level chung cho cả hai chương trình -> giữ "Level N" như cũ.
+  const labelProgram = program || (isMulti ? null : programs[0]);
+  const filterLabel = (l) => (labelProgram ? levelLabel(labelProgram, l) : "Level " + l);
+
+  const filtered = progRows.filter((t) => {
     if (levelFilter !== "all" && t.level !== Number(levelFilter)) return false;
     if (classFilter === "all") return true;
     if (classFilter === "__none__") return !t.classIds || t.classIds.length === 0;
@@ -57,7 +84,7 @@ export default function TeacherTestsPage() {
   }
 
   const classesForFilter =
-    levelFilter === "all" ? classes : classes.filter((c) => c.level === Number(levelFilter));
+    levelFilter === "all" ? progClasses : progClasses.filter((c) => c.level === Number(levelFilter));
 
   return (
     <div className="tab-panel active">
@@ -69,10 +96,16 @@ export default function TeacherTestsPage() {
             <p className="page-sub">Create and publish mock tests by level — 1 to 4 skills each</p>
           </div>
         </div>
-        <button type="button" className="btn" onClick={() => router.push("/teacher/tests/new")}>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => router.push("/teacher/tests/new" + (program ? "?program=" + program : ""))}
+        >
           <svg className="icon"><use href="#icon-plus" /></svg> Create Test
         </button>
       </div>
+
+      <ProgramChips />
 
       <div className="card">
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
@@ -80,7 +113,7 @@ export default function TeacherTestsPage() {
             <option value="all">All levels</option>
             {levels.map((l) => (
               <option key={l} value={l}>
-                Level {l}
+                {filterLabel(l)}
               </option>
             ))}
           </select>
@@ -102,7 +135,12 @@ export default function TeacherTestsPage() {
         )}
         {!rows && !listErr && <div className="notice info">Loading...</div>}
         <div id="testsList" style={{ marginTop: 4 }}>
-          {rows && filtered.length === 0 && <div className="empty-state">No mock tests found.</div>}
+          {rows && filtered.length === 0 &&
+            (program && progRows.length === 0 ? (
+              <ProgramEmpty program={program} what="mock tests yet" />
+            ) : (
+              <div className="empty-state">No mock tests found.</div>
+            ))}
           {filtered.map((t) => {
             const skills = TEST_SKILLS.filter((s) => {
               const sk = (t.skills || {})[s.key] || {};
@@ -118,9 +156,10 @@ export default function TeacherTestsPage() {
                   <h4>
                     {(t.unit ? t.unit + " · " : "") + t.title}{" "}
                     <span className={"status-pill " + t.status}>{t.status === "published" ? "Published" : "Draft"}</span>
+                    <ProgramBadge program={programOf(t)} isMulti={isMulti} />
                   </h4>
                   <p>
-                    Level {t.level != null ? t.level : "-"} ·{" "}
+                    {t.level != null ? levelLabel(programOf(t), t.level) : "Level -"} ·{" "}
                     {assigned.length ? "Classes: " + assigned.join(", ") : "All students"} · Skills:{" "}
                     {skills.length ? skills.join(", ") : "none yet"}
                     {sched.length ? " · " + sched.join(" · ") : ""}
@@ -148,5 +187,13 @@ export default function TeacherTestsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TeacherTestsPage() {
+  return (
+    <Suspense fallback={<div className="tab-panel active"><div className="notice info">Loading...</div></div>}>
+      <TeacherTestsInner />
+    </Suspense>
   );
 }

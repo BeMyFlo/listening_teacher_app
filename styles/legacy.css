@@ -30,6 +30,14 @@
      màu chấm bài "Cohesion" (xem lib/grading/annotate.js colorGroup). */
   --violet: #8B6FD9;
   --violet-light: #ECE6FB;
+  /* Nhãn chương trình (Phase 8). IELTS theo màu thương hiệu của workspace;
+     TOEIC là màu phụ cố định, không đổi theo theme. */
+  --program-ielts: var(--navy-dark);
+  --program-ielts-bg: var(--blue-light);
+  --program-ielts-border: var(--blue-border);
+  --program-toeic: #7A4FD0;
+  --program-toeic-bg: #EEE8FB;
+  --program-toeic-border: #D6C9F3;
   /* Dẫn xuất từ màu chính — themeToCss ghi đè khi workspace đổi màu gốc. */
   --red-light: #FFE0E2;
   --blue-border: #C1E9E1;
@@ -1327,6 +1335,59 @@ tr:hover td { background: var(--pink-wash-2); }
 }
 .status-pill.published { background: var(--teal-light); color: var(--green); }
 .status-pill.draft { background: #F0EDF2; color: var(--muted); }
+
+/* ---------- Program (IELTS / TOEIC) — Phase 8 ---------- */
+.program-badge {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 6px;
+  font-size: .68rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.program-badge.program-ielts { color: var(--program-ielts); background: var(--program-ielts-bg); border-color: var(--program-ielts-border); }
+.program-badge.program-toeic { color: var(--program-toeic); background: var(--program-toeic-bg); border-color: var(--program-toeic-border); }
+
+.program-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.program-chip {
+  padding: 6px 14px;
+  font-size: .84rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.program-chip:hover { color: var(--blue); border-color: var(--blue); }
+.program-chip.active { color: #fff; background: var(--blue); border-color: var(--blue); }
+
+.program-radios { display: flex; flex-wrap: wrap; gap: 16px; padding: 9px 0; }
+.program-radios label { display: flex; align-items: center; gap: 6px; font-weight: 400; margin: 0; cursor: pointer; }
+.program-radios.locked label { cursor: not-allowed; color: var(--muted); }
+.program-hint { margin: 4px 0 0; font-size: .8rem; color: var(--muted); }
+
+.program-section { margin-bottom: 26px; }
+.program-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.program-section-head h2 { margin: 0; font-size: 1.1rem; color: var(--navy); }
+.program-section-head p { margin: 2px 0 0; font-size: .82rem; color: var(--muted); }
+
+/* Dark mode: app chưa có chế độ tối; khối này chỉ có tác dụng khi gắn data-theme="dark" lên <html>. */
+:root[data-theme="dark"] {
+  --program-ielts: #9FD8CC;
+  --program-ielts-bg: rgba(77, 191, 169, .16);
+  --program-ielts-border: rgba(77, 191, 169, .35);
+  --program-toeic: #C3AEF2;
+  --program-toeic-bg: rgba(139, 111, 217, .18);
+  --program-toeic-border: rgba(139, 111, 217, .4);
+}
 
 .builder-section {
   border: 1px solid var(--border);
@@ -4129,3 +4190,125 @@ tr:hover td { background: var(--pink-wash-2); }
 .sidebar-brand-main { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
 .sidebar-brand-name { font-size: .8rem; font-weight: 700; line-height: 1.2; text-align: center; overflow-wrap: anywhere; color: var(--navy); }
 .app-shell.collapsed .sidebar-brand-name { display: none; }
+
+/* ---- Phase 8 bước 5: ảnh riêng của câu + dạng "Listen and choose — no printed question" ---- */
+
+/* Builder: ô "Question image" thu gọn trên dòng câu hỏi. */
+.field-image-picker { margin-top: 6px; }
+.field-image-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: none; padding: 4px 0; cursor: pointer;
+  font-size: .8rem; font-weight: 600; color: var(--muted);
+}
+.field-image-toggle:hover { color: var(--blue); }
+.field-image-toggle .icon { width: .85rem; height: .85rem; }
+.field-image-body { margin: 4px 0 2px; }
+.field-image-hint { margin: 6px 0 0; font-size: .78rem; color: var(--muted); }
+.field-image-thumb { display: block; max-width: 220px; max-height: 140px; margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; }
+
+/* Builder: dòng câu hỏi letter-only (số câu + đáp án đúng A/B/C(/D)). */
+.letter-row-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.letter-row-main .letter-row-num {
+  width: 64px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px;
+  font-size: .9rem; font-weight: 700; text-align: center; background: var(--card);
+}
+.letter-row-label { font-size: .84rem; color: var(--muted); font-weight: 600; }
+.letter-row-choices { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.letter-row-choice {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+  border: 1px solid var(--border); border-radius: 999px; cursor: pointer;
+  font-weight: 700; font-size: .9rem; background: var(--card); min-height: 36px;
+}
+.letter-row-choice.on { border-color: var(--green); background: var(--teal-light); color: var(--green); }
+.letter-row-choice input { accent-color: var(--green); }
+.letter-row-count {
+  padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px;
+  font-size: .8rem; background: var(--card); color: var(--muted);
+}
+.letter-quick-add { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.letter-quick-add-label { font-size: .8rem; color: var(--muted); font-weight: 600; }
+.letter-quick-add .btn { padding: 6px 12px; font-size: .82rem; }
+
+/* Học sinh: ảnh riêng của câu (dùng chung style với .diagram-image) và hàng nút chữ cái. */
+.field-image { margin: 0 0 10px; }
+.field-row.letter-row { align-items: center; }
+.letter-choices { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; }
+.letter-btn {
+  min-width: 56px; min-height: 48px; padding: 8px 18px;
+  border: 2px solid var(--border); border-radius: 10px; background: var(--card);
+  font-size: 1.15rem; font-weight: 800; color: var(--ink); cursor: pointer;
+  font-family: inherit;
+}
+.letter-btn:hover:not(:disabled) { border-color: var(--blue); }
+.letter-btn.selected { border-color: var(--blue); background: var(--blue-light); color: var(--blue); }
+.letter-btn:disabled { cursor: default; }
+.letter-btn.is-correct { border-color: var(--green); background: var(--teal-light); color: var(--green); }
+.letter-btn.is-wrong { border-color: var(--red); background: var(--red-light); color: var(--red); }
+
+
+/* Phase 8 bước 6 — Mock Test TOEIC: tiêu đề Part + điểm ước tính (chỉ hiển thị). */
+.part-heading { margin: 18px 0 8px; font-size: 1rem; color: var(--navy); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.part-heading:first-child { margin-top: 4px; }
+.toeic-estimate { margin: 6px 0 10px; font-weight: 600; color: var(--navy); }
+.toeic-estimate > div + div { margin-top: 2px; font-size: .95rem; color: var(--muted); }
+
+
+/* Phase 8B bước 5 — Học sinh Lesson + Mock Writing TOEIC: từ bắt buộc, đếm từ, đồng hồ tham khảo. */
+.toeic-req-words { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+.toeic-req-label { font-size: .82rem; font-weight: 600; color: var(--muted); }
+.toeic-word-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--bg);
+  font-size: .82rem; font-weight: 700; color: var(--ink);
+}
+.toeic-word-chip.is-used {
+  border-color: var(--green); background: var(--teal-light); color: var(--green);
+}
+.toeic-writing-meta {
+  display: flex; justify-content: flex-end; align-items: center; margin: 4px 0 2px;
+}
+.toeic-word-count { font-size: .82rem; font-weight: 600; color: var(--muted); }
+
+.toeic-speaking-bar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.toeic-speaking-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.toeic-q-audio-btn { padding: 6px 12px; font-size: .84rem; }
+.toeic-ref-timer {
+  display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; align-self: flex-start;
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg);
+  font-size: .88rem; font-weight: 600; color: var(--ink);
+}
+.toeic-ref-timer .icon { width: 1rem; height: 1rem; color: var(--muted); }
+.toeic-ref-times .is-active { color: var(--blue); font-weight: 700; }
+.toeic-ref-phase { font-size: .8rem; font-weight: 700; color: var(--blue); }
+.toeic-ref-timer.phase-prep, .toeic-ref-timer.phase-speak {
+  border-color: var(--blue); background: var(--blue-light);
+}
+.toeic-ref-timer.is-expired {
+  border-color: var(--red); background: var(--red-light); color: var(--red);
+}
+.toeic-ref-timer.is-expired .icon,
+.toeic-ref-timer.is-expired .toeic-ref-phase { color: var(--red); }
+.toeic-timer-btn { padding: 4px 10px; font-size: .8rem; }
+
+/* Phase 8B bước 6 — Mock Test Speaking TOEIC runner. */
+.toeic-mic-box { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.toeic-mic-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toeic-rec-dot {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--red, #dc2626); margin-right: 6px; vertical-align: middle;
+}
+.toeic-runner-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toeic-runner-step { font-size: .84rem; font-weight: 700; color: var(--muted); }
+.toeic-runner-stage {
+  margin-top: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+}
+.toeic-runner-stage.stage-audio {
+  display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--blue);
+  border-color: var(--blue); background: var(--blue-light);
+}
+.toeic-runner-stage.stage-prep { border-color: var(--blue); background: var(--blue-light); }
+.toeic-runner-stage.stage-record { border-color: var(--red, #dc2626); background: var(--red-light); }
+.toeic-stage-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.toeic-stage-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.toeic-stage-clock { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.toeic-bg-upload-note { margin: 10px 0 0; font-size: .82rem; color: var(--muted); }

@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
+import { programParam, usePrograms } from "@/lib/client/program";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
+import ProgramChips, { ProgramEmpty } from "@/components/teacher/ProgramChips";
+import ProgramBadge from "@/components/ProgramBadge";
 
-export default function StudentsPage() {
+function StudentsInner() {
   const dialog = useDialog();
+  const search = useSearchParams();
+  const program = programParam(search); // null = All
+  const { isMulti, levelLabel } = usePrograms();
   const [rows, setRows] = useState(null);
   const [classes, setClasses] = useState([]);
   const [listErr, setListErr] = useState("");
@@ -14,14 +22,14 @@ export default function StudentsPage() {
   const [emailDraft, setEmailDraft] = useState({}); // studentId -> value đang gõ
 
   function load() {
-    Promise.all([api.teacher.listStudents(), api.teacher.listClasses().catch(() => ({ rows: [] }))])
+    Promise.all([api.teacher.listStudents(program ? { program } : undefined), api.teacher.listClasses().catch(() => ({ rows: [] }))])
       .then(([s, c]) => {
         setRows(s.rows || []);
         setClasses(c.rows || []);
       })
       .catch((e) => setListErr(e.message));
   }
-  useEffect(load, []);
+  useEffect(load, [program]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -61,6 +69,16 @@ export default function StudentsPage() {
   }
 
   async function changeClass(s, classId) {
+    const target = classes.find((c) => String(c._id) === String(classId));
+    if (target && s.classId && s.program && s.program !== programOf(target)) {
+      const ok = await dialog.confirm({
+        title: "Move to a different program?",
+        message: `${s.name} is currently in ${s.className} (${PROGRAMS[s.program].label}). Adding them here moves them to ${target.name} (${PROGRAMS[programOf(target)].label}): they will leave ${s.className} and stop seeing its lessons and tests. Their past submissions are kept. A student can only be in one class at a time.`,
+        confirmText: "Move student",
+        cancelText: "Cancel",
+      });
+      if (!ok) return;
+    }
     try {
       await api.teacher.updateStudent(s._id, { classId: classId || null });
       dialog.toast("Class updated");
@@ -116,6 +134,8 @@ export default function StudentsPage() {
         </div>
       </div>
 
+      <ProgramChips />
+
       <div className="card">
         <h3>Create New Student Account</h3>
         {classes.length === 0 && (
@@ -149,7 +169,7 @@ export default function StudentsPage() {
               <option value="">— Select a class —</option>
               {classes.map((c) => (
                 <option key={c._id} value={c._id}>
-                  {c.name} (Level {c.level})
+                  {c.name} ({levelLabel(programOf(c), c.level)})
                 </option>
               ))}
             </select>
@@ -173,7 +193,12 @@ export default function StudentsPage() {
           </div>
         )}
         {!rows && !listErr && <div className="notice info">Loading...</div>}
-        {rows && rows.length === 0 && <div className="notice info">No student accounts found.</div>}
+        {rows && rows.length === 0 &&
+          (program ? (
+            <ProgramEmpty program={program} what="students yet" />
+          ) : (
+            <div className="notice info">No student accounts found.</div>
+          ))}
         {rows && rows.length > 0 && (
           <div className="table-wrap">
             <table className="data-table">
@@ -218,6 +243,7 @@ export default function StudentsPage() {
                           </option>
                         ))}
                       </select>
+                      <ProgramBadge program={s.program} isMulti={isMulti} />
                     </td>
                     <td>{s.createdAt ? new Date(s.createdAt).toLocaleDateString("en-US") : "-"}</td>
                     <td>{s.submissionCount ?? 0}</td>
@@ -247,5 +273,13 @@ export default function StudentsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function StudentsPage() {
+  return (
+    <Suspense fallback={<div className="tab-panel active"><div className="notice info">Loading...</div></div>}>
+      <StudentsInner />
+    </Suspense>
   );
 }

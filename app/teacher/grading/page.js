@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { timeAgo } from "@/components/dash/DashKit";
+import { programParam, usePrograms } from "@/lib/client/program";
+import ProgramChips, { ProgramEmpty } from "@/components/teacher/ProgramChips";
+import ProgramBadge from "@/components/ProgramBadge";
 
 const KIND_LABEL = { writing: "Writing", speaking: "Speaking" };
 const STATUS_PILL = {
@@ -12,8 +15,11 @@ const STATUS_PILL = {
   draft: ["pill-muted", "Draft"],
 };
 
-export default function GradingQueuePage() {
+function GradingQueueInner() {
   const router = useRouter();
+  const search = useSearchParams();
+  const program = programParam(search); // null = All
+  const { isMulti } = usePrograms();
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [source, setSource] = useState("");
@@ -21,8 +27,11 @@ export default function GradingQueuePage() {
   const [q, setQ] = useState("");
 
   useEffect(() => {
-    api.teacher.gradingQueue().then(setData).catch((e) => setErr(e.message));
-  }, []);
+    api.teacher
+      .gradingQueue(program ? { program } : undefined)
+      .then(setData)
+      .catch((e) => setErr(e.message));
+  }, [program]);
 
   const rows = useMemo(() => {
     let r = data?.rows || [];
@@ -65,6 +74,8 @@ export default function GradingQueuePage() {
         </div>
       </div>
 
+      <ProgramChips />
+
       {err && <div className="notice error"><svg className="icon"><use href="#icon-warning" /></svg> {err}</div>}
       {!data && !err && <div className="notice info">Loading…</div>}
 
@@ -83,6 +94,7 @@ export default function GradingQueuePage() {
                     <td>
                       <span className={"pill " + (r.source === "lesson" ? "pill-muted" : "pill-info")} style={{ marginRight: 6 }}>{r.source}</span>
                       {r.where}
+                      <ProgramBadge program={r.program} isMulti={isMulti} />
                     </td>
                     <td>
                       {KIND_LABEL[r.kind]}{r.promptTitle ? ` — ${r.promptTitle}` : ""}
@@ -99,12 +111,28 @@ export default function GradingQueuePage() {
                 );
               })}
               {rows.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>Nothing waiting — all caught up.</td></tr>
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>
+                    {program && (data.rows || []).length === 0 ? (
+                      <ProgramEmpty program={program} what="submissions waiting" />
+                    ) : (
+                      "Nothing waiting — all caught up."
+                    )}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
       )}
     </div>
+  );
+}
+
+export default function GradingQueuePage() {
+  return (
+    <Suspense fallback={<div className="tab-panel active"><div className="notice info">Loading…</div></div>}>
+      <GradingQueueInner />
+    </Suspense>
   );
 }

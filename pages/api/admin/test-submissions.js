@@ -6,6 +6,8 @@ const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const Submission = require("../../../lib/models/Submission");
 const { buildTestOverview, buildStudentTestDetail } = require("../../../lib/teacher/testSubmissions");
+const { programOf, programFilter } = require("../../../lib/curriculum");
+const { collectFieldImageIds, testSectionLists, loadImageUrls } = require("../../../lib/fieldImages");
 
 const S = (v) => (v == null ? "" : String(v));
 
@@ -26,7 +28,11 @@ async function handler(req, res) {
   const assignedClassIds = (test.classIds || []).map(S);
   const scope = assignedClassIds.length ? "classes" : "level";
 
-  const classesAtLevel = await Class.find(tenantFilter(req.ws, { level: test.level })).sort({ name: 1 }).lean();
+  // Cùng level VÀ cùng chương trình (Level 1 IELTS khác Level 1 TOEIC) — không thì lớp
+  // chương trình kia lọt vào danh sách học sinh / số đếm của đề.
+  const classesAtLevel = await Class.find(tenantFilter(req.ws, { level: test.level, ...programFilter(programOf(test)) }))
+    .sort({ name: 1 })
+    .lean();
   const relevantClasses = scope === "classes"
     ? classesAtLevel.filter((c) => assignedClassIds.includes(S(c._id)))
     : classesAtLevel;
@@ -48,11 +54,13 @@ async function handler(req, res) {
     if (!student) return res.status(404).json({ ok: false, error: "Student not found for this test" });
     const mine = submissions.filter((s) => S(s.studentId) === S(studentId));
     const cls = student.classId ? classById[S(student.classId)] : null;
+    // Ảnh riêng của từng câu (Phase 8, 5.4) để trang review hiện cùng câu hỏi.
+    const fieldImageUrls = await loadImageUrls(req.ws, collectFieldImageIds(testSectionLists(test)));
     return res.status(200).json({
       ok: true,
-      test: { _id: test._id, title: test.title, unit: test.unit, level: test.level },
+      test: { _id: test._id, title: test.title, unit: test.unit, level: test.level, program: programOf(test) },
       student: { _id: student._id, name: student.name, className: cls ? cls.name : null },
-      skills: buildStudentTestDetail({ test, submissions: mine }),
+      skills: buildStudentTestDetail({ test, submissions: mine, fieldImageUrls }),
     });
   }
 
@@ -72,6 +80,7 @@ async function handler(req, res) {
       title: test.title,
       unit: test.unit,
       level: test.level,
+      program: programOf(test),
       opensAt: test.opensAt,
       closesAt: test.closesAt,
       classIds: assignedClassIds,

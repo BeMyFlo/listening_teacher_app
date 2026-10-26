@@ -4,12 +4,13 @@ const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant")
 const Submission = require("../../../lib/models/Submission");
 const Test = require("../../../lib/models/Test");
 const { rebuildDetail } = require("../../../lib/grade");
-const { resolveVariant, getRubric, overallBand, validateCriteria } = require("../../../lib/grading/rubric");
+const { resolveVariant, getRubric, overallBand, validateCriteria, isToeicVariant, scoreRange, taskScore } = require("../../../lib/grading/rubric");
 const { validateAnnotations, reconcileAnnotations } = require("../../../lib/grading/annotate");
 const { notifyStudentGraded } = require("../../../lib/notifications/student");
 const Student = require("../../../lib/models/Student");
 const { teacherScope } = require("../../../lib/teacherScope");
 const { asObjectId } = require("../../../lib/validate");
+const { parseProgramParam, programFilter } = require("../../../lib/curriculum");
 
 const KINDS = ["test", "exercise", "writing", "speaking"];
 const LIST_LIMIT = 500;
@@ -29,6 +30,14 @@ function validOverride(v) {
   return Number.isFinite(n) && n >= 0 && n <= 9 && Math.round(n * 2) === n * 2;
 }
 
+// TOEIC: điểm câu là số nguyên 0..maxScore của dạng đề (không có "override" tách riêng).
+function validToeicScore(variant, v) {
+  if (v === null || v === "" || v === undefined) return false;
+  const n = Number(v);
+  const { min, max } = scoreRange(variant);
+  return Number.isInteger(n) && n >= min && n <= max;
+}
+
 async function handler(req, res) {
   await connectDB();
   const { id } = req.query;
@@ -39,6 +48,10 @@ async function handler(req, res) {
   if (req.method === "GET") {
     const { testId, name, kind, gradingStatus } = req.query;
     const filter = {};
+    // ?program= trống/all = không lọc (như trước); sai -> 400.
+    const prog = parseProgramParam(req.query.program);
+    if (prog.error) return res.status(400).json({ ok: false, error: prog.error });
+    if (prog.program) Object.assign(filter, programFilter(prog.program));
     if (studentIds) filter.studentId = { $in: studentIds };
     if (testId) {
       const tid = asObjectId(testId);
@@ -155,6 +168,8 @@ async function handler(req, res) {
     if (Array.isArray(criteria)) {
       // ----- Chấm theo rubric IELTS (4 tiêu chí) -----
       let variant = req.body.rubricVariant || submission.rubricVariant;
+      // Bài TOEIC luôn chấm theo đúng dạng đề đã nộp, client không đổi sang rubric khác.
+      if (isToeicVariant(submission.rubricVariant)) variant = submission.rubricVariant;
       if (!variant) variant = resolveVariant(submission.kind); // speaking / writing.task2 mặc định
       if (!getRubric(variant)) {
         return res.status(400).json({ ok: false, error: "Unknown grading rubric" });
@@ -165,13 +180,19 @@ async function handler(req, res) {
         if (cerr) return res.status(400).json({ ok: false, error: cerr });
       }
 
+      const toeic = isToeicVariant(variant);
       const clean = criteria.map((c) => ({
         key: c.key,
         band: c.band == null || c.band === "" ? null : Number(c.band),
         comment: String(c.comment || ""),
       }));
-      const auto = overallBand(clean);
-      const overall = validOverride(manualScore) ? Number(manualScore) : auto;
+      if (toeic) {
+        // Bản nháp vẫn không cho điểm ngoài khoảng (chỉ cho để trống).
+        const bad = clean.find((c) => c.band != null && (c.key !== "score" || !validToeicScore(variant, c.band)));
+        if (bad) return res.status(400).json({ ok: false, error: validateCriteria(variant, [bad]) || "Invalid score" });
+      }
+      const auto = toeic ? taskScore(variant, clean) : overallBand(clean);
+      const overall = !toeic && validOverride(manualScore) ? Number(manualScore) : auto;
 
       submission.criteria = clean;
       submission.rubricVariant = variant;
@@ -181,6 +202,10 @@ async function handler(req, res) {
       // ----- Chấm nhanh: chỉ 1 điểm tổng (luồng cũ) -----
       const scoreNum = Number(manualScore);
       const hasScore = !(manualScore == null || manualScore === "" || Number.isNaN(scoreNum));
+      if (hasScore && isToeicVariant(submission.rubricVariant) && !validToeicScore(submission.rubricVariant, manualScore)) {
+        const { max } = scoreRange(submission.rubricVariant);
+        return res.status(400).json({ ok: false, error: `Score must be a whole number from 0 to ${max}` });
+      }
       if (publish && !hasScore) {
         return res.status(400).json({ ok: false, error: "Please enter a valid score" });
       }

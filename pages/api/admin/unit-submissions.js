@@ -6,7 +6,9 @@ const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const Submission = require("../../../lib/models/Submission");
 const { buildUnitOverview, buildStudentDetail } = require("../../../lib/teacher/unitSubmissions");
+const { collectFieldImageIds, unitSectionLists, loadImageUrls } = require("../../../lib/fieldImages");
 const { classDeadlines } = require("../../../lib/deadlines");
+const { programOf, programFilter } = require("../../../lib/curriculum");
 
 const S = (v) => (v == null ? "" : String(v));
 
@@ -27,7 +29,11 @@ async function handler(req, res) {
   const assignedClassIds = (unit.classIds || []).map(S);
   const scope = assignedClassIds.length ? "classes" : "level";
 
-  const classesAtLevel = await Class.find(tenantFilter(req.ws, { level: unit.level })).sort({ name: 1 }).lean();
+  // Cùng level VÀ cùng chương trình (Level 1 IELTS khác Level 1 TOEIC) — không thì lớp
+  // chương trình kia lọt vào danh sách học sinh / số đếm của bài.
+  const classesAtLevel = await Class.find(tenantFilter(req.ws, { level: unit.level, ...programFilter(programOf(unit)) }))
+    .sort({ name: 1 })
+    .lean();
   const relevantClasses = scope === "classes"
     ? classesAtLevel.filter((c) => assignedClassIds.includes(S(c._id)))
     : classesAtLevel;
@@ -50,9 +56,11 @@ async function handler(req, res) {
     const mine = submissions.filter((s) => S(s.studentId) === S(studentId));
     const cls = student.classId ? classById[S(student.classId)] : null;
     const dl = cls ? classDeadlines(unit, cls._id) : { unit: null, byCategory: {} };
+    // Ảnh riêng của từng câu (Phase 8, 5.4) để trang review hiện cùng câu hỏi.
+    const fieldImageUrls = await loadImageUrls(req.ws, collectFieldImageIds(unitSectionLists(unit)));
     return res.status(200).json({
       ok: true,
-      unit: { _id: unit._id, name: unit.name, level: unit.level },
+      unit: { _id: unit._id, name: unit.name, level: unit.level, program: programOf(unit) },
       student: {
         _id: student._id,
         name: student.name,
@@ -60,7 +68,7 @@ async function handler(req, res) {
         dueAt: dl.unit,               // hạn chung
         deadlineByCategory: dl.byCategory, // hạn đã resolve từng kỹ năng
       },
-      categories: buildStudentDetail({ unit, submissions: mine }),
+      categories: buildStudentDetail({ unit, submissions: mine, fieldImageUrls }),
     });
   }
 
@@ -83,7 +91,7 @@ async function handler(req, res) {
 
   return res.status(200).json({
     ok: true,
-    unit: { _id: unit._id, name: unit.name, level: unit.level, classIds: assignedClassIds },
+    unit: { _id: unit._id, name: unit.name, level: unit.level, program: programOf(unit), classIds: assignedClassIds },
     scope,
     hasSkillDeadlines,
     deadlineByClass,

@@ -8,6 +8,7 @@ const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const Teacher = require("../../../lib/models/Teacher");
 const Workspace = require("../../../lib/models/Workspace");
+const { programOf } = require("../../../lib/curriculum");
 
 async function workspaceNames(ids) {
   const docs = ids.length ? await Workspace.find({ _id: { $in: ids } }).select("name").lean() : [];
@@ -41,6 +42,7 @@ async function handler(req, res) {
       _id: c._id,
       name: c.name,
       level: c.level,
+      program: programOf(c),
       createdAt: c.createdAt,
       workspaceId: String(c.workspaceId),
       workspaceName: names[String(c.workspaceId)] || "",
@@ -64,6 +66,7 @@ async function handler(req, res) {
         _id: cls._id,
         name: cls.name,
         level: cls.level,
+        program: programOf(cls),
         workspaceId: String(cls.workspaceId),
         workspaceName: names[String(cls.workspaceId)] || "",
         createdAt: cls.createdAt,

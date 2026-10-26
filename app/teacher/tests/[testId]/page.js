@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { PROGRAMS, PROGRAM_KEYS, programOf } from "@/lib/curriculum";
+import { programParam, usePrograms } from "@/lib/client/program";
+import ProgramBadge from "@/components/ProgramBadge";
 import { useMediaLibraries } from "@/lib/teacher/useMediaLibraries";
 import {
   TEST_SKILLS,
@@ -10,14 +13,34 @@ import {
   testToBuilder,
   builderToPayload,
   skillHasContent,
+  testSkillsFor,
+  defaultDurationsFor,
 } from "@/lib/teacher/testBuilder";
 import SectionsEditor from "@/components/teacher/SectionsEditor";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
+import { toeicPromptsError } from "@/lib/toeicStandardSet";
 
-export default function TestBuilderPage() {
+// Đổi chương trình của đề mới: bỏ lớp đã tick (thuộc chương trình cũ) và đổi thời lượng
+// còn nguyên giá trị mặc định của chương trình cũ sang mặc định của chương trình mới.
+function withProgram(prev, k) {
+  const before = defaultDurationsFor(prev.program);
+  const after = defaultDurationsFor(k);
+  const skills = { ...prev.skills };
+  Object.keys(skills).forEach((key) => {
+    if (skills[key].durationMinutes === (before[key] || "")) {
+      skills[key] = { ...skills[key], durationMinutes: after[key] || "" };
+    }
+  });
+  return { ...prev, program: k, classIds: [], skills };
+}
+
+function TestBuilderInner() {
   const { testId } = useParams();
   const router = useRouter();
+  const search = useSearchParams();
+  const { isMulti, loaded } = usePrograms();
   const isNew = testId === "new";
+  const paramProgram = programParam(search);
   const media = useMediaLibraries();
 
   const [b, setB] = useState(isNew ? emptyBuilder() : null);
@@ -35,6 +58,20 @@ export default function TestBuilderPage() {
       .then((d) => setB(testToBuilder(d.test)))
       .catch((e) => setErr(e.message));
   }, [testId, isNew]);
+
+  // Đề mới + workspace nhiều chương trình: lấy chương trình từ chip của trang
+  // Mock Tests (?program=). Đang ở "All" thì để trống, giáo viên phải chọn.
+  useEffect(() => {
+    if (!isNew || !loaded || !isMulti || !paramProgram) return;
+    setB((p) => (p && !p.program ? withProgram(p, paramProgram) : p));
+  }, [isNew, loaded, isMulti, paramProgram]);
+
+  function chooseProgram(k) {
+    // Lớp đã tick thuộc chương trình cũ -> bỏ, tránh giao nhầm.
+    setB((p) => withProgram(p, k));
+    // Kỹ năng đang mở có thể không có ở chương trình mới.
+    if (!testSkillsFor(k).some((s) => s.key === active)) setActive("listening");
+  }
 
   function toggleClass(id) {
     setB((prev) => {
@@ -59,9 +96,23 @@ export default function TestBuilderPage() {
       setSaveErr("Please enter a test title.");
       return;
     }
+    if (isNew && isMulti && !b.program) {
+      setSaveErr("Please choose a program for this test.");
+      return;
+    }
     if (b.opensAt && b.closesAt && new Date(b.opensAt) >= new Date(b.closesAt)) {
       setSaveErr("Opening time must be before closing time.");
       return;
+    }
+    if (b.program === "toeic") {
+      for (const key of ["writing", "speaking"]) {
+        const e = toeicPromptsError(b.skills[key].prompts, key);
+        if (e) {
+          setActive(key);
+          setSaveErr(e);
+          return;
+        }
+      }
     }
     if (status === "published" && !(b.classIds || []).length) {
       setSaveErr("Chọn ít nhất 1 lớp trước khi Publish — không tick lớp nào thì không học sinh nào thấy bài.");
@@ -71,6 +122,8 @@ export default function TestBuilderPage() {
     setSaveErr("");
     try {
       const payload = builderToPayload(b);
+      // Workspace 1 chương trình: không gửi gì, đề là IELTS như trước.
+      if (isNew && isMulti && b.program) payload.program = b.program;
       const saved = isNew ? await api.teacher.createTest(payload) : await api.teacher.updateTest(testId, payload);
       const id = isNew ? saved.test._id : testId;
       await api.teacher.updateTest(id, { status });
@@ -96,15 +149,45 @@ export default function TestBuilderPage() {
     );
   if (!b) return <div className="tab-panel active"><div className="notice info">Loading...</div></div>;
 
-  const skillMeta = TEST_SKILLS.find((s) => s.key === active);
-  const skill = b.skills[active];
+  // Lớp hiện trong ô "Assign": cùng level, và cùng chương trình khi đã biết chương trình.
+  const levelClasses = classes.filter(
+    (c) => c.level === Number(b.level) && (!b.program || programOf(c) === b.program)
+  );
+  // Tab kỹ năng theo chương trình của đề (IELTS = đủ 4 như cũ).
+  const skillTabs = testSkillsFor(b.program);
+  const activeKey = skillTabs.some((s) => s.key === active) ? active : skillTabs[0].key;
+  const skillMeta = TEST_SKILLS.find((s) => s.key === activeKey);
+  const skill = b.skills[activeKey];
 
   return (
     <div className="tab-panel active">
       <div className="card" id="testBuilder">
         <div className="builder-toolbar">
-          <h3 id="builderHeading">{isNew ? "Create New Test" : "Edit Mock Test"}</h3>
+          <h3 id="builderHeading">
+            {isNew ? "Create New Test" : "Edit Mock Test"}
+            {!isNew && <ProgramBadge program={b.program} isMulti={isMulti} />}
+          </h3>
         </div>
+
+        {isNew && isMulti && (
+          <div className="form-row">
+            <label>Program (required)</label>
+            <div className="program-radios" role="radiogroup" aria-label="Program">
+              {PROGRAM_KEYS.map((k) => (
+                <label key={k}>
+                  <input
+                    type="radio"
+                    name="testProgram"
+                    value={k}
+                    checked={b.program === k}
+                    onChange={() => chooseProgram(k)}
+                  />
+                  {PROGRAMS[k].label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="form-row">
           <label>Test Title</label>
@@ -128,14 +211,13 @@ export default function TestBuilderPage() {
 
         <div className="form-row">
           <label>Assign to classes (required — không tick lớp nào thì không học sinh nào thấy bài)</label>
-          {classes.filter((c) => c.level === Number(b.level)).length === 0 ? (
+          {levelClasses.length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: ".85rem", margin: 0 }}>
               No classes at Level {b.level}.
             </p>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-              {classes
-                .filter((c) => c.level === Number(b.level))
+              {levelClasses
                 .map((c) => (
                   <label key={c._id} style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
                     <input
@@ -162,17 +244,17 @@ export default function TestBuilderPage() {
           </div>
         </div>
         <p style={{ color: "var(--muted)", fontSize: ".82rem", marginTop: 6 }}>
-          Leave blank = open indefinitely. All 4 skills open/close together on this schedule. Students can only view and
+          Leave blank = open indefinitely. All {skillTabs.length} skills open/close together on this schedule. Students can only view and
           submit within the active window.
         </p>
 
         <h4 style={{ marginTop: 22 }}>Skills</h4>
         <div className="subject-toggle" id="tbSkillTabs">
-          {TEST_SKILLS.map((s) => (
+          {skillTabs.map((s) => (
             <button
               key={s.key}
               type="button"
-              className={s.key === active ? "active" : ""}
+              className={s.key === activeKey ? "active" : ""}
               onClick={() => setActive(s.key)}
             >
               <svg className="icon"><use href={"#icon-" + s.icon} /></svg> {s.label}
@@ -192,7 +274,7 @@ export default function TestBuilderPage() {
                 className="skill-instructions"
                 placeholder="e.g. Listen to the conversation and fill in the blanks..."
                 value={skill.instructions}
-                onChange={(e) => updateSkill(active, (s) => (s.instructions = e.target.value))}
+                onChange={(e) => updateSkill(activeKey, (s) => (s.instructions = e.target.value))}
               />
             </div>
             <div className="form-row" style={{ marginBottom: 0 }}>
@@ -204,7 +286,7 @@ export default function TestBuilderPage() {
                 step="1"
                 placeholder="Unlimited"
                 value={skill.durationMinutes}
-                onChange={(e) => updateSkill(active, (s) => (s.durationMinutes = e.target.value))}
+                onChange={(e) => updateSkill(activeKey, (s) => (s.durationMinutes = e.target.value))}
               />
             </div>
           </div>
@@ -214,9 +296,11 @@ export default function TestBuilderPage() {
               <h4 style={{ marginTop: 22 }}>Sections</h4>
               <SectionsEditor
                 sections={skill.sections}
-                subject={active}
+                subject={activeKey}
+                program={b.program || undefined}
+                firstId={b.program === "toeic" && activeKey === "reading" ? 101 : 1}
                 media={media}
-                onChange={(next) => updateSkill(active, (s) => (s.sections = next))}
+                onChange={(next) => updateSkill(activeKey, (s) => (s.sections = next))}
               />
             </>
           ) : (
@@ -225,8 +309,10 @@ export default function TestBuilderPage() {
               <PromptsEditor
                 prompts={skill.prompts}
                 media={media}
-                skill={active}
-                onChange={(next) => updateSkill(active, (s) => (s.prompts = next))}
+                skill={activeKey}
+                program={b.program || undefined}
+                standardSet
+                onChange={(next) => updateSkill(activeKey, (s) => (s.prompts = next))}
               />
             </>
           )}
@@ -251,5 +337,13 @@ export default function TestBuilderPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TestBuilderPage() {
+  return (
+    <Suspense fallback={<div className="tab-panel active"><div className="notice info">Loading...</div></div>}>
+      <TestBuilderInner />
+    </Suspense>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
 import { baseDomain } from "@/lib/host";
+import { PROGRAMS, isProgram } from "@/lib/curriculum";
 
 export default function AdminWorkspacesPage() {
   const dialog = useDialog();
@@ -86,7 +87,7 @@ export default function AdminWorkspacesPage() {
             <thead>
               <tr>
                 <th>Name</th><th>Slug</th><th>Owner</th><th>Teachers</th><th>Students</th>
-                <th>Classes</th><th>Status</th><th>Created</th><th></th>
+                <th>Classes</th><th>Programs</th><th>Status</th><th>Created</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -115,6 +116,11 @@ export default function AdminWorkspacesPage() {
                   <td>{w.students}</td>
                   <td>{w.classes}</td>
                   <td>
+                    {(w.programs || []).filter(isProgram).map((k) => (
+                      <span key={k} className={"program-badge program-" + k} style={{ marginRight: 4 }}>{PROGRAMS[k].label}</span>
+                    ))}
+                  </td>
+                  <td>
                     <span className={"pill " + (w.status === "suspended" ? "pill-danger" : "pill-ok")}>{w.status}</span>
                   </td>
                   <td style={{ fontSize: ".8rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
@@ -131,7 +137,7 @@ export default function AdminWorkspacesPage() {
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={9} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No workspaces.</td></tr>
+                <tr><td colSpan={10} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No workspaces.</td></tr>
               )}
             </tbody>
           </table>

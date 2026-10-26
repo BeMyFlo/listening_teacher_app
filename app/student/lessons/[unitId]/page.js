@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { LESSON_CATS, PROMPT_CATS } from "@/lib/student/constants";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { formatScore } from "@/lib/scoreLabel";
 import {
   categoryStats,
   latestExerciseSub,
@@ -23,6 +25,13 @@ import { VocabFlashcards, VocabWordList } from "@/components/student/VocabFlashc
 import VocabReviewPane from "@/components/student/VocabReviewPane";
 
 const LESSON_LIST_CATS = ["grammar", "vocabulary"];
+
+// Tab kỹ năng của 1 Unit = lessonSkills của chương trình (TOEIC từ 8B cũng có Writing/
+// Speaking). Server cũng không gửi category ngoài danh sách này. IELTS: đủ 6 tab như cũ.
+function tabsForUnit(unit) {
+  const allowed = PROGRAMS[programOf(unit)].lessonSkills;
+  return LESSON_CATS.filter((c) => allowed.includes(c.key));
+}
 
 const fmtDeadline = (d) =>
   new Date(d).toLocaleString("en-US", {
@@ -109,7 +118,7 @@ export default function UnitDetailPage() {
     if (!unit) return;
     const isLocked = (k) => !!(unit.categories || []).find((c) => c.key === k && c.locked);
     if (!isLocked(catKey)) return;
-    const firstOpen = LESSON_CATS.map((c) => c.key).find((k) => !isLocked(k));
+    const firstOpen = tabsForUnit(unit).map((c) => c.key).find((k) => !isLocked(k));
     if (firstOpen) setCatKey(firstOpen);
   }, [unit]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -128,6 +137,7 @@ export default function UnitDetailPage() {
     );
   if (!unit) return <section><div className="notice info">Loading lesson...</div></section>;
 
+  const tabs = tabsForUnit(unit);
   const cat = (unit.categories || []).find((c) => c.key === catKey) || null;
   const catMeta = LESSON_CATS.find((c) => c.key === catKey);
   const isPrompt = PROMPT_CATS.includes(catKey);
@@ -142,10 +152,11 @@ export default function UnitDetailPage() {
           <svg className="icon"><use href="#icon-arrow-left" /></svg> Back to lesson list
         </p>
         <h2>{unit.name}</h2>
+        {unit.levelName && <p className="page-sub" style={{ margin: "-4px 0 8px" }}>Level {unit.level} · {unit.levelName}</p>}
         <DeadlineBanner dueAt={unit.dueAt} />
 
         <div className="unit-cat-tabs">
-          {LESSON_CATS.map((c) => {
+          {tabs.map((c) => {
             const locked = !!(unit.categories || []).find((x) => x.key === c.key && x.locked);
             return (
               <button
@@ -610,7 +621,7 @@ function PromptList({ unitId, cat, subs, onSubmitted }) {
         let badge;
         if (!last) badge = <span className="pill pill-muted">Not started</span>;
         else if (last.gradingStatus === "graded")
-          badge = <span className="pill pill-ok">Graded · Band {last.manualScore}</span>;
+          badge = <span className="pill pill-ok">Graded · {formatScore(last)}</span>;
         else badge = <span className="pill pill-warn">Pending review</span>;
         return (
           <div className="lesson-block" key={p.id}>
@@ -654,7 +665,7 @@ function PromptList({ unitId, cat, subs, onSubmitted }) {
                 (last.gradingStatus === "graded" ? (
                   <div className="notice success" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                     <span>
-                      <svg className="icon"><use href="#icon-check-circle" /></svg> Graded by your teacher · Band {last.manualScore}
+                      <svg className="icon"><use href="#icon-check-circle" /></svg> Graded by your teacher · {formatScore(last)}
                     </span>
                     <button
                       type="button"

@@ -30,6 +30,9 @@ import {
   rid,
 } from "@/lib/grading/annotate";
 
+import { annotationCriteria } from "@/lib/grading/rubric";
+import { ASPECT_LABELS } from "@/lib/toeicTasks";
+
 const CRIT_OPTS = { writing: ["TR", "CC", "LR", "GRA"], speaking: ["FC", "LR", "GRA", "PR"] };
 const CAT_LABEL = {
   grammar: "Grammar",
@@ -43,7 +46,7 @@ const CAT_LABEL = {
   other: "Other",
 };
 
-export default function EssayAnnotator({ essayText = "", annotations = [], kind = "writing", onChange, onAiGrade, aiBusy }) {
+export default function EssayAnnotator({ essayText = "", annotations = [], kind = "writing", variant, onChange, onAiGrade, aiBusy }) {
   const [sel, setSel] = useState(null); // new selection: { start, end, quote, x, y }
   const [editId, setEditId] = useState(null); // id of an EXISTING annotation being edited, or null
   const [editPos, setEditPos] = useState({ x: 0, y: 0 });
@@ -62,7 +65,8 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
 
   const anns = useMemo(() => (annotations || []).map((a) => normalizeAnnotation(a, essayText)), [annotations, essayText]);
   const segments = useMemo(() => buildSegments(essayText, anns), [essayText, anns]);
-  const crits = CRIT_OPTS[kind] || CRIT_OPTS.writing;
+  // TOEIC: khía cạnh của dạng đề; IELTS (variant không phải TOEIC) giữ danh sách cũ.
+  const crits = annotationCriteria(variant) || CRIT_OPTS[kind] || CRIT_OPTS.writing;
 
   // Gõ nhanh thật có thể bắn nhiều sự kiện beforeinput liên tiếp TRƯỚC KHI
   // React kịp render lại — nếu đọc `anns` (đóng gói lúc render) thì phím gõ
@@ -671,7 +675,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
               </select>
               <select value={form.criterion} onChange={(e) => setForm((f) => ({ ...f, criterion: e.target.value }))}>
                 <option value="">criterion…</option>
-                {crits.map((c) => <option key={c} value={c}>{c}</option>)}
+                {crits.map((c) => <option key={c} value={c}>{ASPECT_LABELS[c] || c}</option>)}
               </select>
             </div>
             <input
@@ -705,7 +709,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
           {[...crits, "—"].map((ck) =>
             groups[ck] && groups[ck].length ? (
               <div key={ck} className="ea-list-group">
-                <div className="ea-list-head">{ck === "—" ? "Unassigned" : ck} · {groups[ck].length}</div>
+                <div className="ea-list-head">{ck === "—" ? "Unassigned" : ASPECT_LABELS[ck] || ck} · {groups[ck].length}</div>
                 {groups[ck].map((a) => (
                   <div key={a.id} className="ea-list-item">
                     <span className={"pill " + (a.action === "delete" ? "pill-danger" : a.action === "comment" ? "pill-info" : "pill-ok")}>
@@ -722,7 +726,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
                       onChange={(e) => patchAnn(a.id, { criterion: e.target.value || null })}
                     >
                       <option value="">—</option>
-                      {crits.map((c) => <option key={c} value={c}>{c}</option>)}
+                      {crits.map((c) => <option key={c} value={c}>{ASPECT_LABELS[c] || c}</option>)}
                     </select>
                     <button type="button" className="icon-btn danger" title="Remove" onClick={() => removeAnn(a.id)}>
                       <svg className="icon"><use href="#icon-trash" /></svg>

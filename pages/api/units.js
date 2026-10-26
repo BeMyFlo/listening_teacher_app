@@ -5,6 +5,10 @@ const Student = require("../../lib/models/Student");
 const Unit = require("../../lib/models/Unit");
 const Class = require("../../lib/models/Class");
 const { resolveDeadline, isSkillLocked } = require("../../lib/deadlines");
+const { PROGRAMS, programOf, programFilter } = require("../../lib/curriculum");
+const { lessonSkillsOf } = require("../../lib/completion");
+const { levelNameFor } = require("../../lib/curriculumServer");
+const { publicTaskFields } = require("../../lib/toeicTasks");
 
 const iso = (d) => (d ? new Date(d) : null);
 const overdue = (d) => !!d && Date.now() > new Date(d).getTime();
@@ -13,7 +17,8 @@ const overdue = (d) => !!d && Date.now() > new Date(d).getTime();
 // — dùng cho chip ở danh sách bài học.
 function earliestDeadline(unit, classId) {
   const cands = [resolveDeadline(unit, classId, null)];
-  (Unit.CATEGORY_KEYS || []).forEach((k) => {
+  const visible = lessonSkillsOf(unit); // kỹ năng bị ẩn (TOEIC) không có hạn thật
+  (Unit.CATEGORY_KEYS || []).filter((k) => visible.includes(k)).forEach((k) => {
     if (!isSkillLocked(unit, classId, k)) cands.push(resolveDeadline(unit, classId, k));
   });
   const times = cands.filter(Boolean).map((d) => new Date(d).getTime());
@@ -22,7 +27,7 @@ function earliestDeadline(unit, classId) {
 
 // Strips answer keys before a unit is sent to a student's browser — same
 // rule as toPublicTest in api/tests.js (kept local on purpose).
-function toPublicUnit(unit, cls) {
+function toPublicUnit(unit, cls, levelName) {
   const publicSections = (sections) =>
     (sections || []).map((s) => ({
       name: s.name,
@@ -38,6 +43,7 @@ function toPublicUnit(unit, cls) {
         idEnd: f.idEnd || null,
         formatLabel: f.formatLabel || "",
         label: f.label,
+        imageUrl: f.imageId && f.imageId.cloudinaryUrl,
         type: f.type,
         pre: f.pre,
         post: f.post,
@@ -63,6 +69,7 @@ function toPublicUnit(unit, cls) {
     return { words: vr.words.map((w) => ({ ...(w.toObject ? w.toObject() : w) })) };
   };
 
+  const lessonSkills = PROGRAMS[programOf(unit)].lessonSkills;
   const cid = cls && cls._id;
   const unitDue = resolveDeadline(unit, cid, null);
 
@@ -70,12 +77,17 @@ function toPublicUnit(unit, cls) {
     id: unit._id,
     name: unit.name,
     level: unit.level,
+    levelName: levelName || "",
+    program: programOf(unit),
     // Hạn chung cả Unit (cho banner ở đầu trang).
     dueAt: iso(unitDue),
     isOverdue: overdue(unitDue),
     // Hạn sớm nhất bất kỳ (cho chip "Due in N days").
     nextDueAt: iso(earliestDeadline(unit, cid)),
-    categories: (unit.categories || []).map((c) => {
+    // Chỉ gửi category thuộc kỹ năng của chương trình (kỹ năng chương trình đó
+    // không mở) — lọc ở server, không chỉ ẩn ở client. IELTS: đủ 6 key
+    // nên giữ nguyên toàn bộ.
+    categories: (unit.categories || []).filter((c) => lessonSkills.includes(c.key)).map((c) => {
       // Kỹ năng bị khóa cho lớp này: trả về rỗng để KHÔNG lộ nội dung, chỉ
       // giữ cờ locked để client hiện tab có ổ khóa.
       if (isSkillLocked(unit, cid, c.key)) {
@@ -115,7 +127,8 @@ function toPublicUnit(unit, cls) {
         id: p._id,
         title: p.title,
         instructions: p.instructions,
-        imageUrl: p.imageId && p.imageId.cloudinaryUrl
+        imageUrl: p.imageId && p.imageId.cloudinaryUrl,
+        ...publicTaskFields(p)
       })),
       // Grammar: chủ điểm (lý thuyết + bài tập). Vocab: nhóm từ (flashcard).
       topics: (c.topics || []).map((t) => ({
@@ -168,46 +181,59 @@ async function handler(req, res) {
   // classIds rỗng/không có = CHƯA giao cho lớp nào (không phải "giao cho tất
   // cả") — giáo viên phải tick rõ lớp thì học sinh lớp đó mới thấy Unit.
   const classFilter = { classIds: cls._id };
+  // Học sinh chỉ thấy nội dung đúng chương trình của lớp mình (doc cũ thiếu
+  // field tính là IELTS — xem programFilter).
+  const progFilter = programFilter(programOf(cls));
 
   if (id) {
     let unit;
     try {
-      unit = await Unit.findOne(tenantFilter(req.ws, { _id: id, status: "published", level, ...classFilter }))
+      unit = await Unit.findOne(tenantFilter(req.ws, { _id: id, status: "published", level, ...classFilter, ...progFilter }))
         .populate("categories.theory.audioId", "cloudinaryUrl")
         .populate("categories.theory.imageId", "cloudinaryUrl")
         .populate("categories.exercises.sections.audioId", "cloudinaryUrl")
         .populate("categories.exercises.sections.imageId", "cloudinaryUrl")
         .populate("categories.prompts.imageId", "cloudinaryUrl")
+        .populate("categories.prompts.audioId", "cloudinaryUrl")
         .populate("categories.topics.exercises.sections.audioId", "cloudinaryUrl")
         .populate("categories.topics.exercises.sections.imageId", "cloudinaryUrl")
         .populate("categories.groups.exercises.sections.audioId", "cloudinaryUrl")
-        .populate("categories.groups.exercises.sections.imageId", "cloudinaryUrl");
+        .populate("categories.groups.exercises.sections.imageId", "cloudinaryUrl")
+        .populate("categories.exercises.sections.fields.imageId", "cloudinaryUrl")
+        .populate("categories.topics.exercises.sections.fields.imageId", "cloudinaryUrl")
+        .populate("categories.groups.exercises.sections.fields.imageId", "cloudinaryUrl");
     } catch (err) {
       return res.status(404).json({ ok: false, error: "Lesson unit not found" });
     }
     if (!unit) {
       return res.status(404).json({ ok: false, error: "Lesson unit not found" });
     }
-    return res.status(200).json({ ok: true, unit: toPublicUnit(unit, cls) });
+    return res.status(200).json({ ok: true, unit: toPublicUnit(unit, cls, await levelNameFor(req.ws, programOf(unit), unit.level)) });
   }
 
-  const units = await Unit.find(tenantFilter(req.ws, { status: "published", level, ...classFilter }))
+  const units = await Unit.find(tenantFilter(req.ws, { status: "published", level, ...classFilter, ...progFilter }))
     .sort({ level: 1, order: 1 })
     .lean();
 
   // Tóm tắt từng category (không lộ đáp án/nội dung câu hỏi) — đủ để trang
   // danh sách Lessons hiện badge kỹ năng + số lượng + tính % hoàn thành mà
   // không cần tải chi tiết từng Unit.
+  // Mọi Unit trong danh sách cùng level + cùng chương trình của lớp -> 1 tên cho cả danh sách.
+  const levelName = await levelNameFor(req.ws, programOf(cls), level);
   const rows = units.map((u) => {
     const dueAt = earliestDeadline(u, cls._id);
+    const rowSkills = PROGRAMS[programOf(u)].lessonSkills;
     return {
       id: u._id,
       name: u.name,
+      level: u.level,
+      levelName,
       order: u.order,
       createdAt: u.createdAt,
       dueAt: iso(dueAt),
       isOverdue: overdue(dueAt),
-      categories: (u.categories || []).map((c) => {
+      program: programOf(u),
+      categories: (u.categories || []).filter((c) => rowSkills.includes(c.key)).map((c) => {
         if (isSkillLocked(u, cls._id, c.key)) {
           return { key: c.key, locked: true, hasContent: false, itemCount: 0 };
         }

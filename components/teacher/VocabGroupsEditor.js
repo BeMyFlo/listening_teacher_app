@@ -11,8 +11,10 @@ function emptyGroup() {
   return { extId: "", name: "", words: [], exercises: [] };
 }
 
-export default function VocabGroupsEditor({ groups, media, onChange, aiContext }) {
+export default function VocabGroupsEditor({ groups, media, onChange, aiContext, program }) {
   const dialog = useDialog();
+  // Template import (Excel) chưa có cho TOEIC -> ẩn các nút import (Phase 8, 5.6).
+  const canImport = program !== "toeic";
   // null = đang đóng; -1 = nút Import chung ở trên; i = nút Import trong nhóm i.
   const [importTarget, setImportTarget] = useState(null);
   const [aiOpen, setAiOpen] = useState(false);
@@ -92,20 +94,22 @@ export default function VocabGroupsEditor({ groups, media, onChange, aiContext }
           >
             <svg className="icon"><use href="#icon-sparkles" /></svg> Create by AI
           </button>
-          <button
-            type="button"
-            className="btn secondary"
-            style={{ padding: "8px 14px", fontSize: ".85rem" }}
-            onClick={() => setImportTarget(-1)}
-          >
-            <svg className="icon"><use href="#icon-upload" /></svg> Import from file
-          </button>
+          {canImport && (
+            <button
+              type="button"
+              className="btn secondary"
+              style={{ padding: "8px 14px", fontSize: ".85rem" }}
+              onClick={() => setImportTarget(-1)}
+            >
+              <svg className="icon"><use href="#icon-upload" /></svg> Import from file
+            </button>
+          )}
         </div>
       </div>
 
       {groups.length === 0 && (
         <div className="empty-state" style={{ marginTop: 12 }}>
-          No word groups yet. Import from a file or add them manually.
+          {canImport ? "No word groups yet. Import from a file or add them manually." : "No word groups yet. Create them by AI or add them manually."}
         </div>
       )}
 
@@ -121,15 +125,17 @@ export default function VocabGroupsEditor({ groups, media, onChange, aiContext }
                 value={g.name}
                 onChange={(e) => patch((d) => (d[i].name = e.target.value))}
               />
-              <button
-                type="button"
-                className="btn secondary"
-                style={{ padding: "5px 11px", fontSize: ".78rem", whiteSpace: "nowrap" }}
-                title="Import words from a file into this group"
-                onClick={() => setImportTarget(i)}
-              >
-                <svg className="icon"><use href="#icon-upload" /></svg> Import
-              </button>
+              {canImport && (
+                <button
+                  type="button"
+                  className="btn secondary"
+                  style={{ padding: "5px 11px", fontSize: ".78rem", whiteSpace: "nowrap" }}
+                  title="Import words from a file into this group"
+                  onClick={() => setImportTarget(i)}
+                >
+                  <svg className="icon"><use href="#icon-upload" /></svg> Import
+                </button>
+              )}
               <button
                 type="button"
                 className="icon-btn"
@@ -159,6 +165,7 @@ export default function VocabGroupsEditor({ groups, media, onChange, aiContext }
                   exercises={g.exercises}
                   media={media}
                   subject="vocabulary"
+                  program={program}
                   onChange={(next) => patch((d) => (d[i].exercises = next))}
                 />
               </>
@@ -188,7 +195,7 @@ export default function VocabGroupsEditor({ groups, media, onChange, aiContext }
         />
       )}
 
-      {importTarget != null && (
+      {canImport && importTarget != null && (
         <LessonImport
           mode="vocab"
           existing={groups.flatMap((g) => g.exercises.flatMap((e) => e._sections || []))}

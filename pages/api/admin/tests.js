@@ -4,10 +4,16 @@ const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant")
 const Test = require("../../../lib/models/Test");
 const Class = require("../../../lib/models/Class");
 const { normalizeSections, validateSections, normalizePrompts, validatePrompts } = require("../../../lib/testSections");
+const { DEFAULT_PROGRAM, isProgram, programOf, programFilter } = require("../../../lib/curriculum");
+const { programLockReason, resolveProgramChange } = require("../../../lib/curriculumServer");
 
-async function sanitizeClassIds(raw, level) {
+// Lọc classIds hợp lệ: ObjectId có thật, thuộc workspace, đúng level VÀ đúng
+// chương trình của Test (lớp cũ thiếu field program tính là IELTS).
+async function sanitizeClassIds(ws, raw, level, program) {
   if (!Array.isArray(raw) || !raw.length) return [];
-  const found = await Class.find({ _id: { $in: raw.filter(Boolean) }, level }).select("_id").lean();
+  const found = await Class.find(
+    tenantFilter(ws, { _id: { $in: raw.filter(Boolean) }, level, ...programFilter(program) })
+  ).select("_id").lean();
   return found.map((c) => c._id);
 }
 
@@ -74,13 +80,15 @@ function buildSkillsFromBody(body) {
   return { skills };
 }
 
-async function validateSkill(ws, key, skill) {
-  return QUESTION_SKILLS.includes(key) ? validateSections(ws, key, skill.sections) : validatePrompts(ws, skill.prompts);
+async function validateSkill(ws, key, skill, program) {
+  return QUESTION_SKILLS.includes(key)
+    ? validateSections(ws, key, skill.sections)
+    : validatePrompts(ws, skill.prompts, { program, skill: key });
 }
 
-async function validateAllSkills(ws, skills) {
+async function validateAllSkills(ws, skills, program) {
   for (const key of ALL_SKILLS) {
-    const error = await validateSkill(ws, key, skills[key]);
+    const error = await validateSkill(ws, key, skills[key], program);
     if (error) return `${SKILL_LABELS[key]}: ${error}`;
   }
   return null;
@@ -98,7 +106,8 @@ function populateSkillMedia(queryOrDoc) {
     { path: "skills.listening.sections.imageId", select: "title unit cloudinaryUrl" },
     { path: "skills.reading.sections.imageId", select: "title unit cloudinaryUrl" },
     { path: "skills.writing.prompts.imageId", select: "title unit cloudinaryUrl" },
-    { path: "skills.speaking.prompts.imageId", select: "title unit cloudinaryUrl" }
+    { path: "skills.speaking.prompts.imageId", select: "title unit cloudinaryUrl" },
+    { path: "skills.speaking.prompts.audioId", select: "title unit cloudinaryUrl" }
   ]);
 }
 
@@ -108,7 +117,8 @@ async function handler(req, res) {
 
   if (req.method === "GET" && !id) {
     const rows = await populateSkillMedia(Test.find(tenantFilter(req.ws)).sort({ updatedAt: -1 })).lean();
-    return res.status(200).json({ ok: true, rows });
+    // lean() không áp default của schema -> doc cũ thiếu program phải được điền IELTS.
+    return res.status(200).json({ ok: true, rows: rows.map((r) => ({ ...r, program: programOf(r) })) });
   }
 
   if (req.method === "POST") {
@@ -121,9 +131,14 @@ async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Please select a valid level" });
     }
 
+    // Không gửi program -> IELTS (client cũ giữ hành vi cũ); gửi giá trị lạ -> 400.
+    const rawProgram = req.body && req.body.program;
+    const program = rawProgram == null ? DEFAULT_PROGRAM : rawProgram;
+    if (!isProgram(program)) return res.status(400).json({ ok: false, error: "Invalid program" });
+
     const built = buildSkillsFromBody(req.body || {});
     if (built.error) return res.status(400).json({ ok: false, error: built.error });
-    const error = await validateAllSkills(req.ws, built.skills);
+    const error = await validateAllSkills(req.ws, built.skills, program);
     if (error) return res.status(400).json({ ok: false, error });
 
     const schedule = parseSchedule(req.body || {}, null);
@@ -134,8 +149,9 @@ async function handler(req, res) {
       title: String(title).trim(),
       unit: String(unit || "").trim(),
       level,
+      program,
       status: "draft",
-      classIds: await sanitizeClassIds(req.body && req.body.classIds, level),
+      classIds: await sanitizeClassIds(req.ws, req.body && req.body.classIds, level, program),
       opensAt: schedule.opensAt || null,
       closesAt: schedule.closesAt || null,
       skills: built.skills
@@ -149,11 +165,22 @@ async function handler(req, res) {
 
   if (req.method === "GET") {
     await populateSkillMedia(test);
-    return res.status(200).json({ ok: true, test });
+    // toJSON() giữ nguyên hình dạng như khi res.json(doc); chỉ thêm 2 field.
+    const out = test.toJSON();
+    out.program = programOf(test);
+    out.programLocked = !!(await programLockReason(req.ws, "test", test));
+    return res.status(200).json({ ok: true, test: out });
   }
 
   if (req.method === "PUT") {
-    const { title, unit, status, level } = req.body || {};
+    const { title, unit, status, level, program } = req.body || {};
+
+    // Đổi chương trình chỉ khi chưa giao lớp nào và chưa có bài nộp (C7); gửi
+    // lại đúng program cũ không phải là đổi. Không có nhánh "đổi rồi gỡ".
+    const programChange = await resolveProgramChange(req.ws, "test", test, program);
+    if (programChange.error) {
+      return res.status(programChange.status).json({ ok: false, error: programChange.error });
+    }
 
     if (title != null) {
       if (!String(title).trim()) {
@@ -169,14 +196,15 @@ async function handler(req, res) {
       }
       test.level = lvl;
     }
+    if (programChange.changed) test.program = program;
     if (req.body && req.body.classIds != null) {
-      test.classIds = await sanitizeClassIds(req.body.classIds, test.level);
+      test.classIds = await sanitizeClassIds(req.ws, req.body.classIds, test.level, programOf(test));
     }
 
     if (req.body && req.body.skills != null) {
       const built = buildSkillsFromBody(req.body);
       if (built.error) return res.status(400).json({ ok: false, error: built.error });
-      const error = await validateAllSkills(req.ws, built.skills);
+      const error = await validateAllSkills(req.ws, built.skills, programOf(test));
       if (error) return res.status(400).json({ ok: false, error });
       test.skills = built.skills;
     }

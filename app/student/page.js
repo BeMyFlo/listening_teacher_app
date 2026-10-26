@@ -6,6 +6,7 @@ import { api } from "@/lib/client/api";
 import { readSession } from "@/lib/client/session";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { buildStudentHome } from "@/lib/student/dashboard";
+import { skillBarValue } from "@/lib/student/skillBar";
 
 function greeting() {
   const h = new Date().getHours();
@@ -151,7 +152,8 @@ export default function StudentDashboard() {
           )}
 
           <div className="dash-stats">
-            <DashStat icon="book-open" value={home.stats.unitCount} label="Units for your level" />
+            <DashStat icon="book-open" value={home.stats.unitCount} label="Units for your level"
+              hint={extra && extra.classLevelName ? `Level ${extra.classLevel} · ${extra.classLevelName}` : undefined} />
             <DashStat icon="flame" value={streak.current} label="On-time streak" tone="amber"
               hint={streak.longest ? `Best: ${streak.longest}` : undefined} />
             <DashStat icon="trophy" value={lb.myRank ? "#" + lb.myRank : "—"} label="Class rank" tone="pink"
@@ -177,7 +179,7 @@ export default function StudentDashboard() {
                     <div className="progress-bar">
                       <div className="progress-bar-fill" style={{ width: s.pct + "%", background: barColor(s.pct) }} />
                     </div>
-                    <span className="skillbar-val">{s.band != null ? "Band " + s.band : s.pct + "%"}</span>
+                    <span className="skillbar-val">{skillBarValue(s, home.program)}</span>
                   </div>
                 ))
               )}

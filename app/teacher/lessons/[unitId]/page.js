@@ -17,8 +17,12 @@ import {
   saveAiOptions,
 } from "@/lib/teacher/vocabReviewClient";
 import { useBranding } from "@/lib/client/branding";
+import { PROGRAMS, PROGRAM_KEYS, programOf } from "@/lib/curriculum";
+import { usePrograms } from "@/lib/client/program";
+import ProgramBadge from "@/components/ProgramBadge";
 import { sectionsToEditor, sectionsToPayload, refId } from "@/lib/teacher/sectionTransforms";
-import { toDatetimeLocal } from "@/lib/teacher/testBuilder";
+import { toDatetimeLocal, taskFieldsToBuilder, taskFieldsToPayload } from "@/lib/teacher/testBuilder";
+import { toeicPromptsError } from "@/lib/toeicStandardSet";
 import { LESSON_CATS, PROMPT_CATS } from "@/lib/student/constants";
 import SectionsEditor from "@/components/teacher/SectionsEditor";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
@@ -39,6 +43,10 @@ const CAT_LABELS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.label]));
 const CAT_ICONS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.icon]));
 const CAT_COLORS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.color]));
 
+// Lý do khoá ô Program của Unit (khớp thông báo 409 của server, C7).
+const UNIT_PROGRAM_LOCKED_HINT =
+  "This unit is already assigned to a class or has submissions, so its program can't be changed.";
+
 // Vocab Review của 1 skill: dòng từ cũ thiếu cột nào thì bù rỗng để bảng nhập không lỗi.
 function toEditorReview(vr) {
   return {
@@ -48,11 +56,17 @@ function toEditorReview(vr) {
   };
 }
 
-function toEditorUnit(u) {
+// prevLocked: cờ khoá chương trình của lần tải trước — response PUT không kèm
+// programLocked, nên sau khi lưu giữ cờ cũ (và coi như đã giao nếu có lớp/hạn/khoá).
+function toEditorUnit(u, prevLocked = false) {
+  const assigned = (u.classIds || []).length > 0 || (u.deadlines || []).length > 0 || (u.skillLocks || []).length > 0;
   const editor = {
     _id: u._id,
     name: u.name || "",
     level: u.level,
+    program: programOf(u),
+    originalProgram: programOf(u),
+    programLocked: u.programLocked !== undefined ? !!u.programLocked : !!prevLocked || assigned,
     status: u.status,
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
@@ -102,6 +116,7 @@ function toEditorUnit(u) {
         instructions: p.instructions || "",
         imageId: refId(p.imageId),
         writingTask: p.writingTask || "task2",
+        ...taskFieldsToBuilder(p),
       })),
       topics: (c.topics || []).map((t) => ({
         _id: t._id,
@@ -165,6 +180,8 @@ function catHasContent(c) {
 function toPayload(unit, status) {
   const body = {
     name: unit.name.trim(),
+    // Chỉ gửi khi giáo viên đổi chương trình -> unit IELTS lưu y như trước Phase 8.
+    ...(unit.program !== unit.originalProgram ? { program: unit.program } : {}),
     classIds: unit.classIds || [],
     deadlines: Object.entries(unit.deadlines || {}).flatMap(([classId, slots]) =>
       Object.entries(slots || {})
@@ -203,6 +220,7 @@ function toPayload(unit, status) {
         instructions: p.instructions,
         imageId: p.imageId || null,
         writingTask: p.writingTask || "task2",
+        ...taskFieldsToPayload(p),
       })),
       topics: (cat.topics || []).map((t) => ({
         _id: t._id,
@@ -247,6 +265,7 @@ export default function UnitEditorPage() {
   const [saveErr, setSaveErr] = useState("");
   const [stats, setStats] = useState(null);
   const [classes, setClasses] = useState([]);
+  const { isMulti, refresh: refreshPrograms, levelLabel, levelName: levelNameOf } = usePrograms();
   const dialog = useDialog();
   const branding = useBranding();
   const vrAi = useVocabReviewAi();
@@ -256,9 +275,12 @@ export default function UnitEditorPage() {
   const declinedRef = useRef({});
   const savingRef = useRef(false);
 
+  // Nhớ riêng theo chương trình: trình độ IELTS ("6.5") không được gửi sang bài TOEIC.
+  // IELTS giữ đúng khoá cũ (slug) để không mất tuỳ chọn đã nhớ.
+  const aiScope = branding.slug + (unit && programOf(unit) !== "ielts" ? ":" + programOf(unit) : "");
   useEffect(() => {
-    setAiOptions(loadAiOptions(branding.slug));
-  }, [branding.slug]);
+    setAiOptions(loadAiOptions(aiScope));
+  }, [aiScope]);
 
   // Trạng thái Vocab Review (none/empty/stale/fresh + hash) của Reading & Listening,
   // tính lại khi nội dung đổi — dùng cho chấm báo trên sub-tab và hộp thoại sau Save.
@@ -315,6 +337,28 @@ export default function UnitEditorPage() {
     });
   }
 
+  // Đổi chương trình (chỉ khi !programLocked — server cũng chặn 409). Bỏ lớp / hạn /
+  // khoá không còn khớp (level + program) để không giao nhầm, và về tab Grammar nếu
+  // kỹ năng đang mở bị ẩn ở chương trình mới.
+  function changeProgram(k) {
+    if (!unit || k === unit.program) return;
+    const valid = new Set(
+      classes.filter((c) => c.level === unit.level && programOf(c) === k).map((c) => String(c._id))
+    );
+    const keep = (m) => Object.fromEntries(Object.entries(m || {}).filter(([cid]) => valid.has(cid)));
+    setUnit((u) => ({
+      ...u,
+      program: k,
+      classIds: (u.classIds || []).filter((id) => valid.has(String(id))),
+      deadlines: keep(u.deadlines),
+      skillLocks: keep(u.skillLocks),
+    }));
+    if (!PROGRAMS[k].lessonSkills.includes(catKey)) {
+      setCatKey("grammar");
+      setSubTab("theory");
+    }
+  }
+
   function updateCat(mut) {
     setUnit((u) => {
       const draft = structuredClone(u);
@@ -323,10 +367,17 @@ export default function UnitEditorPage() {
     });
   }
 
+  // Tên level của Unit làm mặc định cho "Students level" của AI — chỉ khi ô còn trống
+  // (không đè giá trị giáo viên đã gõ / đã nhớ). Không bao giờ ghi mặc định này vào localStorage,
+  // để Unit level khác vẫn nhận mặc định riêng của nó.
+  const levelDefault = unit ? levelNameOf(programOf(unit), unit.level) : "";
+  const withLevelDefault = (o) => (o.studentLevel || !levelDefault ? o : { ...o, studentLevel: levelDefault });
+  const withoutLevelDefault = (o) => (levelDefault && o.studentLevel === levelDefault ? { ...o, studentLevel: "" } : o);
+
   function updateAiOptions(patch) {
     const next = { ...aiOptions, ...patch };
     setAiOptions(next);
-    saveAiOptions(branding.slug, next);
+    saveAiOptions(aiScope, next);
   }
 
   function checkBeforeSave(status) {
@@ -339,6 +390,20 @@ export default function UnitEditorPage() {
       setActiveTab("settings");
       setSaveErr("Chọn ít nhất 1 lớp trước khi Publish — không tick lớp nào thì không học sinh nào thấy Unit này.");
       return false;
+    }
+    // TOEIC: đề Writing/Speaking thiếu dạng đề / ảnh / từ bắt buộc -> báo ngay, nhảy tới tab lỗi.
+    if (programOf(unit) === "toeic") {
+      for (const key of PROMPT_CATS) {
+        const c = unit.categories.find((x) => x.key === key);
+        const e = c && toeicPromptsError(c.prompts, key);
+        if (e) {
+          setActiveTab("content");
+          setCatKey(key);
+          setSubTab("practice");
+          setSaveErr(e);
+          return false;
+        }
+      }
     }
     return true;
   }
@@ -360,14 +425,17 @@ export default function UnitEditorPage() {
   // Hộp thoại hỏi trước khi lưu. Trả tuỳ chọn AI nếu giáo viên chọn "Save & generate",
   // null nếu "Just save" (hoặc đóng hộp thoại).
   async function askGenerate(ask) {
-    const latest = { current: aiOptions };
+    const effective = withLevelDefault(aiOptions);
+    const latest = { current: effective };
     const names = ask.map((a) => a.label).join(" & ");
     const go = await dialog.confirm({
       title: ask.every((a) => a.state === "stale") ? `${names} changed — add new vocabulary?` : `Create Vocab Review for ${names}?`,
       confirmText: "Save & generate",
       cancelText: "Just save",
       wide: true,
-      message: <VocabReviewSavePrompt items={ask} initial={aiOptions} onChange={(o) => (latest.current = o)} />,
+      message: (
+        <VocabReviewSavePrompt items={ask} initial={effective} onChange={(o) => (latest.current = o)} program={programOf(unit)} />
+      ),
     });
     if (!go) {
       ask.forEach((a) => (declinedRef.current[a.key] = a.hash));
@@ -391,16 +459,17 @@ export default function UnitEditorPage() {
       }
       // "Save & generate": ở lại trang, nạp lại Unit vừa lưu (để exercise mới có _id
       // thật cho lần Save sau), sang tab Vocab Review và chạy AI ngay.
-      const saved = toEditorUnit(res.unit);
+      const saved = toEditorUnit(res.unit, unit.programLocked);
       setUnit(saved);
       setActiveTab("content");
       setCatKey(ask[0].key);
       setSubTab("vocab");
-      setAiOptions(genOpts);
-      saveAiOptions(branding.slug, genOpts);
+      const remembered = withoutLevelDefault(genOpts);
+      setAiOptions(remembered);
+      saveAiOptions(aiScope, remembered);
       dialog.toast("Saved — writing vocabulary…");
       ask.forEach((a) =>
-        vrAi.run(a.key, saved.categories.find((c) => c.key === a.key), { unitId, level: saved.level, unitName: saved.name }, genOpts)
+        vrAi.run(a.key, saved.categories.find((c) => c.key === a.key), { unitId, level: saved.level, unitName: saved.name, program: saved.program }, genOpts)
       );
     } finally {
       savingRef.current = false;
@@ -412,6 +481,8 @@ export default function UnitEditorPage() {
     setSaveErr("");
     try {
       const res = await api.teacher.updateUnit(unit._id, toPayload(unit, status));
+      // Đổi chương trình xong thì nhóm/chip chương trình ở các trang khác phải cập nhật.
+      if (unit.program !== unit.originalProgram) refreshPrograms();
       // Hạn nộp mới/đổi -> kích worker gửi thông báo cho học sinh. keepalive để
       // request sống sót qua điều hướng trang ngay dưới đây. Không chờ kết quả;
       // cron là lưới an toàn nếu request này rớt.
@@ -454,12 +525,22 @@ export default function UnitEditorPage() {
 
   const cat = unit.categories.find((c) => c.key === catKey);
   const isPrompt = PROMPT_CATS.includes(catKey);
-  const levelClasses = classes.filter((c) => c.level === unit.level);
+  const program = programOf(unit);
+  const programLabel = PROGRAMS[program].label;
+  // Tab kỹ năng theo chương trình (IELTS = đủ 6, như cũ). Nội dung của kỹ năng bị ẩn
+  // vẫn nằm trong DB, chỉ không hiện tab.
+  const visibleCats = LESSON_CATS.filter((c) => PROGRAMS[program].lessonSkills.includes(c.key));
+  const hiddenWithContent = LESSON_CATS.filter(
+    (c) => !PROGRAMS[program].lessonSkills.includes(c.key) && catHasContent(unit.categories.find((x) => x.key === c.key))
+  );
+  // Lớp cùng level VÀ cùng chương trình (lớp cũ thiếu program tính là IELTS).
+  const levelClasses = classes.filter((c) => c.level === unit.level && programOf(c) === program);
 
   // unit overview stats
   let ov = { totalStudents: 0, totalSubmissions: 0, avgCompletionPct: 0, avgScorePct: null };
   if (stats) {
-    const totalStudents = stats.students.filter((s) => s.level === unit.level).length;
+    // Cùng level VÀ cùng chương trình: Level 1 TOEIC không tính học sinh Level 1 IELTS (và ngược lại).
+    const totalStudents = stats.students.filter((s) => s.level === unit.level && (s.program || "ielts") === program).length;
     const unitSubs = stats.subs.filter(
       (s) => s.kind !== "test" && s.unitId && String(s.unitId) === String(unit._id)
     );
@@ -480,7 +561,9 @@ export default function UnitEditorPage() {
     <div className="tab-panel active">
       <div className="card" id="unitEditor">
         <div className="builder-toolbar">
-          <h3 id="unitEditorHeading">Edit Unit: {unit.name}</h3>
+          <h3 id="unitEditorHeading">
+            Edit Unit: {unit.name} <ProgramBadge program={program} isMulti={isMulti} />
+          </h3>
         </div>
 
         <div id="unitOverviewCard">
@@ -490,7 +573,7 @@ export default function UnitEditorPage() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <h3 style={{ margin: "0 0 6px" }}>{unit.name || "(untitled unit)"}</h3>
                 <div className="unit-overview-badges">
-                  {LESSON_CATS.map((c) => {
+                  {visibleCats.map((c) => {
                     const cc = unit.categories.find((x) => x.key === c.key);
                     const has = catHasContent(cc);
                     return has ? (
@@ -505,9 +588,14 @@ export default function UnitEditorPage() {
                   })}
                 </div>
                 <p className="unit-overview-meta">
-                  Level {unit.level} · Created {fmtDate(unit.createdAt)} · Updated {fmtDate(unit.updatedAt)} · {totalItems}{" "}
+                  {levelLabel(program, unit.level)} · Created {fmtDate(unit.createdAt)} · Updated {fmtDate(unit.updatedAt)} · {totalItems}{" "}
                   item(s)
                 </p>
+                {hiddenWithContent.length > 0 && (
+                  <p className="settings-hint" style={{ margin: "4px 0 0" }}>
+                    {hiddenWithContent.map((c) => c.label).join("/")} content is hidden for {programLabel}.
+                  </p>
+                )}
               </div>
             </div>
             <div className="unit-overview-stats">
@@ -527,7 +615,7 @@ export default function UnitEditorPage() {
           >
             <svg className="icon"><use href="#icon-settings" /></svg> Settings
           </button>
-          {LESSON_CATS.map((c) => {
+          {visibleCats.map((c) => {
             const cc = unit.categories.find((x) => x.key === c.key);
             return (
               <button
@@ -569,6 +657,32 @@ export default function UnitEditorPage() {
               </div>
             </div>
 
+            {isMulti && (
+              <div className="settings-row">
+                <div className="settings-row-icon"><svg className="icon"><use href="#icon-book-open" /></svg></div>
+                <div className="settings-row-label">
+                  <div className="settings-row-title">Program</div>
+                  <div className="settings-row-desc">Decides the skills, question formats and classes for this unit.</div>
+                </div>
+                <div className="settings-row-control">
+                  <select
+                    className="select-inline"
+                    aria-label="Program"
+                    value={program}
+                    disabled={unit.programLocked}
+                    onChange={(e) => changeProgram(e.target.value)}
+                  >
+                    {PROGRAM_KEYS.map((k) => (
+                      <option key={k} value={k}>
+                        {PROGRAMS[k].label}
+                      </option>
+                    ))}
+                  </select>
+                  {unit.programLocked && <p className="program-hint">{UNIT_PROGRAM_LOCKED_HINT}</p>}
+                </div>
+              </div>
+            )}
+
             <div className="settings-row">
               <div className="settings-row-icon"><svg className="icon"><use href="#icon-student" /></svg></div>
               <div className="settings-row-label">
@@ -577,7 +691,9 @@ export default function UnitEditorPage() {
               </div>
               <div className="settings-row-control">
                 {levelClasses.length === 0 ? (
-                  <p className="settings-hint">No classes at Level {unit.level} yet.</p>
+                  <p className="settings-hint">
+                    {isMulti ? `No ${programLabel} classes at Level ${unit.level} yet.` : `No classes at Level ${unit.level} yet.`}
+                  </p>
                 ) : (
                   <>
                     <div className="settings-check-group">
@@ -619,6 +735,7 @@ export default function UnitEditorPage() {
                       onChange={(slot, v) => setDeadline(String(c._id), slot, v)}
                       locks={(unit.skillLocks || {})[String(c._id)] || {}}
                       onLock={(catKey, on) => setLock(String(c._id), catKey, on)}
+                      cats={visibleCats}
                     />
                   ))}
                   <p className="settings-note">
@@ -676,14 +793,16 @@ export default function UnitEditorPage() {
             <GrammarTopicsEditor
               topics={cat.topics || []}
               media={media}
-              aiContext={{ unitId, level: unit.level, unitName: unit.name }}
+              aiContext={{ unitId, level: unit.level, unitName: unit.name, program, levelName: levelDefault }}
+              program={program}
               onChange={(next) => updateCat((c) => (c.topics = next))}
             />
           ) : catKey === "vocabulary" ? (
             <VocabGroupsEditor
               groups={cat.groups || []}
               media={media}
-              aiContext={{ unitId, level: unit.level, unitName: unit.name }}
+              aiContext={{ unitId, level: unit.level, unitName: unit.name, program, levelName: levelDefault }}
+              program={program}
               onChange={(next) => updateCat((c) => (c.groups = next))}
             />
           ) : subTab === "vocab" && isReviewSkill(catKey) ? (
@@ -694,11 +813,12 @@ export default function UnitEditorPage() {
               onChange={(next) => updateCat((c) => (c.vocabReview = next))}
               status={reviewStates[catKey] || { state: "none", hash: "" }}
               ai={vrAi.states[catKey]}
-              aiOptions={aiOptions}
+              aiOptions={withLevelDefault(aiOptions)}
               onAiOptionsChange={updateAiOptions}
               onGenerate={() =>
-                vrAi.run(catKey, cat, { unitId, level: unit.level, unitName: unit.name }, aiOptions)
+                vrAi.run(catKey, cat, { unitId, level: unit.level, unitName: unit.name, program }, withLevelDefault(aiOptions))
               }
+              program={program}
               onPicked={(p) => vrAi.setPicked(catKey, p)}
               onDiscard={() => vrAi.clear(catKey)}
               hasTranscript={cat.exercises.some((ex) => (ex._sections || []).some((s) => (s.transcript || "").trim()))}
@@ -711,9 +831,9 @@ export default function UnitEditorPage() {
               onChange={(next) => updateCat((c) => (c.theory = next))}
             />
           ) : isPrompt ? (
-            <PromptsEditor prompts={cat.prompts} media={media} skill={catKey} onChange={(next) => updateCat((c) => (c.prompts = next))} />
+            <PromptsEditor prompts={cat.prompts} media={media} skill={catKey} program={program} onChange={(next) => updateCat((c) => (c.prompts = next))} />
           ) : (
-            <ExercisesEditor cat={cat} media={media} onChange={(next) => updateCat((c) => (c.exercises = next))} />
+            <ExercisesEditor cat={cat} media={media} program={program} onChange={(next) => updateCat((c) => (c.exercises = next))} />
           )}
             </div>
           </>
@@ -760,9 +880,9 @@ function ReviewDot({ state }) {
   );
 }
 
-function ClassDeadlineEditor({ cls, slots, onChange, locks = {}, onLock }) {
-  const skillsSet = LESSON_CATS.filter((c) => slots[c.key]).length;
-  const locksSet = LESSON_CATS.filter((c) => locks[c.key]).length;
+function ClassDeadlineEditor({ cls, slots, onChange, locks = {}, onLock, cats = LESSON_CATS }) {
+  const skillsSet = cats.filter((c) => slots[c.key]).length;
+  const locksSet = cats.filter((c) => locks[c.key]).length;
   const [open, setOpen] = useState(skillsSet > 0 || locksSet > 0);
 
   const clearBtn = (slot) =>
@@ -796,7 +916,7 @@ function ClassDeadlineEditor({ cls, slots, onChange, locks = {}, onLock }) {
       </button>
       {open && (
         <div className="deadline-skill-grid">
-          {LESSON_CATS.map((c) => {
+          {cats.map((c) => {
             const locked = !!locks[c.key];
             return (
               <div className={"deadline-skill-row" + (locked ? " is-locked" : "")} key={c.key}>
@@ -826,7 +946,7 @@ function ClassDeadlineEditor({ cls, slots, onChange, locks = {}, onLock }) {
   );
 }
 
-function ExercisesEditor({ cat, media, onChange }) {
+function ExercisesEditor({ cat, media, program, onChange }) {
   const dialog = useDialog();
   function patch(mut) {
     const draft = structuredClone(cat.exercises);
@@ -861,6 +981,7 @@ function ExercisesEditor({ cat, media, onChange }) {
             <SectionsEditor
               sections={ex._sections}
               subject={cat.key}
+              program={program}
               media={media}
               showTranscript
               onChange={(next) => patch((d) => (d[i]._sections = next))}

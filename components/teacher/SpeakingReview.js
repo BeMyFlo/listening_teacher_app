@@ -8,6 +8,8 @@
 
 import { useState } from "react";
 import { CATEGORIES } from "@/lib/grading/annotate";
+import { annotationCriteria } from "@/lib/grading/rubric";
+import { ASPECT_LABELS } from "@/lib/toeicTasks";
 import EssayAnnotator from "./EssayAnnotator";
 
 const CRIT = ["FC", "LR", "GRA", "PR"];
@@ -19,6 +21,7 @@ const fmtT = (s) => (s == null ? "" : `${Math.floor(s / 60)}:${String(Math.round
 const rid = () => Math.random().toString(36).slice(2, 10);
 
 export default function SpeakingReview({
+  variant,
   audioUrl,
   transcript,
   notes = [],
@@ -29,6 +32,8 @@ export default function SpeakingReview({
   onAiGrade,
   aiBusy,
 }) {
+  // TOEIC: khía cạnh của dạng đề; IELTS giữ CRIT cũ.
+  const crits = annotationCriteria(variant) || CRIT;
   const [showTranscript, setShowTranscript] = useState(false);
   const [tab, setTab] = useState("notes"); // "notes" | "corrections"
   const [draft, setDraft] = useState({ atSeconds: "", category: "other", criterion: "", comment: "" });
@@ -95,6 +100,7 @@ export default function SpeakingReview({
             essayText={transcript}
             annotations={annotations}
             kind="speaking"
+            variant={variant}
             onChange={onAnnotationsChange}
           />
         )
@@ -109,7 +115,7 @@ export default function SpeakingReview({
                   <span className="ea-note" style={{ fontStyle: "normal", flex: 1, minWidth: 160 }}>{n.comment}</span>
                   <select className="ea-mini" value={n.criterion || ""} onChange={(e) => patch(n.id, { criterion: e.target.value || null })}>
                     <option value="">—</option>
-                    {CRIT.map((c) => <option key={c} value={c}>{c}</option>)}
+                    {crits.map((c) => <option key={c} value={c}>{ASPECT_LABELS[c] || c}</option>)}
                   </select>
                   <button type="button" className="icon-btn danger" title="Remove" onClick={() => remove(n.id)}>
                     <svg className="icon"><use href="#icon-trash" /></svg>
@@ -130,7 +136,7 @@ export default function SpeakingReview({
             </select>
             <select value={draft.criterion} onChange={(e) => setDraft((d) => ({ ...d, criterion: e.target.value }))}>
               <option value="">criterion…</option>
-              {CRIT.map((c) => <option key={c} value={c}>{c}</option>)}
+              {crits.map((c) => <option key={c} value={c}>{ASPECT_LABELS[c] || c}</option>)}
             </select>
             <input type="text" placeholder="Note…" style={{ flex: 1, minWidth: 120 }} value={draft.comment}
               onChange={(e) => setDraft((d) => ({ ...d, comment: e.target.value }))}

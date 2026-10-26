@@ -1,9 +1,18 @@
 "use client";
 
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { api } from "@/lib/client/api";
+import { useRecorder } from "@/lib/client/useRecorder";
 import { useDialog } from "@/components/ui/Dialog";
 import SubmissionResultModal from "@/components/student/SubmissionResultModal";
+import {
+  toeicTask,
+  effectivePrep,
+  effectiveResponse,
+  countWords,
+  formatTimerSec,
+  hasRequiredWord,
+} from "@/lib/toeicTasks";
 
 // submitContext: { unitId, categoryKey } (Lesson) hoặc { testId, skill } (Mock Test)
 export const WritingPrompt = forwardRef(function WritingPrompt(
@@ -16,6 +25,13 @@ export const WritingPrompt = forwardRef(function WritingPrompt(
   const [pasteHint, setPasteHint] = useState(false);
   const [result, setResult] = useState(null); // { isLate, dueAt }
   const hintTimer = useRef(null);
+  const task = toeicTask(prompt && prompt.taskType);
+  const isToeic = !!(task && task.skill === "writing");
+  const reqWords =
+    isToeic && task.needsRequiredWords
+      ? (prompt.requiredWords || []).map((w) => String(w || "").trim()).filter(Boolean)
+      : [];
+  const words = isToeic ? countWords(text) : 0;
 
   // Bài Writing phải tự gõ — chặn dán / kéo-thả văn bản vào ô soạn.
   function blockPaste(e) {
@@ -73,6 +89,19 @@ export const WritingPrompt = forwardRef(function WritingPrompt(
 
   return (
     <>
+      {reqWords.length > 0 && (
+        <div className="toeic-req-words">
+          <span className="toeic-req-label">Required words:</span>
+          {reqWords.map((w, i) => {
+            const hit = hasRequiredWord(text, w);
+            return (
+              <span key={i} className={"toeic-word-chip" + (hit ? " is-used" : "")}>
+                {hit ? `✓ ${w}` : w}
+              </span>
+            );
+          })}
+        </div>
+      )}
       <textarea
         rows={20}
         className="essay-input"
@@ -83,6 +112,14 @@ export const WritingPrompt = forwardRef(function WritingPrompt(
         onPaste={blockPaste}
         onDrop={blockPaste}
       />
+      {isToeic && (
+        <div className="toeic-writing-meta">
+          <span className="toeic-word-count">
+            {words} {words === 1 ? "word" : "words"}
+            {task.wordTarget ? ` · Target: ~${task.wordTarget} words` : ""}
+          </span>
+        </div>
+      )}
       <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: ".8rem" }}>
         <svg className="icon"><use href="#icon-info" /></svg> Copy &amp; paste is disabled — please type your answer.
       </p>
@@ -114,48 +151,180 @@ export const WritingPrompt = forwardRef(function WritingPrompt(
   );
 });
 
+// Thanh công cụ luyện tập Speaking TOEIC trong Lesson (mục 5.1): nhãn dạng đề,
+// nút phát audio câu hỏi (tối đa audioPlays lần), và đồng hồ tham khảo Prep -> Speak
+// (đổi màu khi hết giờ, không tự dừng ghi âm).
+function ToeicSpeakingPracticeBar({ prompt, task }) {
+  const prepTotal = effectivePrep(prompt) ?? 0;
+  const speakTotal = effectiveResponse(prompt) ?? 0;
+  const maxPlays = Number(prompt.audioPlays) === 2 ? 2 : 1;
+
+  const [timer, setTimer] = useState({ phase: "idle", left: prepTotal });
+  const [playsUsed, setPlaysUsed] = useState(0);
+  const [qPlaying, setQPlaying] = useState(false);
+  const [audioErr, setAudioErr] = useState("");
+  const qAudioRef = useRef(null);
+
+  useEffect(() => {
+    setTimer({ phase: "idle", left: prepTotal });
+    setPlaysUsed(0);
+    setQPlaying(false);
+    setAudioErr("");
+  }, [prompt.id, prepTotal, speakTotal]);
+
+  useEffect(() => {
+    if (timer.phase !== "prep" && timer.phase !== "speak") return;
+    const id = setInterval(() => {
+      setTimer((cur) => {
+        if (cur.phase === "prep") {
+          if (cur.left > 1) return { phase: "prep", left: cur.left - 1 };
+          return speakTotal > 0 ? { phase: "speak", left: speakTotal } : { phase: "done", left: 0 };
+        }
+        if (cur.phase === "speak") {
+          if (cur.left > 1) return { phase: "speak", left: cur.left - 1 };
+          return { phase: "done", left: 0 };
+        }
+        return cur;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [timer.phase, speakTotal]);
+
+  function startTimer() {
+    if (prepTotal > 0) setTimer({ phase: "prep", left: prepTotal });
+    else if (speakTotal > 0) setTimer({ phase: "speak", left: speakTotal });
+    else setTimer({ phase: "done", left: 0 });
+  }
+
+  function resetTimer() {
+    setTimer({ phase: "idle", left: prepTotal });
+  }
+
+  function playQuestionAudio() {
+    if (qPlaying || playsUsed >= maxPlays) return;
+    const el = qAudioRef.current;
+    if (!el) return;
+    setAudioErr("");
+    try {
+      el.currentTime = 0;
+    } catch {}
+    setQPlaying(true);
+    const p = el.play();
+    if (p && p.catch) {
+      p.catch(() => {
+        setQPlaying(false);
+        setAudioErr("Unable to play question audio.");
+      });
+    }
+  }
+
+  const prepShown =
+    timer.phase === "idle" ? prepTotal : timer.phase === "prep" ? timer.left : 0;
+  const speakShown =
+    timer.phase === "idle" || timer.phase === "prep"
+      ? speakTotal
+      : timer.phase === "speak"
+      ? timer.left
+      : 0;
+
+  return (
+    <div className="toeic-speaking-bar">
+      <div className="toeic-speaking-top">
+        <span className="pill pill-info toeic-task-label">{task.label}</span>
+        {prompt.audioUrl && (
+          <>
+            <audio
+              ref={qAudioRef}
+              src={prompt.audioUrl}
+              preload="auto"
+              onEnded={() => {
+                setQPlaying(false);
+                setPlaysUsed((n) => n + 1);
+              }}
+              onError={() => {
+                if (qPlaying) {
+                  setQPlaying(false);
+                  setAudioErr("Unable to play question audio.");
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="btn secondary toeic-q-audio-btn"
+              disabled={qPlaying || playsUsed >= maxPlays}
+              onClick={playQuestionAudio}
+            >
+              <svg className="icon"><use href="#icon-headphones" /></svg>{" "}
+              {qPlaying
+                ? maxPlays > 1
+                  ? `Playing question (${playsUsed + 1}/${maxPlays})...`
+                  : "Playing question..."
+                : playsUsed >= maxPlays
+                ? maxPlays > 1
+                  ? `Question audio played (${maxPlays}/${maxPlays})`
+                  : "Question audio played"
+                : maxPlays > 1
+                ? `Play question audio (${playsUsed + 1}/${maxPlays})`
+                : "Play question audio"}
+            </button>
+          </>
+        )}
+      </div>
+      {audioErr && (
+        <p className="notice warn" style={{ margin: "6px 0 0", fontSize: ".82rem" }}>
+          <svg className="icon"><use href="#icon-warning" /></svg> {audioErr}
+        </p>
+      )}
+      <div
+        className={
+          "toeic-ref-timer phase-" +
+          timer.phase +
+          (timer.phase === "done" ? " is-expired" : "")
+        }
+      >
+        <svg className="icon"><use href="#icon-clock" /></svg>
+        <span className="toeic-ref-times">
+          <span className={timer.phase === "prep" ? "is-active" : ""}>
+            Prep {formatTimerSec(prepShown)}
+          </span>
+          {" · "}
+          <span className={timer.phase === "speak" ? "is-active" : ""}>
+            Speak {formatTimerSec(speakShown)}
+          </span>
+        </span>
+        {timer.phase !== "idle" && (
+          <span className="toeic-ref-phase">
+            {timer.phase === "prep"
+              ? "Preparing..."
+              : timer.phase === "speak"
+              ? "Speak now"
+              : "Time's up"}
+          </span>
+        )}
+        <button
+          type="button"
+          className="btn secondary toeic-timer-btn"
+          onClick={timer.phase === "idle" ? startTimer : resetTimer}
+        >
+          {timer.phase === "idle" ? "Start" : "Reset"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export const SpeakingPrompt = forwardRef(function SpeakingPrompt(
   { prompt, submitContext, onSubmitted, resubmit = false },
   ref
 ) {
   const dialog = useDialog();
-  const [recording, setRecording] = useState(false);
-  const [blobUrl, setBlobUrl] = useState("");
-  const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
-  const recRef = useRef(null);
-
-  async function toggle() {
-    if (recording && recRef.current?.mr?.state === "recording") {
-      recRef.current.mr.stop();
-      return;
-    }
-    if (!navigator.mediaDevices || !window.MediaRecorder) {
-      dialog.alert({ tone: "error", title: "Not supported", message: "Your browser does not support audio recording." });
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      const state = { mr, chunks: [], stream, blob: null };
-      recRef.current = state;
-      mr.ondataavailable = (e) => e.data?.size && state.chunks.push(e.data);
-      mr.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        state.blob = new Blob(state.chunks, { type: mr.mimeType || "audio/webm" });
-        setBlobUrl(URL.createObjectURL(state.blob));
-        setRecording(false);
-        setHint("");
-      };
-      mr.start();
-      setRecording(true);
-      setBlobUrl("");
-      setHint("Recording...");
-    } catch (e) {
-      dialog.alert({ tone: "error", title: "Microphone error", message: "Unable to access microphone: " + e.message });
-    }
-  }
+  const { recording, blobUrl, hint, toggle, stop, clear, getBlob } = useRecorder({
+    onError: ({ title, message }) => dialog.alert({ tone: "error", title, message }),
+  });
+  const task = toeicTask(prompt && prompt.taskType);
+  const isToeic = !!(task && task.skill === "speaking");
 
   async function doSubmit(blob) {
     setBusy(true);
@@ -168,8 +337,8 @@ export const SpeakingPrompt = forwardRef(function SpeakingPrompt(
         audioUrl,
         audioPublicId,
       });
-      recRef.current = null;
-      setBlobUrl("");
+      clear();
+      setBusy(false);
       setResult({ isLate: !!(res && res.isLate), dueAt: res && res.dueAt });
       onSubmitted && (await onSubmitted());
     } catch (e) {
@@ -179,7 +348,7 @@ export const SpeakingPrompt = forwardRef(function SpeakingPrompt(
   }
 
   async function submit() {
-    const blob = recRef.current?.blob;
+    const blob = getBlob();
     if (!blob) {
       dialog.toast("Please record audio before submitting.", "error");
       return;
@@ -201,18 +370,7 @@ export const SpeakingPrompt = forwardRef(function SpeakingPrompt(
   useImperativeHandle(ref, () => ({
     forceSubmit: async () => {
       if (busy || result) return;
-      if (recording && recRef.current?.mr?.state === "recording") {
-        const mr = recRef.current.mr;
-        await new Promise((resolve) => {
-          const prevOnStop = mr.onstop;
-          mr.onstop = (e) => {
-            prevOnStop(e);
-            resolve();
-          };
-          mr.stop();
-        });
-      }
-      const blob = recRef.current?.blob;
+      const blob = await stop();
       if (!blob) return;
       await doSubmit(blob);
     },
@@ -220,6 +378,7 @@ export const SpeakingPrompt = forwardRef(function SpeakingPrompt(
 
   return (
     <>
+      {isToeic && <ToeicSpeakingPracticeBar prompt={prompt} task={task} />}
       <button type="button" className="btn btn-rec-toggle" onClick={toggle}>
         <svg className="icon"><use href={recording ? "#icon-cross" : "#icon-mic"} /></svg>{" "}
         {recording ? "Stop Recording" : blobUrl ? "Record Again" : "Start Recording"}

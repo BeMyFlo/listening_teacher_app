@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { readSession } from "@/lib/client/session";
 import { setBadge } from "@/lib/client/shellBadges";
+import { usePrograms } from "@/lib/client/program";
+import ProgramBadge from "@/components/ProgramBadge";
 
 function initials(name) {
   const parts = String(name || "?").trim().split(/\s+/);
@@ -126,6 +128,7 @@ export default function OverviewPage() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [name, setName] = useState("");
+  const { isMulti, levelName, levelLabel } = usePrograms();
 
   useEffect(() => {
     const sess = readSession("teacher");
@@ -207,8 +210,14 @@ export default function OverviewPage() {
                     <div className="meta">
                       <span className="dash-badge">{classCode(c.name)}</span>
                       <div className="meta-text">
-                        <h4>{c.name}</h4>
-                        <p>{c.studentCount} student{c.studentCount === 1 ? "" : "s"}</p>
+                        <h4>
+                          {c.name}
+                          <ProgramBadge program={c.program} isMulti={isMulti} />
+                        </h4>
+                        <p>
+                          {levelName(c.program, c.level) ? levelLabel(c.program, c.level) + " · " : ""}
+                          {c.studentCount} student{c.studentCount === 1 ? "" : "s"}
+                        </p>
                       </div>
                     </div>
                     <div className="dash-completion">

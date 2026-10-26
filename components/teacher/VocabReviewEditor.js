@@ -31,6 +31,7 @@ export default function VocabReviewEditor({
   onPicked,
   onDiscard,
   hasTranscript,
+  program,
 }) {
   const dialog = useDialog();
   const busy = !!(ai && ai.busy);
@@ -114,7 +115,7 @@ export default function VocabReviewEditor({
         <details style={{ marginTop: 10 }}>
           <summary style={{ cursor: "pointer", fontSize: ".86rem", color: "var(--muted)" }}>AI options</summary>
           <div style={{ marginTop: 10 }}>
-            <VocabReviewOptions opts={aiOptions} onChange={onAiOptionsChange} idSuffix={"-" + skill} />
+            <VocabReviewOptions opts={aiOptions} onChange={onAiOptionsChange} idSuffix={"-" + skill} program={program} />
           </div>
         </details>
         {ai && ai.err && <div className="notice error" style={{ marginTop: 10 }}>{ai.err}</div>}

@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
 
 const CATS = [
   { key: "grammar", label: "Grammar" },
@@ -34,6 +35,10 @@ function CatCell({ c }) {
   if (!c) return <td style={{ color: "var(--muted)" }}>—</td>;
   if (c.kind === "prompt") {
     if (!c.submitted) return <td style={{ color: "var(--muted)" }}>—</td>;
+    // TOEIC: tổng điểm thô / tổng max khi mọi đề đã chấm, chưa đủ thì "x/y graded".
+    if (c.toeic) {
+      return c.graded < c.itemsTotal ? <td><span className="pill pill-warn">{c.graded}/{c.itemsTotal} graded</span></td> : <td><b>{c.scoreSum}/{c.maxSum}</b></td>;
+    }
     if (c.submitted > c.graded)
       return <td><span className="pill pill-warn">Pending</span></td>;
     return <td><b>{c.avgScore != null ? c.avgScore : "✓"}</b></td>;
@@ -110,7 +115,7 @@ function Inner() {
         <div className="page-head-icon"><svg className="icon"><use href="#icon-list" /></svg></div>
         <div>
           <h1>Submissions{data ? " — " + data.unit.name : ""}</h1>
-          <p className="page-sub">Whole unit · 6 skills · graded per student</p>
+          <p className="page-sub">Whole unit · {data ? PROGRAMS[programOf(data.unit)].lessonSkills.length : 6} skills · graded per student</p>
         </div>
       </div>
       {data && (
@@ -202,6 +207,7 @@ function Inner() {
   }
 
   // ---------- Student list for a class ----------
+  const cats = CATS.filter((c) => PROGRAMS[programOf(data.unit)].lessonSkills.includes(c.key));
   const cls = data.classes.find((c) => String(c._id) === String(classId));
   const students =
     classId === "__all__"
@@ -226,14 +232,14 @@ function Inner() {
             <thead>
               <tr>
                 <th>Student</th>
-                {CATS.map((c) => <th key={c.key}>{c.label}</th>)}
+                {cats.map((c) => <th key={c.key}>{c.label}</th>)}
                 <th>Status</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {students.length === 0 && (
-                <tr><td colSpan={CATS.length + 3} style={{ textAlign: "center", color: "var(--muted)" }}>No students</td></tr>
+                <tr><td colSpan={cats.length + 3} style={{ textAlign: "center", color: "var(--muted)" }}>No students</td></tr>
               )}
               {students.map((s) => {
                 const st = STATUS[s.status] || STATUS.not_started;
@@ -249,7 +255,7 @@ function Inner() {
                       <br />
                       <span style={{ color: "var(--muted)", fontSize: ".8rem" }}>{s.username}</span>
                     </td>
-                    {CATS.map((c) => <CatCell key={c.key} c={s.categories[c.key]} />)}
+                    {cats.map((c) => <CatCell key={c.key} c={s.categories[c.key]} />)}
                     <td><span className={"pill " + st.cls}>{st.label}</span></td>
                     <td><svg className="icon"><use href="#icon-chevron-right" /></svg></td>
                   </tr>

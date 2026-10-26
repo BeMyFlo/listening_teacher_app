@@ -1,9 +1,14 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
+import { DEFAULT_PROGRAM, PROGRAMS, programOf } from "@/lib/curriculum";
+import { programParam, usePrograms } from "@/lib/client/program";
+
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function LessonsInner() {
   const dialog = useDialog();
@@ -11,6 +16,15 @@ function LessonsInner() {
   const search = useSearchParams();
   const levelParam = search.get("level");
   const level = levelParam ? Number(levelParam) : null;
+  const { programs, isMulti, loaded, levelLabel } = usePrograms();
+  // Chỉ khi workspace dùng >= 2 chương trình mới có khái niệm "đang xem chương
+  // trình nào" (Level 1 IELTS khác Level 1 TOEIC — C3). Link cũ không có
+  // &program= được hiểu là IELTS. Workspace 1 chương trình: null = không lọc,
+  // giữ nguyên hành vi cũ.
+  const viewProgram = isMulti ? programParam(search) || DEFAULT_PROGRAM : null;
+
+  // Chương trình dùng để tra tên level: đang xem (nhiều chương trình) hoặc chương trình duy nhất.
+  const labelProgram = viewProgram || programs[0] || DEFAULT_PROGRAM;
 
   const [units, setUnits] = useState(null);
   const [classes, setClasses] = useState([]);
@@ -38,20 +52,22 @@ function LessonsInner() {
     if (level) setFormLevel(level);
     setFormClassIds([]);
     setClassFilter("all");
-  }, [level]);
+  }, [level, viewProgram]);
 
   const classById = useMemo(() => Object.fromEntries(classes.map((c) => [String(c._id), c])), [classes]);
 
   // Danh sách level: gộp từ lớp + unit, luôn có ít nhất 1..maxLevel.
-  const levels = useMemo(() => {
+  // `p` = chương trình (null = không phân biệt, như workspace 1 chương trình).
+  const levelsFor = (p) => {
     const set = new Set();
-    classes.forEach((c) => set.add(c.level));
-    (units || []).forEach((u) => set.add(u.level));
+    classes.filter((c) => !p || programOf(c) === p).forEach((c) => set.add(c.level));
+    (units || []).filter((u) => !p || programOf(u) === p).forEach((u) => set.add(u.level));
     if (!set.size) set.add(1);
     return [...set].sort((a, b) => a - b);
-  }, [classes, units]);
+  };
 
-  const classesAtLevel = (lvl) => classes.filter((c) => c.level === lvl);
+  const classesAt = (lvl, p) => classes.filter((c) => c.level === lvl && (!p || programOf(c) === p));
+  const classesAtLevel = (lvl) => classesAt(lvl, viewProgram);
 
   async function create() {
     if (!name.trim()) {
@@ -64,6 +80,7 @@ function LessonsInner() {
         name: name.trim(),
         level: Number(formLevel) || 1,
         classIds: formClassIds,
+        ...(viewProgram ? { program: viewProgram } : {}),
       });
       router.push("/teacher/lessons/" + d.unit._id);
     } catch (e) {
@@ -95,15 +112,60 @@ function LessonsInner() {
         <div>
           <h1>Lessons</h1>
           <p className="page-sub">
-            Units by level — Grammar, Vocabulary, Listening, Reading, Writing, Speaking
+            {isMulti
+              ? "Units by program and level"
+              : "Units by level — Grammar, Vocabulary, Listening, Reading, Writing, Speaking"}
           </p>
         </div>
+      </div>
+      <div className="page-head-actions">
+        <Link href="/teacher/classes?tab=levels" className="btn secondary sm" style={{ textDecoration: "none" }}>Manage levels</Link>
       </div>
     </div>
   );
 
+  // Chờ cả danh sách lẫn chương trình của workspace để không nháy từ danh sách
+  // phẳng sang 2 nhóm.
+  const ready = !!units && loaded;
+
   // ---------- Màn 1: chọn level ----------
   if (!level) {
+    // 1 hàng level; `p` = chương trình của nhóm chứa nó (null khi 1 chương trình).
+    const renderLevelRow = (lvl, p) => {
+      const nUnits = (units || []).filter((u) => u.level === lvl && (!p || programOf(u) === p)).length;
+      const cl = classesAt(lvl, p);
+      return (
+        <div
+          className="unit-list-row"
+          key={lvl}
+          onClick={() => router.push("/teacher/lessons?level=" + lvl + (p ? "&program=" + p : ""))}
+        >
+          <div className="unit-list-num">{String(lvl).padStart(2, "0")}</div>
+          <div className="unit-list-meta">
+            <h4>{levelLabel(p || labelProgram, lvl)}</h4>
+            <p>
+              <span className="meta-icon">
+                <svg className="icon"><use href="#icon-book-open" /></svg> {nUnits} unit{nUnits === 1 ? "" : "s"}
+              </span>
+              <span className="meta-icon">
+                <svg className="icon"><use href="#icon-student" /></svg>{" "}
+                {p && cl.length === 1 ? (
+                  cl[0].name
+                ) : (
+                  <>
+                    {cl.length} class{cl.length === 1 ? "" : "es"}
+                  </>
+                )}
+              </span>
+            </p>
+          </div>
+          <button type="button" className="icon-btn unit-list-goto">
+            <svg className="icon"><use href="#icon-chevron-right" /></svg>
+          </button>
+        </div>
+      );
+    };
+
     return (
       <div className="tab-panel active">
         {head}
@@ -112,34 +174,33 @@ function LessonsInner() {
             <svg className="icon"><use href="#icon-warning" /></svg> {listErr}
           </div>
         )}
-        {!units && !listErr && <div className="notice info">Loading...</div>}
-        {units && (
+        {!ready && !listErr && <div className="notice info">Loading...</div>}
+        {ready && !isMulti && (
           <div id="unitsList" style={{ marginTop: 4 }}>
-            {levels.map((lvl) => {
-              const nUnits = units.filter((u) => u.level === lvl).length;
-              const nClasses = classesAtLevel(lvl).length;
+            {levelsFor(null).map((lvl) => renderLevelRow(lvl, null))}
+          </div>
+        )}
+        {ready && isMulti && (
+          <div style={{ marginTop: 4 }}>
+            {programs.map((k) => {
+              const levels = levelsFor(k);
               return (
-                <div
-                  className="unit-list-row"
-                  key={lvl}
-                  onClick={() => router.push("/teacher/lessons?level=" + lvl)}
-                >
-                  <div className="unit-list-num">{String(lvl).padStart(2, "0")}</div>
-                  <div className="unit-list-meta">
-                    <h4>Level {lvl}</h4>
-                    <p>
-                      <span className="meta-icon">
-                        <svg className="icon"><use href="#icon-book-open" /></svg> {nUnits} unit{nUnits === 1 ? "" : "s"}
-                      </span>
-                      <span className="meta-icon">
-                        <svg className="icon"><use href="#icon-student" /></svg> {nClasses} class{nClasses === 1 ? "" : "es"}
-                      </span>
-                    </p>
+                <section className="program-section" key={k}>
+                  <div className="program-section-head">
+                    <div>
+                      <h2>{PROGRAMS[k].label}</h2>
+                      <p>{PROGRAMS[k].lessonSkills.map(cap).join(", ")}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => router.push("/teacher/lessons?level=" + levels[0] + "&program=" + k)}
+                    >
+                      <svg className="icon"><use href="#icon-plus" /></svg> New unit
+                    </button>
                   </div>
-                  <button type="button" className="icon-btn unit-list-goto">
-                    <svg className="icon"><use href="#icon-chevron-right" /></svg>
-                  </button>
-                </div>
+                  <div id={"unitsList-" + k}>{levels.map((lvl) => renderLevelRow(lvl, k))}</div>
+                </section>
               );
             })}
           </div>
@@ -149,7 +210,10 @@ function LessonsInner() {
   }
 
   // ---------- Màn 2: unit của 1 level ----------
-  const levelUnits = (units || []).filter((u) => u.level === level);
+  const levelTitle = viewProgram
+    ? PROGRAMS[viewProgram].label + " · " + levelLabel(viewProgram, level)
+    : levelLabel(labelProgram, level);
+  const levelUnits = (units || []).filter((u) => u.level === level && (!viewProgram || programOf(u) === viewProgram));
   const filtered = levelUnits.filter((u) => {
     if (classFilter === "all") return true;
     if (classFilter === "__none__") return !u.classIds || u.classIds.length === 0;
@@ -170,7 +234,7 @@ function LessonsInner() {
       </p>
 
       <div className="card" id="unitListCard">
-        <h3>Create New Unit — Level {level}</h3>
+        <h3>Create New Unit — {levelTitle}</h3>
         <div className="form-row">
           <label>Unit Name</label>
           <input type="text" placeholder="e.g. UNIT 1" value={name} onChange={(e) => setName(e.target.value)} />
@@ -211,7 +275,7 @@ function LessonsInner() {
 
         <div className="page-head" style={{ marginTop: 24 }}>
           <div className="head-left">
-            <h3 style={{ margin: 0 }}>Units — Level {level}</h3>
+            <h3 style={{ margin: 0 }}>Units — {levelTitle}</h3>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <select className="select-inline" value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
@@ -231,15 +295,16 @@ function LessonsInner() {
             <svg className="icon"><use href="#icon-warning" /></svg> {listErr}
           </div>
         )}
-        {!units && !listErr && <div className="notice info">Loading...</div>}
+        {!ready && !listErr && <div className="notice info">Loading...</div>}
         <div id="unitsList" style={{ marginTop: 14 }}>
-          {units && filtered.length === 0 && (
+          {ready && filtered.length === 0 && (
             <div className="empty-state">No units for this filter.</div>
           )}
           {filtered.map((u) => {
             const assigned = (u.classIds || []).map((id) => classById[String(id)]?.name).filter(Boolean);
-            const ex = (u.categories || []).reduce((n, c) => n + (c.exercises || []).length, 0);
-            const pr = (u.categories || []).reduce((n, c) => n + (c.prompts || []).length, 0);
+            const shown = (u.categories || []).filter((c) => PROGRAMS[programOf(u)].lessonSkills.includes(c.key));
+            const ex = shown.reduce((n, c) => n + (c.exercises || []).length, 0);
+            const pr = shown.reduce((n, c) => n + (c.prompts || []).length, 0);
             return (
               <div className="test-item" key={u._id}>
                 <div className="meta">

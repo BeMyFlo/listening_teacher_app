@@ -35,6 +35,10 @@ const PLATFORM = [
   "users", "appsettings", "aiprompts", "aispends", "workspaces", "workspacemembers", "handoffcodes", "signuprequests",
 ];
 
+// Phase 8: các collection có field `program` (backfill bằng scripts/backfill-program.js).
+// Thiếu `program` KHÔNG làm app hỏng (programFilter chịu được), nên chỉ báo, không chặn --strict.
+const PROGRAM_COLS = ["classes", "units", "tests", "submissions"];
+
 const STRICT = process.argv.includes("--strict");
 
 (async () => {
@@ -86,6 +90,28 @@ const STRICT = process.argv.includes("--strict");
   console.log("");
   console.log(`Tổng document thiếu workspaceId: ${totalMissing}`);
   console.log(`Nhóm bắt buộc còn thiếu: ${blocking.length}/${rows.filter((r) => r.group === "bắt buộc").length} collection`);
+
+  // --- Phase 8: document thiếu `program` -------------------------------------
+  const progRows = [];
+  for (const col of PROGRAM_COLS) {
+    if (!present.includes(col)) continue;
+    const total = await db.collection(col).countDocuments();
+    const missing = await db.collection(col).countDocuments({
+      $or: [{ program: { $exists: false } }, { program: null }],
+    });
+    progRows.push({ col, total, missing });
+  }
+  if (progRows.length) {
+    console.log("");
+    console.log("Thiếu `program` (Phase 8, không chặn --strict):");
+    for (const r of progRows) {
+      console.log(
+        `${r.col.padEnd(w)}  ${String(r.total).padStart(7)} tổng ${String(r.missing).padStart(7)} thiếu` +
+          (r.missing ? "  <-- chạy scripts/backfill-program.js" : "")
+      );
+    }
+    console.log(`Tổng document thiếu program: ${progRows.reduce((s, r) => s + r.missing, 0)}`);
+  }
 
   if (absent.length) console.log(`\nChưa tồn tại trong DB (Mongo tạo collection lười): ${absent.join(", ")}`);
   if (unknown.length) {

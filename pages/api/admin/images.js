@@ -58,6 +58,8 @@ async function handler(req, res) {
         $or: [
           { "skills.listening.sections.imageId": image._id },
           { "skills.reading.sections.imageId": image._id },
+          { "skills.listening.sections.fields.imageId": image._id },
+          { "skills.reading.sections.fields.imageId": image._id },
           { "skills.writing.prompts.imageId": image._id },
           { "skills.speaking.prompts.imageId": image._id },
         ],
@@ -69,6 +71,9 @@ async function handler(req, res) {
           { "categories.prompts.imageId": image._id },
           { "categories.topics.exercises.sections.imageId": image._id },
           { "categories.groups.exercises.sections.imageId": image._id },
+          { "categories.exercises.sections.fields.imageId": image._id },
+          { "categories.topics.exercises.sections.fields.imageId": image._id },
+          { "categories.groups.exercises.sections.fields.imageId": image._id },
         ],
       })),
     ]);

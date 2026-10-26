@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
@@ -14,6 +14,11 @@ import { useTabSwitchGuard } from "@/components/student/useTabSwitchGuard";
 import { useDialog } from "@/components/ui/Dialog";
 import RubricResult from "@/components/RubricResult";
 import NotebookFab from "@/components/student/NotebookFab";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
+import { groupFieldsByPart, groupPromptsByTask } from "@/lib/partGroups";
+import { isToeicTaskType, toeicTask } from "@/lib/toeicTasks";
+import ToeicSpeakingRunner, { isToeicSpeakingCompleted } from "@/components/student/ToeicSpeakingRunner";
 
 export default function TakeTestPage() {
   const { testId, skill } = useParams();
@@ -26,10 +31,23 @@ export default function TakeTestPage() {
   const [promptsDone, setPromptsDone] = useState(false);
   const { subs, loaded: subsLoaded, refresh } = useMySubmissions();
   const promptRefs = useRef({});
+  const initialToeicDoneRef = useRef(null);
 
   const skillData = test && test.skills[skill];
   const isQuestion = QUESTION_SKILLS.includes(skill);
-  const canGuardPrompts = !!(test && !locked && !isQuestion && tab && !promptsDone);
+  const promptsList = (skillData && skillData.prompts) || [];
+  const toeicSpeaking =
+    skill === "speaking" &&
+    !!test &&
+    programOf(test) === "toeic" &&
+    promptsList.length > 0 &&
+    promptsList.every((p) => isToeicTaskType(p.taskType) && toeicTask(p.taskType)?.skill === "speaking");
+  if (toeicSpeaking && subsLoaded && initialToeicDoneRef.current === null) {
+    const sid = (readSession("student")?.payload?.studentId) || "anon";
+    initialToeicDoneRef.current = isToeicSpeakingCompleted(sid, test.id, promptsList, subs);
+  }
+  const toeicSpeakingDone = toeicSpeaking && !!initialToeicDoneRef.current;
+  const canGuardPrompts = !!(test && !locked && !isQuestion && tab && !promptsDone && !toeicSpeakingDone);
 
   // Nộp ngay bài đang làm dở của MỌI prompt (nếu có nội dung) rồi quay lại
   // danh sách test — dùng chung cho cả vi phạm tab-switch và hết giờ đếm ngược.
@@ -83,8 +101,10 @@ export default function TakeTestPage() {
         </div>
       </section>
     );
-  if (!tab) return <section><div className="card">{backLink}<p>Invalid skill.</p></div></section>;
-  if (!test)
+  // Kỹ năng ngoài testSkills của chương trình (chương trình nào mở kỹ năng nào do lib/curriculum.js quyết định) coi như không tồn tại.
+  const skillHidden = !!(test && test.program && !PROGRAMS[programOf(test)].testSkills.includes(skill));
+  if (!tab || skillHidden) return <section><div className="card">{backLink}<p>Invalid skill.</p></div></section>;
+  if (!test || (toeicSpeaking && !subsLoaded))
     return (
       <section>
         <div className="card">
@@ -106,11 +126,15 @@ export default function TakeTestPage() {
     const allSubmitted =
       (skillData.prompts || []).length > 0 &&
       (skillData.prompts || []).every((p) => !!latestPromptSub(subs, p.id));
+    const toeicWriting = skill === "writing" && programOf(test) === "toeic";
+    const promptGroups = toeicWriting
+      ? groupPromptsByTask(skillData.prompts || [])
+      : [{ label: "", prompts: skillData.prompts || [] }];
     return (
       <section>
         <div className="card">
           {backLink}
-          {skillData.durationMinutes && !promptsDone && !allSubmitted ? (
+          {!toeicSpeaking && skillData.durationMinutes && !promptsDone && !allSubmitted ? (
             <Countdown
               minutes={Number(skillData.durationMinutes)}
               onExpire={forceSubmitPrompts}
@@ -122,94 +146,117 @@ export default function TakeTestPage() {
           {skillData.instructions && (
             <p style={{ color: "var(--muted)", marginBottom: 20 }}>{skillData.instructions}</p>
           )}
-          {(skillData.prompts || []).map((p) => {
-            const last = latestPromptSub(subs, p.id);
+          {toeicSpeaking && !toeicSpeakingDone ? (
+            <ToeicSpeakingRunner
+              ref={(el) => (promptRefs.current.__runner = el)}
+              test={test}
+              prompts={promptsList}
+              subs={subs}
+              studentId={studentId}
+              durationMinutes={skillData.durationMinutes}
+              timerKey={timerKey}
+              onSubmitted={refresh}
+              onFinished={() => setPromptsDone(true)}
+              onExit={() => router.push("/student/tests")}
+            />
+          ) : promptGroups.map((g, gi) => (
+            <Fragment key={gi}>
+              {g.label && <h4 className="part-heading">{g.label}</h4>}
+              {g.prompts.map((p) => {
+                const last = latestPromptSub(subs, p.id);
 
-            const promptInfo = (
-              <>
-                <h4 style={{ margin: "0 0 8px" }}>{p.title || "Prompt"}</h4>
-                {p.instructions && (
-                  <div className="prompt-instructions">
-                    {p.instructions.split(/\n{2,}/).map((para, k) => (
-                      <p key={k}>{para}</p>
-                    ))}
-                  </div>
-                )}
-                {p.imageUrl && (
-                  <img src={p.imageUrl} className="diagram-image" style={{ margin: "10px 0" }} alt="" />
-                )}
-              </>
-            );
-
-            const workAndStatus = (
-              <>
-                <div className="prompt-work" style={skill === "writing" ? undefined : { marginTop: 12 }}>
-                  {skill === "writing" ? (
-                    <WritingPrompt
-                      ref={(el) => (promptRefs.current[p.id] = el)}
-                      prompt={p}
-                      submitContext={{ testId: test.id, skill }}
-                      onSubmitted={refresh}
-                    />
-                  ) : (
-                    <SpeakingPrompt
-                      ref={(el) => (promptRefs.current[p.id] = el)}
-                      prompt={p}
-                      submitContext={{ testId: test.id, skill }}
-                      onSubmitted={refresh}
-                    />
-                  )}
-                </div>
-                <div className="prompt-status" style={{ marginTop: 12 }}>
-                  {last &&
-                    (last.gradingStatus === "graded" ? (
-                      <div className="notice success">
-                        <svg className="icon"><use href="#icon-check-circle" /></svg> Graded by your teacher
-                        <RubricResult
-                          rubricVariant={last.rubricVariant}
-                          criteria={last.criteria}
-                          manualScore={last.manualScore}
-                          manualFeedback={last.manualFeedback}
-                      essayText={last.essayText}
-                      annotations={last.annotations}
-                      audioUrl={last.audioUrl}
-                      transcript={last.transcript}
-                      speakingNotes={last.speakingNotes}
-                      priorities={last.priorities}
-                      topicVocabulary={last.topicVocabulary}
-                      improvedSample={last.improvedSample}
-                      mainIssue={last.mainIssue}
-                      showAnnotationList={false}
-                        />
+                const promptInfo = (
+                  <>
+                    <h4 style={{ margin: "0 0 8px" }}>{p.title || "Prompt"}</h4>
+                    {p.instructions && (
+                      <div className="prompt-instructions">
+                        {p.instructions.split(/\n{2,}/).map((para, k) => (
+                          <p key={k}>{para}</p>
+                        ))}
                       </div>
-                    ) : (
-                      <div className="notice info">Submitted — pending teacher review.</div>
-                    ))}
-                </div>
-              </>
-            );
+                    )}
+                    {p.imageUrl && (
+                      <img src={p.imageUrl} className="diagram-image" style={{ margin: "10px 0" }} alt="" />
+                    )}
+                  </>
+                );
 
-            // Writing: tách 2 cột như Reading — đề bên trái, ô viết bài bên
-            // phải, cùng cuộn ngang hàng — dễ vừa đọc đề vừa viết hơn là cuộn
-            // lên xuống. Speaking giữ nguyên 1 cột (không cần đọc/viết song song).
-            if (skill === "writing") {
-              return (
-                <div className="lesson-block" key={p.id}>
-                  <div className="reading-layout">
-                    <div className="passage-pane">{promptInfo}</div>
-                    <div className="questions-pane">{workAndStatus}</div>
+                const workAndStatus = (
+                  <>
+                    {!toeicSpeaking && (
+                    <div className="prompt-work" style={skill === "writing" ? undefined : { marginTop: 12 }}>
+                      {skill === "writing" ? (
+                        <WritingPrompt
+                          ref={(el) => (promptRefs.current[p.id] = el)}
+                          prompt={p}
+                          submitContext={{ testId: test.id, skill }}
+                          onSubmitted={refresh}
+                        />
+                      ) : (
+                        <SpeakingPrompt
+                          ref={(el) => (promptRefs.current[p.id] = el)}
+                          prompt={p}
+                          submitContext={{ testId: test.id, skill }}
+                          onSubmitted={refresh}
+                        />
+                      )}
+                    </div>
+                    )}
+                    <div className="prompt-status" style={{ marginTop: 12 }}>
+                      {!last && toeicSpeaking && (
+                        <div className="notice info">Not recorded.</div>
+                      )}
+                      {last &&
+                        (last.gradingStatus === "graded" ? (
+                          <div className="notice success">
+                            <svg className="icon"><use href="#icon-check-circle" /></svg> Graded by your teacher
+                            <RubricResult
+                              rubricVariant={last.rubricVariant}
+                              criteria={last.criteria}
+                              manualScore={last.manualScore}
+                              manualFeedback={last.manualFeedback}
+                          essayText={last.essayText}
+                          annotations={last.annotations}
+                          audioUrl={last.audioUrl}
+                          transcript={last.transcript}
+                          speakingNotes={last.speakingNotes}
+                          priorities={last.priorities}
+                          topicVocabulary={last.topicVocabulary}
+                          improvedSample={last.improvedSample}
+                          mainIssue={last.mainIssue}
+                          showAnnotationList={false}
+                            />
+                          </div>
+                        ) : (
+                          <div className="notice info">Submitted — pending teacher review.</div>
+                        ))}
+                    </div>
+                  </>
+                );
+
+                // Writing: tách 2 cột như Reading — đề bên trái, ô viết bài bên
+                // phải, cùng cuộn ngang hàng — dễ vừa đọc đề vừa viết hơn là cuộn
+                // lên xuống. Speaking giữ nguyên 1 cột (không cần đọc/viết song song).
+                if (skill === "writing") {
+                  return (
+                    <div className="lesson-block" key={p.id}>
+                      <div className="reading-layout">
+                        <div className="passage-pane">{promptInfo}</div>
+                        <div className="questions-pane">{workAndStatus}</div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="lesson-block" key={p.id}>
+                    {promptInfo}
+                    {workAndStatus}
                   </div>
-                </div>
-              );
-            }
-
-            return (
-              <div className="lesson-block" key={p.id}>
-                {promptInfo}
-                {workAndStatus}
-              </div>
-            );
-          })}
+                );
+              })}
+            </Fragment>
+          ))}
         </div>
       </section>
     );
@@ -243,6 +290,8 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
   const [audioPhase, setAudioPhase] = useState({});
   const sections = skillData.sections || [];
   const isListening = skill === "listening";
+  // Đề TOEIC (thang quy đổi): tiêu đề Part + điểm ước tính. IELTS không đổi.
+  const toeic = usesToeicScale(programOf(test));
 
   const setSectionPhase = (si) => (p) =>
     setAudioPhase((prev) => (prev[si] === p ? prev : { ...prev, [si]: p }));
@@ -356,6 +405,21 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
                 / <span>{result.total}</span>
               </span>
             </div>
+            {toeic && (
+              <div className="toeic-estimate">
+                <div>{toeicResultLine(skill, result.score, result.total)}</div>
+                {(() => {
+                  const other = skill === "listening" ? "reading" : "listening";
+                  const mine = { score: result.score, total: result.total };
+                  const otherSub = latestExamSub(subs, test.id, other);
+                  const totalText = formatToeicTotalFromSubs(
+                    skill === "listening" ? mine : otherSub,
+                    skill === "listening" ? otherSub : mine
+                  );
+                  return totalText ? <div>Total (Listening + Reading): {totalText}</div> : null;
+                })()}
+              </div>
+            )}
             <p className="notice success" style={{ display: "inline-block" }}>
               <svg className="icon"><use href="#icon-check-circle" /></svg> Test results submitted to teacher
               successfully.
@@ -365,13 +429,21 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
             {sections.map((sec, si) => (
               <div key={si} style={{ marginBottom: 24 }}>
                 <div className="section-title">{sec.name}</div>
-                {(sec.fields || []).map((f) => {
+                {(toeic ? groupFieldsByPart(sec.fields) : [{ label: "", fields: sec.fields || [] }]).map((g, gi) => (
+                  <Fragment key={gi}>
+                {g.label && <h4 className="part-heading">{g.label}</h4>}
+                {g.fields.map((f) => {
                   const d = result.detailById[f.id];
                   if (!d) return null;
                   const shown = answerLabel(f, answersApi.getValue(f), sec) || "(blank)";
                   return (
                     <div key={f.id} className={"field-row " + (d.correct ? "correct" : "wrong")}>
                       <span className="num">{f.id}.</span>
+                      {f.imageUrl && (
+                        <div style={{ flexBasis: "100%" }}>
+                          <img src={f.imageUrl} alt={"Image for question " + f.id} className="diagram-image field-image" style={{ maxHeight: 180, marginBottom: 6 }} />
+                        </div>
+                      )}
                       <span className="label">{f.label}</span>
                       <span className="tail" style={{ flex: 1 }}>
                         Your answer: <b>{shown}</b>
@@ -389,6 +461,8 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
                     </div>
                   );
                 })}
+                  </Fragment>
+                ))}
               </div>
             ))}
           </div>
@@ -440,6 +514,7 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
             skill={skill}
             answersApi={answersApi}
             examAudio={isListening}
+            partHeadings={toeic}
             audioPhase={audioPhase[activeSection] || "idle"}
             onAudioPhase={setSectionPhase(activeSection)}
             onReplay={() => setReplayCount((n) => n + 1)}

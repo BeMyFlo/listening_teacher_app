@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { LESSON_CATS } from "@/lib/student/constants";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
 import { unitProgress } from "@/lib/student/submissions";
+
+// Kỹ năng hiển thị của 1 Unit theo chương trình (IELTS: đủ 6 như cũ; số kỹ năng theo lessonSkills của chương trình).
+const catsOf = (unit) => LESSON_CATS.filter((c) => PROGRAMS[programOf(unit)].lessonSkills.includes(c.key));
 
 // Chip hạn nộp cho lesson list. null nếu Unit không có hạn hoặc đã làm xong.
 function DeadlineChip({ dueAt, pct }) {
@@ -20,7 +24,7 @@ function DeadlineChip({ dueAt, pct }) {
 function CategoryBadges({ unit }) {
   return (
     <div className="unit-overview-badges">
-      {LESSON_CATS.map((cat) => {
+      {catsOf(unit).map((cat) => {
         const c = (unit.categories || []).find((x) => x.key === cat.key);
         const has = c && c.hasContent;
         if (c && c.locked) {
@@ -63,6 +67,12 @@ export default function LessonsPage() {
       .catch((e) => setErr(e.message));
   }, []);
 
+  // Chỉ hiện khi giáo viên đã đặt tên cho level này; chưa đặt thì giữ nguyên chữ cũ.
+  const first = units && units[0];
+  const levelText = first && first.levelName ? `Level ${first.level} · ${first.levelName}` : "";
+  // Danh sách kỹ năng ở phụ đề theo chương trình của học sinh (lấy từ Unit đầu tiên).
+  const skillsText = catsOf(first || {}).map((c) => c.label).join(", ");
+
   const sorted = useMemo(() => {
     const arr = (units || []).slice();
     if (sort === "newest")
@@ -86,7 +96,8 @@ export default function LessonsPage() {
           <div>
             <h1>Lessons</h1>
             <p className="page-sub">
-              Units by level — Grammar, Vocabulary, Listening, Reading, Writing, Speaking
+              Units by level — {skillsText}
+              {levelText ? " · " + levelText : ""}
             </p>
           </div>
         </div>
@@ -159,7 +170,10 @@ export default function LessonsPage() {
             <div id="unitsList" style={{ marginTop: 10 }}>
               {sorted.map((u, idx) => {
                 const p = unitProgress(u, subs);
-                const skillsWithContent = (u.categories || []).filter((c) => c.hasContent).length;
+                const unitCats = catsOf(u);
+                const skillsWithContent = (u.categories || []).filter(
+                  (c) => c.hasContent && unitCats.some((x) => x.key === c.key)
+                ).length;
                 const statusLabel =
                   p.pct === 100 ? "Completed" : p.pct === 0 ? "Not started" : "In progress";
                 const color =
@@ -179,7 +193,7 @@ export default function LessonsPage() {
                       <p>
                         <span className="meta-icon">
                           <svg className="icon"><use href="#icon-headphones" /></svg> {skillsWithContent}/
-                          {LESSON_CATS.length} skills
+                          {catsOf(u).length} skills
                         </span>
                         <span className="meta-icon">
                           <svg className="icon"><use href="#icon-clipboard" /></svg> {p.totalItems} item(s)

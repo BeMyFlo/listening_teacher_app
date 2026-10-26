@@ -6,6 +6,12 @@ import { api } from "@/lib/client/api";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { SKILL_TABS, QUESTION_SKILLS } from "@/lib/student/constants";
 import { latestExamSub } from "@/lib/student/submissions";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { formatScore, toeicSkillSummary } from "@/lib/scoreLabel";
+import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
+
+// Kỹ năng hiển thị của 1 đề = testSkills của chương trình (API cũng trả kỹ năng ẩn là rỗng).
+const tabsForRow = (row) => SKILL_TABS.filter((t) => PROGRAMS[programOf(row)].testSkills.includes(t.key));
 
 function StudentStats({ subs }) {
   const testSubs = subs.filter((s) => (s.kind || "test") === "test");
@@ -43,6 +49,10 @@ export default function TestsPage() {
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState("");
   const { subs } = useMySubmissions();
+  // Tiêu đề trang liệt kê kỹ năng theo các đề đang có. IELTS: đủ 4 kỹ năng như cũ.
+  const skillNames = (rows && rows.length ? SKILL_TABS.filter((t) => rows.some((r) => tabsForRow(r).includes(t))) : SKILL_TABS)
+    .map((t) => t.label)
+    .join(", ");
 
   useEffect(() => {
     api.student
@@ -58,7 +68,10 @@ export default function TestsPage() {
           <div className="page-head-icon"><svg className="icon"><use href="#icon-clipboard" /></svg></div>
           <div>
             <h1>Mock Tests</h1>
-            <p className="page-sub">Mock exams — Listening, Reading, Writing, Speaking</p>
+            <p className="page-sub">
+              Mock exams — {skillNames}
+              {rows && rows[0] && rows[0].levelName ? ` · Level ${rows[0].level} · ${rows[0].levelName}` : ""}
+            </p>
           </div>
         </div>
       </div>
@@ -102,13 +115,26 @@ function TestCard({ row, subs }) {
     );
   }
 
+  // Mock Test TOEIC: "38/50 correct · ≈ 385 / 495 (estimated)" + tổng L+R. IELTS giữ "score/total".
+  const toeic = usesToeicScale(programOf(row));
+  const rowTabs = tabsForRow(row);
   const bits = [];
-  SKILL_TABS.forEach((tab) => {
+  rowTabs.forEach((tab) => {
     const sub = latestExamSub(subs, row.id, tab.key);
     if (!sub) return;
-    if (tab.key === "listening" || tab.key === "reading") bits.push(`${tab.label}: ${sub.score}/${sub.total}`);
-    else if (sub.gradingStatus === "graded") bits.push(`${tab.label}: Band ${sub.manualScore}`);
+    if (tab.key === "listening" || tab.key === "reading")
+      bits.push(`${tab.label}: ${toeic ? toeicResultLine(tab.key, sub.score, sub.total) : `${sub.score}/${sub.total}`}`);
+    else {
+      // TOEIC Writing/Speaking: tổng điểm thô các đề ("Speaking: 27/35 points"), chưa đủ thì "x/y graded".
+      const sw = toeicSkillSummary(subs, row.id, tab.key, row.skills?.[tab.key]?.count);
+      if (sw) bits.push(`${tab.label}: ${sw.text}`);
+      else if (sub.gradingStatus === "graded") bits.push(`${tab.label}: ${formatScore(sub)}`);
+    }
   });
+  if (toeic) {
+    const totalText = formatToeicTotalFromSubs(latestExamSub(subs, row.id, "listening"), latestExamSub(subs, row.id, "reading"));
+    if (totalText) bits.push(`Total: ${totalText}`);
+  }
 
   return (
     <div className="test-exam-card">
@@ -120,7 +146,7 @@ function TestCard({ row, subs }) {
         {bits.length > 0 && <p className="exam-result-summary">Results — {bits.join(" · ")}</p>}
       </div>
       <div className="exam-skill-grid">
-        {SKILL_TABS.map((tab) => {
+        {rowTabs.map((tab) => {
           const meta = row.skills?.[tab.key];
           if (!meta || !meta.present) return null;
           return <SkillBox key={tab.key} row={row} tab={tab} meta={meta} subs={subs} />;
@@ -135,6 +161,7 @@ function SkillBox({ row, tab, meta, subs }) {
   const sub = latestExamSub(subs, row.id, tab.key);
   const isQuestion = QUESTION_SKILLS.includes(tab.key);
 
+  const sw = !isQuestion ? toeicSkillSummary(subs, row.id, tab.key, meta.count) : null;
   let statusNode;
   let cta = "Start";
   if (!sub) {
@@ -152,8 +179,11 @@ function SkillBox({ row, tab, meta, subs }) {
       </>
     );
     cta = "Retake";
+  } else if (sw) {
+    statusNode = sw.complete ? <b>Graded: {sw.text}</b> : <span className="muted">Submitted — {sw.text}</span>;
+    cta = "Redo";
   } else if (sub.gradingStatus === "graded") {
-    statusNode = <b>Graded: Band {sub.manualScore}</b>;
+    statusNode = <b>Graded: {formatScore(sub)}</b>;
     cta = "Redo";
   } else {
     statusNode = <span className="muted">Submitted — pending review</span>;

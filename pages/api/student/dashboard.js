@@ -12,6 +12,8 @@ const Unit = require("../../../lib/models/Unit");
 const Submission = require("../../../lib/models/Submission");
 const { computeStreak } = require("../../../lib/student/streak");
 const { buildClassLeaderboard } = require("../../../lib/student/leaderboard");
+const { programOf, programFilter } = require("../../../lib/curriculum");
+const { levelNameFor } = require("../../../lib/curriculumServer");
 
 const EMPTY = {
   ok: true,
@@ -19,6 +21,7 @@ const EMPTY = {
   leaderboard: { rows: [], myRank: null, myPoints: 0 },
   className: null,
   classLevel: null,
+  classLevelName: "",
 };
 
 async function handler(req, res) {
@@ -42,7 +45,7 @@ async function handler(req, res) {
   const classFilter = { classIds: cls._id };
 
   const [units, classmates] = await Promise.all([
-    Unit.find(tenantFilter(req.ws, { status: "published", level: cls.level, ...classFilter })).lean(),
+    Unit.find(tenantFilter(req.ws, { status: "published", level: cls.level, ...classFilter, ...programFilter(programOf(cls)) })).lean(),
     Student.find(tenantFilter(req.ws, { classId: cls._id })).select("name").lean(),
   ]);
 
@@ -54,7 +57,7 @@ async function handler(req, res) {
   // lớp nào vượt qua thì phần rất cũ sẽ không tính vào điểm xếp hạng.
   const submissions = await Submission.find(tenantFilter(req.ws, { studentId: { $in: classmateIds } }))
     .select(
-      "studentId kind score total manualScore gradingStatus exerciseId promptId testId testSkill unitId isLate submittedAt"
+      "studentId kind score total manualScore rubricVariant gradingStatus exerciseId promptId testId testSkill unitId isLate submittedAt"
     )
     .sort({ submittedAt: -1 })
     .limit(5000)
@@ -70,6 +73,7 @@ async function handler(req, res) {
     leaderboard,
     className: cls.name,
     classLevel: cls.level,
+    classLevelName: await levelNameFor(req.ws, programOf(cls), cls.level),
   });
 }
 

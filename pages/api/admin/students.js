@@ -8,6 +8,7 @@ const Class = require("../../../lib/models/Class");
 const User = require("../../../lib/models/User");
 const users = require("../../../lib/users");
 const { teacherScope, scopeFilter, canAccessClass } = require("../../../lib/teacherScope");
+const { parseProgramParam, programFilter, programOf } = require("../../../lib/curriculum");
 
 async function handler(req, res) {
   await connectDB();
@@ -18,8 +19,19 @@ async function handler(req, res) {
   const classIdWhere = scope.all ? {} : { _id: { $in: scope.classIds } };
 
   if (req.method === "GET") {
+    // ?program= trống/all = không lọc (như trước); sai -> 400. Có lọc: học sinh
+    // thuộc lớp của chương trình đó, CỘNG học sinh chưa xếp lớp (luôn hiện).
+    const prog = parseProgramParam(req.query.program);
+    if (prog.error) return res.status(400).json({ ok: false, error: prog.error });
+    let studentWhere = classWhere;
+    if (prog.program) {
+      const progClassIds = (await Class.find(tenantFilter(req.ws, programFilter(prog.program))).select("_id").lean())
+        .map((c) => c._id);
+      studentWhere = { $and: [classWhere, { $or: [{ classId: { $in: progClassIds } }, { classId: null }] }] };
+    }
+
     const [students, counts, classes] = await Promise.all([
-      Student.find(tenantFilter(req.ws, classWhere)).sort({ createdAt: -1 }).lean(),
+      Student.find(tenantFilter(req.ws, studentWhere)).sort({ createdAt: -1 }).lean(),
       Submission.aggregate([
         { $match: tenantFilter(req.ws) },
         { $group: { _id: "$studentId", count: { $sum: 1 } } },
@@ -42,6 +54,7 @@ async function handler(req, res) {
         classId: s.classId || null,
         className: cls ? cls.name : null,
         level: cls ? cls.level : null, // suy từ lớp, để hiển thị
+        program: cls ? programOf(cls) : null,
         createdAt: s.createdAt,
         submissionCount: countByStudent[String(s._id)] || 0,
       };

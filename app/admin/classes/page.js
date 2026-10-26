@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
 
 export default function AdminClassesPage() {
   const dialog = useDialog();
@@ -124,7 +125,7 @@ export default function AdminClassesPage() {
         <div className="card" style={{ overflowX: "auto" }}>
           <table className="admin-table">
             <thead>
-              <tr><th>Class</th><th>Level</th><th>Workspace</th><th>Students</th><th>Created</th><th></th></tr>
+              <tr><th>Class</th><th>Level</th><th>Program</th><th>Workspace</th><th>Students</th><th>Created</th><th></th></tr>
             </thead>
             <tbody>
               {rows.map((c) => (
@@ -141,6 +142,7 @@ export default function AdminClassesPage() {
                         <td>L{c.level}</td>
                       </>
                     )}
+                    <td><span className={"program-badge program-" + programOf(c)}>{PROGRAMS[programOf(c)].label}</span></td>
                     <td>{c.workspaceName || "—"}</td>
                     <td>{c.studentCount}</td>
                     <td style={{ fontSize: ".8rem", color: "var(--muted)", whiteSpace: "nowrap" }}>{new Date(c.createdAt).toLocaleDateString()}</td>
@@ -162,7 +164,7 @@ export default function AdminClassesPage() {
                   </tr>
                   {openId === c._id && (
                     <tr>
-                      <td colSpan={6} style={{ background: "var(--bg, transparent)" }}>
+                      <td colSpan={7} style={{ background: "var(--bg, transparent)" }}>
                         {!students && <span style={{ color: "var(--muted)" }}>Loading…</span>}
                         {students && students.length === 0 && <span style={{ color: "var(--muted)" }}>No students in this class.</span>}
                         {students && students.length > 0 && (
@@ -178,7 +180,7 @@ export default function AdminClassesPage() {
                 </Fragment>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No classes.</td></tr>
+                <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No classes.</td></tr>
               )}
             </tbody>
           </table>

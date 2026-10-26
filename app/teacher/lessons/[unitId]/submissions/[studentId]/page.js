@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
 import RubricGrader from "@/components/teacher/RubricGrader";
 import RubricResult from "@/components/RubricResult";
 import { useDialog } from "@/components/ui/Dialog";
@@ -55,7 +56,12 @@ function QuestionTable({ detail }) {
           {detail.map((d) => (
             <tr key={d.id} style={{ background: d.correct ? "#DFF7E9" : "#FFE0E2" }}>
               <td>{d.id}</td>
-              <td>{d.label}</td>
+              <td>
+                {d.imageUrl && (
+                  <img src={d.imageUrl} alt={"Image for question " + d.id} style={{ display: "block", maxWidth: 180, maxHeight: 110, borderRadius: 6, marginBottom: d.label ? 6 : 0 }} />
+                )}
+                {d.label}
+              </td>
               <td>{d.submittedText}</td>
               <td>{d.correct ? "" : <b>{d.answerText}</b>}</td>
               <td style={{ color: "var(--muted)" }}>{d.explanation || ""}</td>
@@ -389,7 +395,9 @@ export default function StudentUnitSubmissionPage() {
   if (!data)
     return <div className="tab-panel active">{head}<div className="notice info">Loading...</div></div>;
 
-  const lateCount = data.categories.reduce((n, cat) => {
+  // Kỹ năng bị ẩn của chương trình (lessonSkills của chương trình) không hiện tab.
+  const categories = data.categories.filter((cat) => PROGRAMS[programOf(data.unit)].lessonSkills.includes(cat.key));
+  const lateCount = categories.reduce((n, cat) => {
     const items = cat.kind === "exercise" ? cat.exercises : cat.prompts;
     return n + (items || []).filter((i) => i.isLate).length;
   }, 0);
@@ -414,7 +422,7 @@ export default function StudentUnitSubmissionPage() {
         <button type="button" className={active === "stats" ? "active" : ""} onClick={() => setActive("stats")}>
           <svg className="icon"><use href="#icon-chart-bar" /></svg> Thống kê
         </button>
-        {data.categories.map((cat) => (
+        {categories.map((cat) => (
           <button
             key={cat.key}
             type="button"
@@ -427,9 +435,9 @@ export default function StudentUnitSubmissionPage() {
       </div>
 
       {active === "stats" ? (
-        <StatsTab categories={data.categories} />
+        <StatsTab categories={categories} />
       ) : (
-        data.categories
+        categories
           .filter((cat) => cat.key === active)
           .map((cat) => {
             const catDue = (data.student.deadlineByCategory || {})[cat.key];

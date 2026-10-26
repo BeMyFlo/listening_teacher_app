@@ -1,13 +1,15 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Fragment, Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import RubricGrader from "@/components/teacher/RubricGrader";
 import RubricResult from "@/components/RubricResult";
 import { useDialog } from "@/components/ui/Dialog";
 import { pollAiGrade } from "@/lib/client/aiGrade";
-import { TEST_SKILLS } from "@/lib/teacher/testBuilder";
+import { testSkillsFor } from "@/lib/teacher/testBuilder";
+import { programOf } from "@/lib/curriculum";
+import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
 
 function pct(score, total) {
   if (!total) return null;
@@ -171,10 +173,15 @@ function QuestionReview({ detail }) {
               const bucket = bucketOf(d);
               const open = openId === d.id;
               return (
-                <>
-                  <tr key={d.id}>
+                <Fragment key={d.id}>
+                  <tr>
                     <td style={{ whiteSpace: "nowrap" }}>{d.id}</td>
-                    <td>{d.label}</td>
+                    <td>
+                      {d.imageUrl && (
+                        <img src={d.imageUrl} alt={"Image for question " + d.id} style={{ display: "block", maxWidth: 180, maxHeight: 110, borderRadius: 6, marginBottom: d.label ? 6 : 0 }} />
+                      )}
+                      {d.label}
+                    </td>
                     <td><span className={"answer-pill " + (bucket === "skipped" ? "blank" : bucket === "correct" ? "correct" : "wrong")}>{d.submittedText}</span></td>
                     <td><span className="answer-pill correct">{d.answerText}</span></td>
                     <td style={{ color: "var(--muted)" }}>{d.explanation ? "…" : "—"}</td>
@@ -192,14 +199,14 @@ function QuestionReview({ detail }) {
                     </td>
                   </tr>
                   {open && d.explanation && (
-                    <tr key={d.id + "-exp"}>
+                    <tr>
                       <td></td>
                       <td colSpan={6} style={{ color: "var(--muted)", background: "var(--bg)", fontSize: ".85rem" }}>
                         {d.explanation}
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </tbody>
@@ -259,7 +266,7 @@ function FormatStatsPanel({ stats }) {
   );
 }
 
-function AutoSkillPanel({ skill }) {
+function AutoSkillPanel({ skill, toeic }) {
   if (!skill.submissionId) {
     return <div className="empty-state">Student hasn't attempted this skill yet.</div>;
   }
@@ -279,6 +286,11 @@ function AutoSkillPanel({ skill }) {
           <h2 style={{ margin: "2px 0 8px" }}>
             {skill.score}/{skill.total} <span style={{ color: "var(--muted)", fontWeight: 600, fontSize: "1rem" }}>({pct(skill.score, skill.total)}%)</span>
           </h2>
+          {toeic && (
+            <p style={{ margin: "4px 0", fontWeight: 600 }}>
+              {toeicResultLine(skill.key, skill.score, skill.total)}
+            </p>
+          )}
           <p style={{ margin: "4px 0", color: "var(--muted)", fontSize: ".85rem" }}>
             <svg className="icon"><use href="#icon-calendar" /></svg> Submitted {fmtDateTime(skill.submittedAt)}
           </p>
@@ -519,17 +531,28 @@ function Inner() {
 
   const skillByKey = Object.fromEntries(data.skills.map((s) => [s.key, s]));
   const activeSkill = skillByKey[active];
+  const toeic = usesToeicScale(programOf(data.test));
+  const toeicTotal = toeic
+    ? formatToeicTotalFromSubs(
+        skillByKey.listening && skillByKey.listening.submissionId ? skillByKey.listening : null,
+        skillByKey.reading && skillByKey.reading.submissionId ? skillByKey.reading : null
+      )
+    : "";
 
   return (
     <div className="tab-panel active">
       {head}
       {back}
 
+      {toeicTotal && (
+        <p style={{ margin: "0 0 12px", fontWeight: 600 }}>Estimated total (Listening + Reading): {toeicTotal}</p>
+      )}
+
       <div className="subject-toggle skill-tabs" style={{ marginBottom: 14 }}>
         <button type="button" className={active === "stats" ? "active" : ""} onClick={() => setActive("stats")}>
           <svg className="icon"><use href="#icon-chart-bar" /></svg> Thống kê
         </button>
-        {TEST_SKILLS.map((s) => {
+        {testSkillsFor(data.test.program).map((s) => {
           const sk = skillByKey[s.key];
           const attempted = sk && (sk.kind === "auto" ? !!sk.submissionId : sk.submitted > 0);
           const needsGrading = sk && sk.kind === "prompt" && sk.submitted > sk.prompts.filter((p) => p.gradingStatus === "graded").length;
@@ -555,7 +578,7 @@ function Inner() {
       ) : (
         <div className="card">
           {activeSkill.kind === "auto" ? (
-            <AutoSkillPanel skill={activeSkill} />
+            <AutoSkillPanel skill={activeSkill} toeic={toeic} />
           ) : (
             <PromptSkillPanel skill={activeSkill} onGraded={load} />
           )}

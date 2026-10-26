@@ -9,6 +9,9 @@ export const LEVEL_SUGGESTIONS = [
   "A1", "A2", "B1", "B2", "C1",
 ];
 
+// Gợi ý trình độ cho chương trình TOEIC (điểm Listening + Reading).
+export const TOEIC_LEVEL_SUGGESTIONS = ["300", "400", "450", "500", "550", "600", "650", "700", "750", "800", "850"];
+
 export const LANGUAGES = [
   ["vi", "Vietnamese meanings & explanations"],
   ["bilingual", "Vietnamese meanings, bilingual explanations"],
@@ -40,20 +43,21 @@ export function Check({ checked, onChange, children }) {
 }
 
 // Trình độ học sinh + ngôn ngữ, 2 cột. `studentLevel` / `language` / `onChange(key, value)`.
-export function LevelLanguageFields({ studentLevel, language, onChange, languages = LANGUAGES, listId = "ai-vocab-level-suggestions" }) {
+export function LevelLanguageFields({ studentLevel, language, onChange, languages = LANGUAGES, listId = "ai-vocab-level-suggestions", program }) {
+  const toeic = program === "toeic";
   return (
     <div className="builder-2col" style={{ marginBottom: 12 }}>
       <div className="form-row" style={{ marginBottom: 0 }}>
-        <label>Students&apos; level (IELTS band or CEFR)</label>
+        <label>{toeic ? "Students' level (TOEIC score)" : "Students' level (IELTS band or CEFR)"}</label>
         <input
           type="text"
           list={listId}
-          placeholder="e.g. 6.5, 5.0–5.5, B1"
+          placeholder={toeic ? "e.g. 550, 450–600, 750+" : "e.g. 6.5, 5.0–5.5, B1"}
           value={studentLevel}
           onChange={(e) => onChange("studentLevel", e.target.value)}
         />
         <datalist id={listId}>
-          {LEVEL_SUGGESTIONS.map((v) => (
+          {(toeic ? TOEIC_LEVEL_SUGGESTIONS : LEVEL_SUGGESTIONS).map((v) => (
             <option key={v} value={v} />
           ))}
         </datalist>
@@ -101,7 +105,7 @@ const REVIEW_LANGUAGES = [
 ];
 const WORD_COUNTS = [10, 15, 20];
 
-export function VocabReviewOptions({ opts, onChange, idSuffix = "" }) {
+export function VocabReviewOptions({ opts, onChange, idSuffix = "", program }) {
   const setCols = (updater) => onChange({ columns: typeof updater === "function" ? updater(opts.columns) : updater });
   return (
     <div>
@@ -110,6 +114,7 @@ export function VocabReviewOptions({ opts, onChange, idSuffix = "" }) {
         language={opts.language === "en" ? "en" : "vi"}
         languages={REVIEW_LANGUAGES}
         listId={"ai-review-level-suggestions" + idSuffix}
+        program={program}
         onChange={(k, v) => onChange({ [k]: v })}
       />
       <div className="form-row" style={{ marginBottom: 12 }}>

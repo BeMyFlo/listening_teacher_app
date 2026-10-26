@@ -12,6 +12,7 @@ const { notifyTeachersOfSubmission } = require("../../lib/notifications/teacher"
 const { resolveVariant } = require("../../lib/grading/rubric");
 const { resolveDeadline, isSkillLocked } = require("../../lib/deadlines");
 const { deleteAudioFile } = require("../../lib/cloudinary");
+const { programOf, studentContentFilter, lessonSkillAllowed, testSkillAllowed } = require("../../lib/curriculum");
 const { asObjectId, isCloudinaryUrl, publicIdFromUrl } = require("../../lib/validate");
 
 // Hạn nộp áp cho lớp của học sinh + kỹ năng đang nộp (hạn riêng kỹ năng ->
@@ -79,7 +80,9 @@ async function handler(req, res) {
   if (!studentClass) {
     return res.status(403).json({ ok: false, error: "Your account is not assigned to a class yet — please contact your teacher" });
   }
-  const studentLevel = studentClass.level;
+  // Học sinh chỉ nộp được vào nội dung mình xem được: đúng level, đã giao cho
+  // lớp mình, đúng chương trình (cùng luật với GET /api/units, /api/tests).
+  const contentFilter = studentContentFilter(studentClass);
 
   const kind = (req.body && req.body.kind) || "test";
 
@@ -91,11 +94,15 @@ async function handler(req, res) {
 
     let test;
     try {
-      test = await Test.findOne(tenantFilter(req.ws, { _id: testId, status: "published" }));
+      test = await Test.findOne(tenantFilter(req.ws, { _id: testId, status: "published", ...contentFilter }));
     } catch (err) {
       return res.status(404).json({ ok: false, error: "Mock test not found" });
     }
     if (!test) {
+      return res.status(404).json({ ok: false, error: "Mock test not found" });
+    }
+    // Kỹ năng ngoài chương trình của đề không có để nộp.
+    if (!testSkillAllowed(test, skill)) {
       return res.status(404).json({ ok: false, error: "Mock test not found" });
     }
 
@@ -127,6 +134,8 @@ async function handler(req, res) {
       workspaceId: req.ws.workspaceId,
       studentId: student._id,
       studentName: student.name,
+      // Chương trình lấy từ đề gốc ở server, không bao giờ từ client.
+      program: programOf(test),
       kind: "test",
       testId: test._id,
       testTitle: `${test.unit} · ${test.title}`.replace(/^ · /, ""),
@@ -157,11 +166,14 @@ async function handler(req, res) {
     if (!exerciseId) return res.status(404).json({ ok: false, error: "Exercise not found" });
     let unit;
     try {
-      unit = await Unit.findOne(tenantFilter(req.ws, { _id: unitId, status: "published", level: studentLevel }));
+      unit = await Unit.findOne(tenantFilter(req.ws, { _id: unitId, status: "published", ...contentFilter }));
     } catch (err) {
       return res.status(404).json({ ok: false, error: "Lesson unit not found" });
     }
     if (!unit) return res.status(404).json({ ok: false, error: "Lesson unit not found" });
+    if (!lessonSkillAllowed(unit, categoryKey)) {
+      return res.status(404).json({ ok: false, error: "Exercise not found" });
+    }
     if (isSkillLocked(unit, student.classId, categoryKey)) {
       return res.status(403).json({ ok: false, error: "This skill is locked by your teacher." });
     }
@@ -189,6 +201,7 @@ async function handler(req, res) {
       workspaceId: req.ws.workspaceId,
       studentId: student._id,
       studentName: student.name,
+      program: programOf(unit),
       kind: "exercise",
       unitId: unit._id,
       categoryKey,
@@ -226,11 +239,14 @@ async function handler(req, res) {
     if (testId) {
       let test;
       try {
-        test = await Test.findOne(tenantFilter(req.ws, { _id: testId, status: "published" }));
+        test = await Test.findOne(tenantFilter(req.ws, { _id: testId, status: "published", ...contentFilter }));
       } catch (err) {
         return res.status(404).json({ ok: false, error: "Mock test not found" });
       }
       if (!test) return res.status(404).json({ ok: false, error: "Mock test not found" });
+      if (!testSkillAllowed(test, kind)) {
+        return res.status(404).json({ ok: false, error: "Prompt not found" });
+      }
 
       const now = new Date();
       if ((test.opensAt && test.opensAt > now) || (test.closesAt && test.closesAt < now)) {
@@ -245,6 +261,7 @@ async function handler(req, res) {
         workspaceId: req.ws.workspaceId,
         studentId: student._id,
         studentName: student.name,
+        program: programOf(test),
         kind,
         testId: test._id,
         testTitle: `${test.unit} · ${test.title}`.replace(/^ · /, ""),
@@ -254,7 +271,7 @@ async function handler(req, res) {
         audioUrl: kind === "speaking" ? audioUrl : undefined,
         audioPublicId: kind === "speaking" ? audioPublicId : undefined,
         gradingStatus: "submitted",
-        rubricVariant: resolveVariant(kind, prompt.writingTask)
+        rubricVariant: prompt.taskType || resolveVariant(kind, prompt.writingTask)
       });
       await notifyTeachersSafe({
         ws: req.ws,
@@ -270,11 +287,14 @@ async function handler(req, res) {
     // Prompt nằm trong Lesson Unit — luồng cũ, không đổi.
     let unit;
     try {
-      unit = await Unit.findOne(tenantFilter(req.ws, { _id: unitId, status: "published", level: studentLevel }));
+      unit = await Unit.findOne(tenantFilter(req.ws, { _id: unitId, status: "published", ...contentFilter }));
     } catch (err) {
       return res.status(404).json({ ok: false, error: "Lesson unit not found" });
     }
     if (!unit) return res.status(404).json({ ok: false, error: "Lesson unit not found" });
+    if (!lessonSkillAllowed(unit, kind) || (categoryKey != null && !lessonSkillAllowed(unit, categoryKey))) {
+      return res.status(404).json({ ok: false, error: "Prompt not found" });
+    }
     if (isSkillLocked(unit, student.classId, categoryKey || kind)) {
       return res.status(403).json({ ok: false, error: "This skill is locked by your teacher." });
     }
@@ -338,6 +358,7 @@ async function handler(req, res) {
       workspaceId: req.ws.workspaceId,
       studentId: student._id,
       studentName: student.name,
+      program: programOf(unit),
       kind,
       unitId: unit._id,
       categoryKey,
@@ -348,7 +369,7 @@ async function handler(req, res) {
       audioUrl: kind === "speaking" ? audioUrl : undefined,
       audioPublicId: kind === "speaking" ? audioPublicId : undefined,
       gradingStatus: "submitted",
-      rubricVariant: resolveVariant(kind, prompt.writingTask),
+      rubricVariant: prompt.taskType || resolveVariant(kind, prompt.writingTask),
       isLate,
       dueAt
     });

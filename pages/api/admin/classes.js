@@ -7,6 +7,8 @@ const Teacher = require("../../../lib/models/Teacher");
 const Unit = require("../../../lib/models/Unit");
 const Test = require("../../../lib/models/Test");
 const { teacherScope, canAccessClass } = require("../../../lib/teacherScope");
+const { DEFAULT_PROGRAM, isProgram, programOf } = require("../../../lib/curriculum");
+const { programLockReason, resolveProgramChange, referencedClassIds } = require("../../../lib/curriculumServer");
 
 async function handler(req, res) {
   await connectDB();
@@ -16,7 +18,7 @@ async function handler(req, res) {
   const scope = await teacherScope(req.auth);
 
   if (req.method === "GET" && !id) {
-    const [classes, counts] = await Promise.all([
+    const [classes, counts, referenced] = await Promise.all([
       Class.find(tenantFilter(req.ws, scope.all ? {} : { _id: { $in: scope.classIds } }))
         .sort({ level: 1, name: 1 })
         .lean(),
@@ -24,6 +26,8 @@ async function handler(req, res) {
         { $match: tenantFilter(req.ws, { classId: { $ne: null } }) },
         { $group: { _id: "$classId", count: { $sum: 1 } } },
       ]),
+      // Lớp nào đã được Unit/Test nhắc tới thì khoá ô Program (C7).
+      referencedClassIds(req.ws),
     ]);
     const byClass = {};
     counts.forEach((c) => (byClass[String(c._id)] = c.count));
@@ -31,6 +35,8 @@ async function handler(req, res) {
       _id: c._id,
       name: c.name,
       level: c.level,
+      program: programOf(c),
+      programLocked: referenced.has(String(c._id)),
       createdAt: c.createdAt,
       studentCount: byClass[String(c._id)] || 0,
     }));
@@ -44,7 +50,11 @@ async function handler(req, res) {
     if (!Number.isInteger(level) || level < 1) {
       return res.status(400).json({ ok: false, error: "Please select a valid level" });
     }
-    const cls = await Class.create({ name, level, workspaceId: req.ws.workspaceId });
+    // Không gửi program -> IELTS (client cũ giữ hành vi cũ); gửi giá trị lạ -> 400.
+    const rawProgram = req.body && req.body.program;
+    const program = rawProgram == null ? DEFAULT_PROGRAM : rawProgram;
+    if (!isProgram(program)) return res.status(400).json({ ok: false, error: "Invalid program" });
+    const cls = await Class.create({ name, level, program, workspaceId: req.ws.workspaceId });
     // Giáo viên đang bị teacherScope giới hạn (classIds không rỗng) tự tạo
     // lớp mới -> PHẢI tự động thêm lớp đó vào classIds của chính họ, nếu
     // không lớp vừa tạo sẽ biến mất khỏi màn hình Classes của chính người
@@ -70,13 +80,23 @@ async function handler(req, res) {
     const students = await Student.find(tenantFilter(req.ws, { classId: cls._id })).sort({ name: 1 }).lean();
     return res.status(200).json({
       ok: true,
-      class: { _id: cls._id, name: cls.name, level: cls.level, createdAt: cls.createdAt },
+      class: {
+        _id: cls._id,
+        name: cls.name,
+        level: cls.level,
+        program: programOf(cls),
+        programLocked: !!(await programLockReason(req.ws, "class", cls)),
+        createdAt: cls.createdAt,
+      },
       students: students.map((s) => ({ _id: s._id, name: s.name, username: s.username })),
     });
   }
 
   if (req.method === "PUT") {
-    const { name, level } = req.body || {};
+    const { name, level, program } = req.body || {};
+    // Gửi lại đúng program cũ (Save cả form) không phải là đổi -> không 409.
+    const change = await resolveProgramChange(req.ws, "class", cls, program);
+    if (change.error) return res.status(change.status).json({ ok: false, error: change.error });
     if (name != null) {
       if (!String(name).trim()) return res.status(400).json({ ok: false, error: "Class name cannot be empty" });
       cls.name = String(name).trim();
@@ -86,6 +106,7 @@ async function handler(req, res) {
       if (!Number.isInteger(lvl) || lvl < 1) return res.status(400).json({ ok: false, error: "Invalid level" });
       cls.level = lvl;
     }
+    if (change.changed) cls.program = program;
     await cls.save();
     return res.status(200).json({ ok: true, class: cls });
   }
