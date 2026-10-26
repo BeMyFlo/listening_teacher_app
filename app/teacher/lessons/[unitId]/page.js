@@ -23,6 +23,7 @@ import ProgramBadge from "@/components/ProgramBadge";
 import { sectionsToEditor, sectionsToPayload, refId } from "@/lib/teacher/sectionTransforms";
 import { toDatetimeLocal, taskFieldsToBuilder, taskFieldsToPayload } from "@/lib/teacher/testBuilder";
 import { toeicPromptsError } from "@/lib/toeicStandardSet";
+import { findGeneralSectionError } from "@/lib/generalFormats";
 import { LESSON_CATS, PROMPT_CATS } from "@/lib/student/constants";
 import SectionsEditor from "@/components/teacher/SectionsEditor";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
@@ -402,6 +403,55 @@ export default function UnitEditorPage() {
           setSubTab("practice");
           setSaveErr(e);
           return false;
+        }
+      }
+    }
+    // Câu hỏi General (reorder thiếu mảnh/đáp án, Error id sai số lựa chọn): chặn lưu, báo lỗi rõ, nhảy tới câu.
+    const scrollToField = (fieldId) => {
+      setTimeout(() => {
+        const rows = Array.from(document.querySelectorAll(".question-row"));
+        const target = rows.find((r) => r.querySelector(".f-id")?.value === String(fieldId));
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+          const input = target.querySelector(".f-label, .f-answers, input");
+          if (input) input.focus();
+        }
+      }, 100);
+    };
+    for (const c of unit.categories) {
+      for (const ex of c.exercises || []) {
+        const err = findGeneralSectionError(ex._sections);
+        if (err) {
+          setActiveTab("content");
+          setCatKey(c.key);
+          setSubTab("practice");
+          setSaveErr(err.message);
+          scrollToField(err.fieldId);
+          return false;
+        }
+      }
+      for (const t of c.topics || []) {
+        for (const ex of t.exercises || []) {
+          const err = findGeneralSectionError(ex._sections);
+          if (err) {
+            setActiveTab("content");
+            setCatKey(c.key);
+            setSaveErr(err.message);
+            scrollToField(err.fieldId);
+            return false;
+          }
+        }
+      }
+      for (const g of c.groups || []) {
+        for (const ex of g.exercises || []) {
+          const err = findGeneralSectionError(ex._sections);
+          if (err) {
+            setActiveTab("content");
+            setCatKey(c.key);
+            setSaveErr(err.message);
+            scrollToField(err.fieldId);
+            return false;
+          }
         }
       }
     }

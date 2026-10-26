@@ -175,3 +175,76 @@ test("arrangeOptions: 4 lựa chọn, đáp án đúng đúng một lần", () =
   for (let seed = 1; seed <= 40; seed++) positions.add(G.arrangeOptions("b-d-a-c-e", seeded(seed)).correctIndex);
   assert.ok(positions.size > 1);
 });
+
+test("generalQuestionError / findGeneralSectionError: kiểm tra client chặn lưu", () => {
+  // 1. reorder thiếu đáp án
+  assert.match(
+    G.generalQuestionError({ id: 1, kind: "reorder", tokens: ["a", "b"], answersText: "" }),
+    /Question 1: .*at least 1 correct answer/
+  );
+  // 2. reorder thiếu mảnh (< 2)
+  assert.match(
+    G.generalQuestionError({ id: 2, kind: "reorder", tokens: ["a"], answersText: "a" }),
+    /Question 2: .*at least 2 pieces/
+  );
+  // 3. reorder hợp lệ
+  assert.equal(
+    G.generalQuestionError({ id: 3, kind: "reorder", tokens: ["b", "a"], answersText: "a b" }),
+    null
+  );
+  // 4. Error identification thiếu gạch chân (< 2)
+  assert.match(
+    G.generalQuestionError({
+      id: 4,
+      formatLabel: "Error identification",
+      label: "She __goes__ to school",
+      options: [{ id: "a" }],
+    }),
+    /Question 4: .*requires 2 to 4/
+  );
+  // 5. Error identification thừa gạch chân (> 4)
+  assert.match(
+    G.generalQuestionError({
+      id: 5,
+      formatLabel: "Error identification",
+      label: "__a__ __b__ __c__ __d__ __e__",
+      options: [{ id: "1" }, { id: "2" }, { id: "3" }, { id: "4" }, { id: "5" }],
+    }),
+    /Question 5: .*requires 2 to 4/
+  );
+  // 6. Error identification sai số lượng options
+  assert.match(
+    G.generalQuestionError({
+      id: 6,
+      formatLabel: "Error identification",
+      label: "My mother __usually go__ to __the__ market",
+      options: [{ id: "A" }],
+    }),
+    /Question 6: .*requires exactly 2/
+  );
+  // 7. Error identification hợp lệ
+  assert.equal(
+    G.generalQuestionError({
+      id: 7,
+      formatLabel: "Error identification",
+      label: "My mother __usually go__ to __the__ market",
+      options: [{ id: "A" }, { id: "B" }],
+    }),
+    null
+  );
+  // 8. Dạng khác không lỗi
+  assert.equal(G.generalQuestionError({ id: 8, kind: "mcq", label: "What?", options: [] }), null);
+
+  // findGeneralSectionError
+  const sections = [
+    {
+      fields: [
+        { id: 10, kind: "fill", label: "ok", answersText: "ans" },
+        { id: 11, kind: "reorder", tokens: [], answersText: "hello world" },
+      ],
+    },
+  ];
+  const err = G.findGeneralSectionError(sections);
+  assert.equal(err.fieldId, 11);
+  assert.match(err.message, /Question 11/);
+});
