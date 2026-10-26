@@ -45,6 +45,7 @@ function toPublicUnit(unit, cls, levelName) {
         label: f.label,
         imageUrl: f.imageId && f.imageId.cloudinaryUrl,
         type: f.type,
+        tokens: f.tokens || [],
         pre: f.pre,
         post: f.post,
         hint: f.hint || "",
