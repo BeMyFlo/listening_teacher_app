@@ -79,63 +79,6 @@ const ALLOWED_BRANCHES = [
     snippet: '...(ctx.program && ctx.program !== "ielts" ? { program: ctx.program } : {}),',
     reason: 'A4: Gửi program trong request AI khi không phải IELTS',
   },
-
-  // --- TODO bước 4: Các dòng ĐỔI #2–#12 trong lib/ai/* (bước 4 sẽ gỡ) ---
-  {
-    file: "lib/ai/common.js",
-    snippet: 'if (program === "toeic") {',
-    reason: 'TODO bước 4 (#2): levelTier xử lý trình độ TOEIC',
-  },
-  {
-    file: "lib/ai/common.js",
-    snippet: 'if (program === "toeic") {',
-    reason: 'TODO bước 4 (#3): describeStudentLevel xử lý trình độ TOEIC',
-  },
-  {
-    file: "lib/ai/grammarLesson.js",
-    snippet: 'const tierGuideFor = (program, tier) => (program === "toeic" ? TOEIC_TIER_GUIDE : TIER_GUIDE)[tier];',
-    reason: 'TODO bước 4 (#4): grammar tier guide rẽ nhánh TOEIC',
-  },
-  {
-    file: "lib/ai/grammarLesson.js",
-    snippet: 'const systemFor = (program) => (program === "toeic" ? TOEIC_SYSTEM : SYSTEM);',
-    reason: 'TODO bước 4 (#5): grammar system prompt rẽ nhánh TOEIC',
-  },
-  {
-    file: "lib/ai/grammarLesson.js",
-    snippet: 'const optCount = program === "toeic" || (band != null && band >= 6) ? 4 : 3;',
-    reason: 'TODO bước 4 (#6): grammar option count',
-  },
-  {
-    file: "lib/ai/vocabLesson.js",
-    snippet: 'const tierGuideFor = (program, tier) => (program === "toeic" ? TOEIC_TIER_GUIDE : TIER_GUIDE)[tier];',
-    reason: 'TODO bước 4 (#7): vocab tier guide rẽ nhánh TOEIC',
-  },
-  {
-    file: "lib/ai/vocabLesson.js",
-    snippet: 'const systemFor = (program) => (program === "toeic" ? TOEIC_SYSTEM : SYSTEM);',
-    reason: 'TODO bước 4 (#8): vocab system prompt rẽ nhánh TOEIC',
-  },
-  {
-    file: "lib/ai/vocabLesson.js",
-    snippet: 'const optCount = program === "toeic" || (band != null && band >= 6) ? 4 : 3;',
-    reason: 'TODO bước 4 (#9): vocab option count',
-  },
-  {
-    file: "lib/ai/vocabLesson.js",
-    snippet: 'program === "toeic"',
-    reason: 'TODO bước 4 (#10): ví dụ tên nhóm từ',
-  },
-  {
-    file: "lib/ai/vocabReview.js",
-    snippet: 'const systemFor = (program) => (program === "toeic" ? TOEIC_SYSTEM : SYSTEM);',
-    reason: 'TODO bước 4 (#11): vocab review system prompt rẽ nhánh TOEIC',
-  },
-  {
-    file: "lib/ai/vocabReview.js",
-    snippet: 'program === "toeic"',
-    reason: 'TODO bước 4 (#12): dòng Prefer cho TOEIC',
-  },
 ];
 
 const SCAN_DIRS = ["lib", "components", "app", "pages"];
