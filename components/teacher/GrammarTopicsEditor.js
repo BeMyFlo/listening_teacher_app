@@ -5,6 +5,7 @@ import SectionsEditor from "./SectionsEditor";
 import LessonImport from "./LessonImport";
 import AiGrammarDialog from "./AiGrammarDialog";
 import { useDialog } from "@/components/ui/Dialog";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
 
 function emptyTopic() {
   return {
@@ -24,8 +25,8 @@ const LESSON_FIELDS = [
 
 export default function GrammarTopicsEditor({ topics, media, onChange, aiContext, program }) {
   const dialog = useDialog();
-  // Template import (Excel) chưa có cho TOEIC -> ẩn các nút import (Phase 8, 5.6).
-  const canImport = program !== "toeic";
+  // Template import (Excel): kiểm tra registry theo chương trình.
+  const canImport = !!PROGRAMS[programOf({ program })]?.excelImport;
   // null = đang đóng; -1 = nút Import chung ở trên; i = nút Import trong chủ đề i.
   const [importTarget, setImportTarget] = useState(null);
   const [aiOpen, setAiOpen] = useState(false);

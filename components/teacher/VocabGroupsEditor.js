@@ -6,6 +6,7 @@ import VocabWordTable from "./VocabWordTable";
 import AiVocabDialog from "./AiVocabDialog";
 import { TopicExercises } from "./GrammarTopicsEditor";
 import { useDialog } from "@/components/ui/Dialog";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
 
 function emptyGroup() {
   return { extId: "", name: "", words: [], exercises: [] };
@@ -13,8 +14,8 @@ function emptyGroup() {
 
 export default function VocabGroupsEditor({ groups, media, onChange, aiContext, program }) {
   const dialog = useDialog();
-  // Template import (Excel) chưa có cho TOEIC -> ẩn các nút import (Phase 8, 5.6).
-  const canImport = program !== "toeic";
+  // Template import (Excel): kiểm tra registry theo chương trình.
+  const canImport = !!PROGRAMS[programOf({ program })]?.excelImport;
   // null = đang đóng; -1 = nút Import chung ở trên; i = nút Import trong nhóm i.
   const [importTarget, setImportTarget] = useState(null);
   const [aiOpen, setAiOpen] = useState(false);

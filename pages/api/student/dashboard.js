@@ -73,6 +73,7 @@ async function handler(req, res) {
     leaderboard,
     className: cls.name,
     classLevel: cls.level,
+    classProgram: programOf(cls),
     classLevelName: await levelNameFor(req.ws, programOf(cls), cls.level),
   });
 }

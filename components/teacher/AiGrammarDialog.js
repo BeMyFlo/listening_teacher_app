@@ -3,15 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/client/api";
 import { sectionsToEditor } from "@/lib/teacher/sectionTransforms";
-
-// Chỉ là gợi ý khi bấm vào ô — giáo viên gõ gì cũng được (vd "6.5", "B2").
-const LEVEL_SUGGESTIONS = [
-  "3.0", "3.5", "4.0", "4.5", "5.0", "5.5", "6.0", "6.5", "7.0", "7.5", "8.0",
-  "A1", "A2", "B1", "B2", "C1",
-];
-
-// Gợi ý trình độ cho chương trình TOEIC (điểm Listening + Reading).
-const TOEIC_LEVEL_SUGGESTIONS = ["300", "400", "450", "500", "550", "600", "650", "700", "750", "800", "850"];
+import { PROGRAMS, programOf, levelWordOf } from "@/lib/curriculum";
 
 const LANGUAGES = [
   ["vi", "Vietnamese explanations, English examples"],
@@ -67,8 +59,9 @@ function QuestionPreview({ f }) {
 // Giáo viên mô tả lớp + chủ đề + tick các phần cần soạn -> AI soạn -> xem
 // trước, chọn chủ đề muốn giữ -> thêm vào bài (chưa lưu, vẫn phải bấm Save).
 export default function AiGrammarDialog({ context, onAdd, onClose }) {
+  const aiLevel = PROGRAMS[programOf(context)].aiLevel;
   const [form, setForm] = useState({
-    level: context && context.level ? `Level ${context.level}` : "",
+    level: context && context.level ? `${levelWordOf(context.program)} ${context.level}` : "",
     unitName: (context && context.unitName) || "",
     topics: "",
     // Mặc định = tên level của Unit (nếu có); giáo viên sửa tự do.
@@ -170,16 +163,16 @@ export default function AiGrammarDialog({ context, onAdd, onClose }) {
               </div>
               <div className="builder-2col" style={{ marginBottom: 12 }}>
                 <div className="form-row" style={{ marginBottom: 0 }}>
-                  <label>{context && context.program === "toeic" ? "Students' level (TOEIC score)" : "Students' level (IELTS band or CEFR)"}</label>
+                  <label>{aiLevel.label}</label>
                   <input
                     type="text"
                     list="ai-grammar-level-suggestions"
-                    placeholder={context && context.program === "toeic" ? "e.g. 550, 450–600, 750+" : "e.g. 6.5, 5.0–5.5, B1"}
+                    placeholder={aiLevel.placeholder}
                     value={form.studentLevel}
                     onChange={set("studentLevel")}
                   />
                   <datalist id="ai-grammar-level-suggestions">
-                    {(context && context.program === "toeic" ? TOEIC_LEVEL_SUGGESTIONS : LEVEL_SUGGESTIONS).map((v) => (
+                    {aiLevel.suggestions.map((v) => (
                       <option key={v} value={v} />
                     ))}
                   </datalist>

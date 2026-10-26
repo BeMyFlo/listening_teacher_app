@@ -6,12 +6,18 @@ import { api } from "@/lib/client/api";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { SKILL_TABS, QUESTION_SKILLS } from "@/lib/student/constants";
 import { latestExamSub } from "@/lib/student/submissions";
-import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { PROGRAMS, programOf, testSkillLabel, levelWordOf } from "@/lib/curriculum";
 import { formatScore, toeicSkillSummary } from "@/lib/scoreLabel";
 import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
 
 // Kỹ năng hiển thị của 1 đề = testSkills của chương trình (API cũng trả kỹ năng ẩn là rỗng).
-const tabsForRow = (row) => SKILL_TABS.filter((t) => PROGRAMS[programOf(row)].testSkills.includes(t.key));
+const tabsForRow = (row) => {
+  const p = programOf(row);
+  return SKILL_TABS.filter((t) => PROGRAMS[p].testSkills.includes(t.key)).map((t) => ({
+    ...t,
+    label: testSkillLabel(p, t.key, t.label),
+  }));
+};
 
 function StudentStats({ subs }) {
   const testSubs = subs.filter((s) => (s.kind || "test") === "test");
@@ -50,9 +56,10 @@ export default function TestsPage() {
   const [err, setErr] = useState("");
   const { subs } = useMySubmissions();
   // Tiêu đề trang liệt kê kỹ năng theo các đề đang có. IELTS: đủ 4 kỹ năng như cũ.
-  const skillNames = (rows && rows.length ? SKILL_TABS.filter((t) => rows.some((r) => tabsForRow(r).includes(t))) : SKILL_TABS)
-    .map((t) => t.label)
-    .join(", ");
+  const availableTabs = rows && rows.length
+    ? rows.flatMap((r) => tabsForRow(r)).filter((t, i, arr) => arr.findIndex((x) => x.key === t.key) === i)
+    : SKILL_TABS;
+  const skillNames = availableTabs.map((t) => t.label).join(", ");
 
   useEffect(() => {
     api.student
@@ -70,7 +77,7 @@ export default function TestsPage() {
             <h1>Mock Tests</h1>
             <p className="page-sub">
               Mock exams — {skillNames}
-              {rows && rows[0] && rows[0].levelName ? ` · Level ${rows[0].level} · ${rows[0].levelName}` : ""}
+              {rows && rows[0] && rows[0].levelName ? ` · ${levelWordOf(rows[0].program)} ${rows[0].level} · ${rows[0].levelName}` : ""}
             </p>
           </div>
         </div>
