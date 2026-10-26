@@ -163,3 +163,31 @@ test("General tier guides: không chứa IELTS hay TOEIC ở cả 4 mức", () =
     assert.doesNotMatch(vTier, /TOEIC/);
   }
 });
+
+// Review G0 bước 4: giáo viên để trống trình độ -> độ khó theo khối lớp của Unit, không mặc định "core".
+test("levelTier general: ô trống dùng khối của Unit (fallbackGrade)", () => {
+  const { levelTier } = require("../lib/ai/common");
+  assert.equal(levelTier("", "general", "Grade 6"), "foundation");
+  assert.equal(levelTier("", "general", "Grade 11"), "upper");
+  assert.equal(levelTier("", "general", ""), "core");
+  // gõ trình độ thì ưu tiên chữ gõ vào
+  assert.equal(levelTier("Grade 9", "general", "Grade 6"), "core");
+  assert.equal(levelTier("B2", "general", "Grade 6"), "advanced");
+  // IELTS/TOEIC không dùng fallbackGrade
+  assert.equal(levelTier("", "ielts", "Grade 11"), levelTier("", "ielts"));
+  assert.equal(levelTier("", "toeic", "Grade 11"), levelTier("", "toeic"));
+});
+
+test("describeStudentLevel general: số ngoài 6..12 giữ nguyên chữ gõ vào", () => {
+  const { describeStudentLevel } = require("../lib/ai/common");
+  assert.match(describeStudentLevel("7", "general"), /^Grade 7 at a Vietnamese secondary school/);
+  assert.equal(describeStudentLevel("15", "general"), "15");
+});
+
+test("prompt General Unit Grade 6 bỏ trống trình độ -> tier foundation trong prompt", () => {
+  const grammar = require("../lib/ai/grammarLesson");
+  const { input } = grammar.parseInput({ topics: "Present simple", parts: ["formula", "exercises"], exerciseTypes: ["mcq"], questionCount: 5, level: "Grade 6", program: "general" });
+  const p = grammar.buildPrompt(input, input.topics[0]);
+  assert.match(p, /grades 6–7, CEFR A1/);
+  assert.match(p, /Grade 6 at a Vietnamese secondary school/);
+});
