@@ -4319,3 +4319,134 @@ tr:hover td { background: var(--pink-wash-2); }
 .toeic-stage-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
 .toeic-stage-clock { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .toeic-bg-upload-note { margin: 10px 0 0; font-size: .82rem; color: var(--muted); }
+
+/* Phase 12 G1 bước 4 — General English: Underline & Reorder chip UI */
+.error-letter {
+  font-weight: 700;
+  font-size: .78em;
+  margin-left: 2px;
+  color: var(--blue);
+  text-decoration: none;
+}
+.u-part {
+  display: inline;
+}
+.u-part u {
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+.reorder-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  margin-top: 8px;
+}
+.reorder-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.reorder-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.reorder-target-zone {
+  min-height: 52px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  transition: all .15s ease;
+}
+.reorder-target-zone.has-chips {
+  border-style: solid;
+  border-color: var(--blue-border, var(--border));
+  background: var(--card);
+}
+.reorder-pieces-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 0;
+}
+.reorder-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 6px 14px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all .15s ease;
+  user-select: none;
+  max-width: 100%;
+  word-break: break-word;
+}
+.reorder-chip:hover:not(:disabled) {
+  border-color: var(--blue);
+  color: var(--blue);
+  transform: translateY(-1px);
+}
+.reorder-chip.chosen {
+  background: var(--blue-light);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.reorder-chip:disabled {
+  cursor: default;
+  opacity: .85;
+  transform: none;
+}
+.reorder-chip.is-correct {
+  border-color: var(--green);
+  background: var(--teal-light);
+  color: var(--green);
+}
+.reorder-chip.is-wrong {
+  border-color: var(--red);
+  background: var(--red-light);
+  color: var(--red);
+}
+.reorder-clear-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s ease;
+}
+.reorder-clear-btn:hover {
+  color: var(--red);
+  border-color: var(--red);
+  background: var(--red-light);
+}
+.reorder-placeholder {
+  color: var(--muted);
+  font-size: .9rem;
+  font-style: italic;
+  padding: 4px 0;
+}

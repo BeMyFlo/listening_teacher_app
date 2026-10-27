@@ -248,3 +248,26 @@ test("generalQuestionError / findGeneralSectionError: kiểm tra client chặn l
   assert.equal(err.fieldId, 11);
   assert.match(err.message, /Question 11/);
 });
+
+test("reorder matching logic: xử lý đúng hai mảnh cùng chữ (position-based)", () => {
+  const tokens = ["the", "cat", "saw", "the", "dog"];
+  // Học sinh chọn "the" thứ hai (index 3), rồi "cat" (index 1), rồi "saw" (index 2), rồi "the" đầu (index 0), rồi "dog" (index 4)
+  const chosen = [3, 1, 2, 0, 4];
+  assert.equal(chosen.map((i) => tokens[i]).join(" "), "the cat saw the dog");
+
+  // Xoá vị trí 0 ("the" ở đầu câu đã chọn, tương ứng token index 3)
+  const afterRemove = chosen.filter((_, pos) => pos !== 0);
+  assert.deepEqual(afterRemove, [1, 2, 0, 4]);
+  // Còn lại trong pool là token index 3
+  const available = tokens.map((_, i) => i).filter((i) => !afterRemove.includes(i));
+  assert.deepEqual(available, [3]);
+  assert.equal(tokens[available[0]], "the");
+});
+
+test("parseUnderline kết hợp errorLetters: sinh đúng thứ tự chữ A, B, C, D", () => {
+  const text = "My mother __usually go__ to __the__ market __every__ day __.__";
+  const parts = U.underlinedParts(text);
+  assert.equal(parts.length, 4);
+  const letters = parts.map((_, i) => String.fromCharCode(65 + i));
+  assert.deepEqual(letters, ["A", "B", "C", "D"]);
+});
