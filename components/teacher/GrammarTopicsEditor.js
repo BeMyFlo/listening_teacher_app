@@ -275,6 +275,7 @@ export function TopicExercises({ exercises, media, subject, program, onChange, a
               subject={subject}
               program={program}
               media={media}
+              onMediaChanged={media?.reload}
               aiContext={aiContext}
               onChange={(next) => patch((d) => (d[i]._sections = next))}
             />

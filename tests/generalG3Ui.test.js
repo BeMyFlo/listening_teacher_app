@@ -9,16 +9,21 @@ const {
   sectionsToPayload,
   nextFieldId,
   appendAiSections,
+  applyImageLinks,
   fieldToServer,
 } = require("../lib/teacher/sectionTransforms");
 
 // -------------------------------------------------------------
 // 1. Registry & format availability for UI
 // -------------------------------------------------------------
-test("Registry: aiExercise & textbook chỉ bật ở General, tắt ở IELTS/TOEIC", () => {
+test("Registry: aiExercise, wordImport & textbook chỉ bật ở General, tắt ở IELTS/TOEIC", () => {
   assert.equal(PROGRAMS.general.aiExercise, true);
   assert.equal(PROGRAMS.ielts.aiExercise, false);
   assert.equal(PROGRAMS.toeic.aiExercise, false);
+
+  assert.equal(PROGRAMS.general.wordImport, true);
+  assert.equal(PROGRAMS.ielts.wordImport, false);
+  assert.equal(PROGRAMS.toeic.wordImport, false);
 
   assert.equal(PROGRAMS.general.textbook, true);
   assert.equal(PROGRAMS.ielts.textbook, false);
@@ -122,4 +127,75 @@ test("Bấm 'Mark as checked' xoá aiFlag; fieldToServer không đưa aiFlag lê
   const serverObj = fieldToServer(fieldWithFlag);
   assert.equal(serverObj.aiFlag, undefined);
   assert.equal("aiFlag" in serverObj, false);
+});
+
+// -------------------------------------------------------------
+// 3. Word import sections logic: đánh số tiếp, gán imageId và cờ vàng
+// -------------------------------------------------------------
+test("applyImageLinks: gán imageId cho section (fi null) và câu (fi cụ thể), cờ khi ảnh lỗi", () => {
+  const sections = [
+    {
+      name: "Section 1",
+      imageId: "",
+      fields: [
+        { id: 1, label: "Question with image", imageId: "", aiFlag: "" },
+        { id: 2, label: "Question without image", imageId: "", aiFlag: "" },
+        { id: 3, label: "Question with failed upload", imageId: "", aiFlag: "Existing flag" },
+      ],
+    },
+  ];
+  const imageLinks = [
+    { si: 0, fi: null, ref: "SEC_IMG" },
+    { si: 0, fi: 0, ref: "IMG1" },
+    { si: 0, fi: 2, ref: "IMG_FAIL" },
+  ];
+  const imageMap = {
+    SEC_IMG: "id-sec-image",
+    IMG1: "id-img-1",
+  };
+  const failedImageRefs = new Set(["IMG_FAIL"]);
+
+  const out = applyImageLinks(sections, imageLinks, imageMap, failedImageRefs);
+
+  // Không sửa mảng đầu vào
+  assert.equal(sections[0].imageId, "");
+  assert.equal(sections[0].fields[0].imageId, "");
+
+  // Mảng kết quả:
+  assert.equal(out[0].imageId, "id-sec-image");
+  assert.equal(out[0].fields[0].imageId, "id-img-1");
+  assert.equal(out[0].fields[0].aiFlag, "");
+  assert.equal(out[0].fields[1].imageId, "");
+  assert.equal(out[0].fields[2].imageId, "");
+  assert.equal(out[0].fields[2].aiFlag, "Existing flag; Image could not be uploaded");
+});
+
+test("appendAiSections (Word import): nhận server sections + options đánh số tiếp và gán cờ + imageId", () => {
+  const existing = [
+    { name: "Existing section", fields: [{ id: 1 }, { id: 2 }] },
+  ];
+  const wordServerSec = mkSec("g-mcq", "Imported Word Section", "grammar", [
+    { text: "Word Q1 ____.", options: ["a", "b", "c", "d"], answer: "a" },
+    { text: "Word Q2 ____.", options: ["a", "b", "c", "d"], answer: "b" },
+  ]);
+
+  const flags = [{ si: 0, fi: 1, reason: "Answer suggested by AI — not found in the file" }];
+  const imageLinks = [{ si: 0, fi: 0, ref: "IMG1" }];
+  const imageMap = { IMG1: "cloud-img-id-123" };
+
+  const out = appendAiSections(existing, [wordServerSec], {
+    flags,
+    imageLinks,
+    imageMap,
+    firstId: 1,
+  });
+
+  assert.equal(out.length, 2);
+  assert.equal(out[0], existing[0]);
+  assert.equal(out[1].name, "Imported Word Section");
+  assert.equal(out[1].fields[0].id, 3);
+  assert.equal(out[1].fields[0].imageId, "cloud-img-id-123");
+  assert.equal(out[1].fields[0].aiFlag, undefined);
+  assert.equal(out[1].fields[1].id, 4);
+  assert.equal(out[1].fields[1].aiFlag, "Answer suggested by AI — not found in the file");
 });

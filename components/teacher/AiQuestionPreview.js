@@ -5,7 +5,7 @@ import { underlineModeOf, isErrorIdFormat } from "@/lib/generalFormats";
 
 // Xem trước 1 câu hỏi (section theo shape server) dùng chung cho AiGrammarDialog,
 // AiExerciseDialog và sau này là WordImport.
-export default function AiQuestionPreview({ f, flag, passage }) {
+export default function AiQuestionPreview({ f, flag, passage, imageSrc }) {
   if (!f) return null;
 
   const uMode = underlineModeOf(f.formatLabel);
@@ -78,6 +78,23 @@ export default function AiQuestionPreview({ f, flag, passage }) {
             {passage}
           </div>
         </details>
+      )}
+
+      {imageSrc && (
+        <div style={{ margin: "6px 0" }}>
+          <img
+            src={imageSrc}
+            alt="Question illustration"
+            style={{
+              maxHeight: 120,
+              maxWidth: "100%",
+              borderRadius: 4,
+              border: "1px solid var(--border)",
+              objectFit: "contain",
+              display: "block",
+            }}
+          />
+        </div>
       )}
 
       <div>{sentenceNode}</div>

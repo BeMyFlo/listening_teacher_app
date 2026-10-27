@@ -322,6 +322,7 @@ function TestBuilderInner() {
                 program={b.program || undefined}
                 firstId={b.program === "toeic" && activeKey === "reading" ? 101 : 1}
                 media={media}
+                onMediaChanged={media?.reload}
                 aiContext={{
                   testId: b._id,
                   unitName: b.title || "",

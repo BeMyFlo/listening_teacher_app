@@ -19,6 +19,7 @@ import {
 } from "@/lib/teacher/sectionTransforms";
 import SpreadsheetImport from "./SpreadsheetImport";
 import AiExerciseDialog from "./AiExerciseDialog";
+import WordImport from "./WordImport";
 import { questionFormatsFor } from "@/lib/teacher/questionFormats";
 import { LETTERS, letterOptions, isLetterEditorField } from "@/lib/letterQuestion";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
@@ -173,13 +174,16 @@ export default function SectionsEditor({
   program,
   firstId = 1,
   aiContext,
+  onMediaChanged,
 }) {
   const [importing, setImporting] = useState(false);
   const [aiExerciseOpen, setAiExerciseOpen] = useState(false);
+  const [wordImportOpen, setWordImportOpen] = useState(false);
 
   const prog = programOf({ program: program || (aiContext && aiContext.program) });
   const canImport = !!PROGRAMS[prog]?.excelImport;
   const canAiExercise = !!PROGRAMS[prog]?.aiExercise && aiFormatsFor(subject).length > 0;
+  const canWordImport = !!PROGRAMS[prog]?.wordImport;
 
   function patch(mut) {
     const draft = structuredClone(sections);
@@ -285,6 +289,16 @@ export default function SectionsEditor({
             <svg className="icon"><use href="#icon-upload" /></svg> Import from spreadsheet
           </button>
         )}
+        {canWordImport && (
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setWordImportOpen(true)}
+          >
+            <svg className="icon"><use href="#icon-upload" /></svg> Import from Word
+          </button>
+        )}
       </div>
 
       {canAiExercise && aiExerciseOpen && (
@@ -301,6 +315,19 @@ export default function SectionsEditor({
           existingSections={sections}
           onImport={(imported) => onChange([...sections, ...imported])}
           onClose={() => setImporting(false)}
+        />
+      )}
+
+      {canWordImport && wordImportOpen && (
+        <WordImport
+          existingSections={sections}
+          subject={subject}
+          program={prog}
+          aiContext={aiContext}
+          firstId={firstId}
+          onMediaChanged={onMediaChanged || media?.reload}
+          onImport={(nextSections) => onChange(nextSections)}
+          onClose={() => setWordImportOpen(false)}
         />
       )}
     </>

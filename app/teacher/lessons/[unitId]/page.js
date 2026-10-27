@@ -1082,6 +1082,7 @@ function ExercisesEditor({ cat, media, program, onChange, aiContext }) {
               subject={cat.key}
               program={program}
               media={media}
+              onMediaChanged={media?.reload}
               showTranscript
               aiContext={aiContext}
               onChange={(next) => patch((d) => (d[i]._sections = next))}
