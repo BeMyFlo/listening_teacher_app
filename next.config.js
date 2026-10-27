@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Chất lượng ảnh landing dùng (Next 16 bắt buộc khai báo).
+  images: { qualities: [75, 85, 88] },
   async headers() {
     // Trang chuyển phiên: không gửi Referer, không cache, không cho nhúng iframe.
     return [

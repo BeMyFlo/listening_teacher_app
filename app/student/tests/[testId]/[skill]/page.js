@@ -148,7 +148,7 @@ export default function TakeTestPage() {
           )}
           {toeicSpeaking && !toeicSpeakingDone ? (
             <ToeicSpeakingRunner
-              ref={(el) => (promptRefs.current.__runner = el)}
+              ref={(el) => { promptRefs.current.__runner = el; }}
               test={test}
               prompts={promptsList}
               subs={subs}
@@ -187,14 +187,14 @@ export default function TakeTestPage() {
                     <div className="prompt-work" style={skill === "writing" ? undefined : { marginTop: 12 }}>
                       {skill === "writing" ? (
                         <WritingPrompt
-                          ref={(el) => (promptRefs.current[p.id] = el)}
+                          ref={(el) => { promptRefs.current[p.id] = el; }}
                           prompt={p}
                           submitContext={{ testId: test.id, skill }}
                           onSubmitted={refresh}
                         />
                       ) : (
                         <SpeakingPrompt
-                          ref={(el) => (promptRefs.current[p.id] = el)}
+                          ref={(el) => { promptRefs.current[p.id] = el; }}
                           prompt={p}
                           submitContext={{ testId: test.id, skill }}
                           onSubmitted={refresh}
