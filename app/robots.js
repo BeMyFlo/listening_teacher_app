@@ -3,6 +3,6 @@ import { robotsFor } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
-export default function robots() {
-  return robotsFor(headers().get("host"));
+export default async function robots() {
+  return robotsFor((await headers()).get("host"));
 }
