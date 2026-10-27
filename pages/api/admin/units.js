@@ -10,7 +10,9 @@ const { sanitizeDoc } = require("../../../lib/tiptap/doc");
 const { sanitizeYouTube } = require("../../../lib/lessonImport");
 const { sanitizeVocabReview } = require("../../../lib/vocabReviewSource");
 const { announceDeadlines } = require("../../../lib/notifications/deadlineAssign");
-const { regradeUnitSubmissions } = require("../../../lib/teacher/regrade");
+const { regradeUnitSubmissions, findExerciseInUnit } = require("../../../lib/teacher/regrade");
+const { isCorrect } = require("../../../lib/grade");
+const audit = require("../../../lib/audit");
 const { PROGRAMS, DEFAULT_PROGRAM, isProgram, programOf, programFilter, levelAllowed } = require("../../../lib/curriculum");
 const { programLockReason, resolveProgramChange } = require("../../../lib/curriculumServer");
 
@@ -166,6 +168,47 @@ async function handler(req, res) {
   if (req.method === "POST" && req.query.action === "regrade") {
     const unit = await assertOwned(req.ws, Unit, id, { message: "Unit not found" });
     const regradedCount = await regradeUnitSubmissions(unit);
+    return res.status(200).json({ ok: true, regradedCount });
+  }
+
+  // Duyệt thêm đáp án đúng cho câu fill và chấm lại toàn bộ bài nộp của Unit.
+  if (req.method === "POST" && req.query.action === "accept-answer") {
+    const unit = await assertOwned(req.ws, Unit, id, { message: "Unit not found" });
+    const { categoryKey, exerciseId, fieldId, answer } = req.body || {};
+    const exercise = findExerciseInUnit(unit, categoryKey, exerciseId);
+    if (!exercise) {
+      return res.status(404).json({ ok: false, error: "Exercise not found" });
+    }
+    let targetField = null;
+    for (const sec of exercise.sections || []) {
+      const f = (sec.fields || []).find((f) => Number(f.id) === Number(fieldId));
+      if (f) { targetField = f; break; }
+    }
+    if (!targetField) {
+      return res.status(404).json({ ok: false, error: "Question not found" });
+    }
+    if (targetField.type !== "fill") {
+      return res.status(400).json({ ok: false, error: "Only fill-in questions can accept answers" });
+    }
+    const trimmed = String(answer || "").trim();
+    if (!trimmed || trimmed.length > 300) {
+      return res.status(400).json({ ok: false, error: "Answer must be between 1 and 300 characters" });
+    }
+    if (isCorrect(targetField, trimmed)) {
+      return res.status(400).json({ ok: false, error: "This answer is already accepted." });
+    }
+    targetField.answers = targetField.answers || [];
+    targetField.answers.push(trimmed);
+    unit.markModified("categories");
+    await unit.save();
+    const regradedCount = await regradeUnitSubmissions(unit);
+    audit.record({
+      req,
+      res,
+      action: "units.accept_answer",
+      status: 200,
+      meta: { unitId: unit._id, categoryKey, exerciseId, fieldId: Number(fieldId), answer: trimmed, regradedCount },
+    });
     return res.status(200).json({ ok: true, regradedCount });
   }
 

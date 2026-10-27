@@ -676,3 +676,408 @@ test("reorder: đáp án gõ kèm '/' được bỏ '/' ở cả builder lẫn s
   const plain = normalizeSections([{ fields: [{ id: 1, type: "fill", answers: ["and/or"] }] }])[0].fields[0];
   assert.deepEqual(plain.answers, ["and/or"]);
 });
+
+// -----------------------------------------------------------------------------
+// 7. Accept this answer & re-grade (Phase 12 G1 Bước 5)
+// -----------------------------------------------------------------------------
+
+const { signUserToken } = require("../lib/auth");
+const WorkspaceMember = require("../lib/models/WorkspaceMember");
+const Submission = require("../lib/models/Submission");
+const AuditLog = require("../lib/models/AuditLog");
+const adminUnitsRoute = require("../pages/api/admin/units");
+const adminTestsRoute = require("../pages/api/admin/tests");
+const { regradeTestSubmissions } = require("../lib/teacher/regrade");
+
+async function callTeacherAdminRoute(route, { method, query = {}, body = {}, doc = null }) {
+  const prevSecret = process.env.JWT_SECRET;
+  const prevConn = global._mongooseConn.conn;
+  process.env.JWT_SECRET = "test-secret-g1-admin";
+  global._mongooseConn.conn = {};
+
+  const orig = {
+    wmFindOne: WorkspaceMember.findOne,
+    wsFindById: Workspace.findById,
+    uFindOne: Unit.findOne,
+    tFindOne: TestModel.findOne,
+  };
+
+  WorkspaceMember.findOne = () => ({ select: () => ({ lean: async () => ({ workspaceId: "ws1", role: "teacher" }) }) });
+  Workspace.findById = () => ({ select: () => ({ lean: async () => ({ _id: "ws1", status: "active", settings: {} }) }) });
+  Unit.findOne = async () => doc;
+  TestModel.findOne = async () => doc;
+  clearTenantCache();
+
+  const token = signUserToken({ _id: "u1", role: "teacher", name: "Teacher One" });
+  const req = {
+    method,
+    query,
+    body,
+    headers: { authorization: "Bearer " + token },
+    url: "/api/admin/route",
+  };
+  let statusCode = 200;
+  let payload = null;
+  const res = {
+    statusCode: 200,
+    setHeader() {},
+    status(c) {
+      statusCode = c;
+      this.statusCode = c;
+      return this;
+    },
+    json(p) {
+      payload = p;
+      return this;
+    },
+  };
+
+  try {
+    await route(req, res);
+    return { status: statusCode, body: payload };
+  } finally {
+    WorkspaceMember.findOne = orig.wmFindOne;
+    Workspace.findById = orig.wsFindById;
+    Unit.findOne = orig.uFindOne;
+    TestModel.findOne = orig.tFindOne;
+    clearTenantCache();
+    global._mongooseConn.conn = prevConn;
+    if (prevSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = prevSecret;
+  }
+}
+
+test("accept-answer: accept trên câu choice -> 400 (Unit và Test)", async () => {
+  const mockUnit = {
+    _id: "u1",
+    workspaceId: "ws1",
+    categories: [
+      {
+        key: "reading",
+        exercises: [
+          {
+            _id: "ex1",
+            sections: [{ fields: [{ id: 1, type: "choice", answers: ["A"] }] }],
+          },
+        ],
+      },
+    ],
+    markModified() {},
+    save: async () => mockUnit,
+  };
+
+  const unitRes = await callTeacherAdminRoute(adminUnitsRoute, {
+    method: "POST",
+    query: { id: "u1", action: "accept-answer" },
+    body: { categoryKey: "reading", exerciseId: "ex1", fieldId: 1, answer: "B" },
+    doc: mockUnit,
+  });
+  assert.equal(unitRes.status, 400);
+  assert.match(unitRes.body.error, /Only fill-in questions/);
+
+  const mockTest = {
+    _id: "t1",
+    workspaceId: "ws1",
+    skills: {
+      reading: {
+        sections: [{ fields: [{ id: 1, type: "choice", answers: ["A"] }] }],
+      },
+    },
+    markModified() {},
+    save: async () => mockTest,
+  };
+
+  const testRes = await callTeacherAdminRoute(adminTestsRoute, {
+    method: "POST",
+    query: { id: "t1", action: "accept-answer" },
+    body: { skill: "reading", fieldId: 1, answer: "B" },
+    doc: mockTest,
+  });
+  assert.equal(testRes.status, 400);
+  assert.match(testRes.body.error, /Only fill-in questions/);
+});
+
+test("accept-answer: Unit / Test của workspace khác (hoặc không tồn tại) -> 404", async () => {
+  // doc null mô phỏng assertOwned không tìm thấy doc trong workspace
+  const unitRes = await callTeacherAdminRoute(adminUnitsRoute, {
+    method: "POST",
+    query: { id: "u-other", action: "accept-answer" },
+    body: { categoryKey: "reading", exerciseId: "ex1", fieldId: 1, answer: "accepted" },
+    doc: null,
+  });
+  assert.equal(unitRes.status, 404);
+
+  const testRes = await callTeacherAdminRoute(adminTestsRoute, {
+    method: "POST",
+    query: { id: "t-other", action: "accept-answer" },
+    body: { skill: "reading", fieldId: 1, answer: "accepted" },
+    doc: null,
+  });
+  assert.equal(testRes.status, 404);
+});
+
+test("accept-answer: accept trùng theo luật chấm của câu -> 400 'This answer is already accepted.'", async () => {
+  const mockUnit = {
+    _id: "u1",
+    workspaceId: "ws1",
+    categories: [
+      {
+        key: "reading",
+        exercises: [
+          {
+            _id: "ex1",
+            sections: [
+              {
+                fields: [
+                  { id: 1, type: "fill", answers: ["cat", "feline"] },
+                  { id: 2, type: "fill", matchMode: "sentence", answers: ["She hasn't gone."] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    markModified() {},
+    save: async () => mockUnit,
+  };
+
+  // Trùng thường (hoa thường, khoảng trắng)
+  const dup1 = await callTeacherAdminRoute(adminUnitsRoute, {
+    method: "POST",
+    query: { id: "u1", action: "accept-answer" },
+    body: { categoryKey: "reading", exerciseId: "ex1", fieldId: 1, answer: "  CAT  " },
+    doc: mockUnit,
+  });
+  assert.equal(dup1.status, 400);
+  assert.equal(dup1.body.error, "This answer is already accepted.");
+
+  // Trùng câu matchMode "sentence" (viết tắt / mở rộng)
+  const dup2 = await callTeacherAdminRoute(adminUnitsRoute, {
+    method: "POST",
+    query: { id: "u1", action: "accept-answer" },
+    body: { categoryKey: "reading", exerciseId: "ex1", fieldId: 2, answer: "she has not gone." },
+    doc: mockUnit,
+  });
+  assert.equal(dup2.status, 400);
+  assert.equal(dup2.body.error, "This answer is already accepted.");
+});
+
+test("accept-answer thành công: Unit thêm answer, chấm lại (score tăng), audit log có dòng", async () => {
+  const origSubFind = Submission.find;
+  const origAuditCreate = AuditLog.create;
+  const auditLogs = [];
+
+  const exerciseSubDoc = {
+    _id: "sub-ex1",
+    kind: "exercise",
+    unitId: "u1",
+    categoryKey: "grammar",
+    exerciseId: "ex-g1",
+    answers: { 1: "plays" },
+    score: 0,
+    total: 1,
+    detail: [{ id: 1, label: "Verb", correct: false, score: 1, earned: 0 }],
+    save: async function () { return this; },
+  };
+
+  const mockUnit = {
+    _id: "u1",
+    workspaceId: "ws1",
+    categories: [
+      {
+        key: "grammar",
+        topics: [
+          {
+            _id: "topic1",
+            name: "Present Simple",
+            exercises: [
+              {
+                _id: "ex-g1",
+                sections: [
+                  {
+                    fields: [
+                      { id: 1, type: "fill", matchMode: "sentence", answers: ["is playing"] },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    markModified() {},
+    save: async () => mockUnit,
+  };
+
+  Submission.find = async (q) => {
+    if (q.unitId === "u1") return [exerciseSubDoc];
+    return [];
+  };
+  AuditLog.create = async (doc) => {
+    auditLogs.push(doc);
+    return doc;
+  };
+
+  try {
+    const res = await callTeacherAdminRoute(adminUnitsRoute, {
+      method: "POST",
+      query: { id: "u1", action: "accept-answer" },
+      body: { categoryKey: "grammar", exerciseId: "ex-g1", fieldId: 1, answer: "plays" },
+      doc: mockUnit,
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.regradedCount, 1);
+
+    // answers đã được thêm
+    const targetField = mockUnit.categories[0].topics[0].exercises[0].sections[0].fields[0];
+    assert.deepEqual(targetField.answers, ["is playing", "plays"]);
+
+    // bài nộp đã được chấm lại -> score tăng từ 0 lên 1
+    assert.equal(exerciseSubDoc.score, 1);
+    assert.equal(exerciseSubDoc.detail[0].correct, true);
+
+    // audit log có dòng mới ghi nhận
+    const acceptLog = auditLogs.find((l) => l.action === "units.accept_answer");
+    assert.ok(acceptLog, "Must have an audit log entry for units.accept_answer");
+    assert.equal(acceptLog.status, 200);
+    assert.equal(acceptLog.meta.answer, "plays");
+    assert.equal(acceptLog.meta.regradedCount, 1);
+  } finally {
+    Submission.find = origSubFind;
+    AuditLog.create = origAuditCreate;
+  }
+});
+
+test("accept-answer thành công: Mock Test thêm answer, chấm lại (score tăng), audit log có dòng", async () => {
+  const origSubFind = Submission.find;
+  const origAuditCreate = AuditLog.create;
+  const auditLogs = [];
+
+  const testSubDoc = {
+    _id: "sub-t1",
+    kind: "test",
+    testId: "t1",
+    testSkill: "listening",
+    answers: { 1: "center" },
+    score: 0,
+    total: 1,
+    detail: [{ id: 1, label: "Place", correct: false, score: 1, earned: 0 }],
+    save: async function () { return this; },
+  };
+
+  const mockTest = {
+    _id: "t1",
+    workspaceId: "ws1",
+    skills: {
+      listening: {
+        sections: [
+          {
+            fields: [
+              { id: 1, type: "fill", answers: ["centre"] },
+            ],
+          },
+        ],
+      },
+    },
+    markModified() {},
+    save: async () => mockTest,
+  };
+
+  Submission.find = async (q) => {
+    if (q.testId === "t1" && q.testSkill === "listening") return [testSubDoc];
+    return [];
+  };
+  AuditLog.create = async (doc) => {
+    auditLogs.push(doc);
+    return doc;
+  };
+
+  try {
+    const res = await callTeacherAdminRoute(adminTestsRoute, {
+      method: "POST",
+      query: { id: "t1", action: "accept-answer" },
+      body: { skill: "listening", fieldId: 1, answer: "center" },
+      doc: mockTest,
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.regradedCount, 1);
+
+    // answers đã được thêm
+    const targetField = mockTest.skills.listening.sections[0].fields[0];
+    assert.deepEqual(targetField.answers, ["centre", "center"]);
+
+    // bài nộp đã được chấm lại -> score tăng từ 0 lên 1
+    assert.equal(testSubDoc.score, 1);
+    assert.equal(testSubDoc.detail[0].correct, true);
+
+    // audit log có dòng mới
+    const acceptLog = auditLogs.find((l) => l.action === "tests.accept_answer");
+    assert.ok(acceptLog, "Must have an audit log entry for tests.accept_answer");
+    assert.equal(acceptLog.status, 200);
+    assert.equal(acceptLog.meta.answer, "center");
+    assert.equal(acceptLog.meta.regradedCount, 1);
+  } finally {
+    Submission.find = origSubFind;
+    AuditLog.create = origAuditCreate;
+  }
+});
+
+test("regradeTestSubmissions: chỉ đụng đúng test + skill được truyền vào", async () => {
+  const origSubFind = Submission.find;
+
+  const queriedFilters = [];
+  const test1ListeningSub = {
+    _id: "s1",
+    kind: "test",
+    testId: "t1",
+    testSkill: "listening",
+    answers: { 1: "answerA" },
+    score: 0,
+    total: 1,
+    save: async function () { this.saved = true; return this; },
+  };
+
+  Submission.find = async (filter) => {
+    queriedFilters.push(filter);
+    if (filter.kind === "test" && filter.testId === "t1" && filter.testSkill === "listening") {
+      return [test1ListeningSub];
+    }
+    return [];
+  };
+
+  const testDoc = {
+    _id: "t1",
+    skills: {
+      listening: {
+        sections: [{ fields: [{ id: 1, type: "fill", answers: ["answerA"] }] }],
+      },
+      reading: {
+        sections: [{ fields: [{ id: 2, type: "fill", answers: ["answerB"] }] }],
+      },
+    },
+  };
+
+  try {
+    const updated = await regradeTestSubmissions(testDoc, "listening");
+    assert.equal(updated, 1);
+    assert.equal(test1ListeningSub.saved, true);
+    assert.equal(test1ListeningSub.score, 1);
+
+    // Kiểm tra query chính xác: đúng testId, đúng testSkill, kind: "test"
+    assert.equal(queriedFilters.length, 1);
+    assert.deepEqual(queriedFilters[0], {
+      kind: "test",
+      testId: "t1",
+      testSkill: "listening",
+    });
+  } finally {
+    Submission.find = origSubFind;
+  }
+});
+
