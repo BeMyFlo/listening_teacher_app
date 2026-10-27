@@ -195,3 +195,15 @@ test("g-rewrite: bỏ chỗ trống cuối phần mở đầu và phần mở đ
   const dots = conv("g-rewrite", [{ text: "a b", start: "Although...", answer: "x" }]);
   assert.equal(dots.section.fields[0].pre, "Although");
 });
+
+test("finalizeTopic: mọi câu Error identification do AI soạn đều có cờ vàng", () => {
+  const q = (t) => ({ format: "g-error", text: t, answer: "A", explanation: "x" });
+  const topic = { format: "g-error", name: "n", passage: "", questions: [] };
+  const out = generalExercise.finalizeTopic(topic, [
+    q("He <u>go</u> to <u>school</u> by <u>bus</u> every <u>day</u>."),
+    q("She <u>have</u> a <u>cat</u> and <u>two</u> <u>dogs</u>."),
+  ], { subject: "grammar", questionCount: 5 });
+  assert.equal(out.exerciseSections[0].fields.length, 2);
+  assert.deepEqual(out.flags.map((f) => f.fi).sort(), [0, 1]);
+  assert.ok(out.flags.every((f) => /Error identification/.test(f.reason)));
+});
