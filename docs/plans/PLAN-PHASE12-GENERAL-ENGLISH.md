@@ -354,6 +354,8 @@ Synonym/Antonym. Chỉ bật trong format General → IELTS không đổi.
 
 ### G3 — Đưa nội dung vào nhanh: AI + import Word *(~3 ngày)*
 
+> Bản thi hành: [PLAN-PHASE12-G3.md](PLAN-PHASE12-G3.md) (+ prompt: [PLAN-PHASE12-G3-PROMPTS.md](PLAN-PHASE12-G3-PROMPTS.md)).
+
 1. **AI soạn bài General** (`lib/ai/grammarLesson.js`, `vocabLesson.js`, thêm generator bài tập theo format):
    prompt "Vietnamese secondary school English teacher, GDPT 2018 curriculum, Grade {n}, {textbook} Unit {x},
    CEFR A1–B1". Nhánh IELTS/TOEIC giữ nguyên từng chữ (R7 của Phase 8).
