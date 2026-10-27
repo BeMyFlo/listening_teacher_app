@@ -8,6 +8,8 @@ import RubricGrader from "@/components/teacher/RubricGrader";
 import RubricResult from "@/components/RubricResult";
 import { useDialog } from "@/components/ui/Dialog";
 import { pollAiGrade } from "@/lib/client/aiGrade";
+import UnderlinedText from "@/components/student/UnderlinedText";
+import { isErrorIdFormat } from "@/lib/generalFormats";
 
 function pct(score, total) {
   if (!total) return null;
@@ -60,10 +62,10 @@ function QuestionTable({ detail }) {
                 {d.imageUrl && (
                   <img src={d.imageUrl} alt={"Image for question " + d.id} style={{ display: "block", maxWidth: 180, maxHeight: 110, borderRadius: 6, marginBottom: d.label ? 6 : 0 }} />
                 )}
-                {d.label}
+                <UnderlinedText text={d.label} errorLetters={isErrorIdFormat(d.formatLabel)} />
               </td>
-              <td>{d.submittedText}</td>
-              <td>{d.correct ? "" : <b>{d.answerText}</b>}</td>
+              <td><UnderlinedText text={d.submittedText} /></td>
+              <td>{d.correct ? "" : <b><UnderlinedText text={d.answerText} /></b>}</td>
               <td style={{ color: "var(--muted)" }}>{d.explanation || ""}</td>
               <td>
                 <span className={"result-mark " + (d.correct ? "correct" : "wrong")}>

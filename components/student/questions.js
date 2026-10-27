@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import ReadingPassage from "@/components/student/ReadingPassage";
 import { parseNoteInline, parseNoteLayout } from "@/lib/noteLayout";
 import { NoteDoc } from "@/components/student/RichDoc";
@@ -9,6 +9,8 @@ import ExamAudioPlayer from "@/components/student/ExamAudioPlayer";
 import { blankIdsFromDoc } from "@/lib/tiptap/doc";
 import { isLetterOnlyField } from "@/lib/letterQuestion";
 import { groupFieldsByPart } from "@/lib/partGroups";
+import UnderlinedText from "@/components/student/UnderlinedText";
+import { underlineModeOf, isErrorIdFormat, chosenTokenIndexes } from "@/lib/generalFormats";
 
 // Highlightable static text in the question column. `base` scopes it to the
 // current section; `slot` + a hash of the text keep the localStorage key stable
@@ -105,10 +107,113 @@ function fieldNum(field) {
   return field.idEnd && field.idEnd > field.id ? `${field.id}-${field.idEnd}` : field.id;
 }
 
+// UI sắp xếp từ thành câu (kind reorder, Phase 12 G1 bước 4)
+function ReorderSentenceBuilder({ tokens, value, onChange, review }) {
+  const [chosen, setChosen] = useState(() => chosenTokenIndexes(tokens, value));
+
+  useEffect(() => {
+    const currentStr = chosen.map((i) => tokens[i]).join(" ");
+    if (currentStr !== String(value || "").trim()) {
+      setChosen(chosenTokenIndexes(tokens, value));
+    }
+  }, [value, tokens]);
+
+  const available = (tokens || [])
+    .map((_, i) => i)
+    .filter((i) => !chosen.includes(i));
+
+  const addPiece = (idx) => {
+    if (review) return;
+    const next = [...chosen, idx];
+    setChosen(next);
+    onChange(next.map((i) => tokens[i]).join(" "));
+  };
+
+  const removePiece = (pos) => {
+    if (review) return;
+    const next = chosen.filter((_, i) => i !== pos);
+    setChosen(next);
+    onChange(next.map((i) => tokens[i]).join(" "));
+  };
+
+  const clear = () => {
+    if (review) return;
+    setChosen([]);
+    onChange("");
+  };
+
+  return (
+    <div className="reorder-container">
+      <div className="reorder-group">
+        <div className="reorder-section-label">
+          <span>Your sentence</span>
+          {!review && chosen.length > 0 && (
+            <button type="button" className="reorder-clear-btn" onClick={clear}>
+              Clear
+            </button>
+          )}
+        </div>
+        <div className={"reorder-target-zone" + (chosen.length ? " has-chips" : "")}>
+          {chosen.length === 0 ? (
+            <span className="reorder-placeholder">
+              {review ? "(No answer submitted)" : "Tap words below to build your sentence..."}
+            </span>
+          ) : (
+            chosen.map((tokenIdx, pos) => (
+              <button
+                key={"c-" + pos + "-" + tokenIdx}
+                type="button"
+                className={
+                  "reorder-chip chosen" +
+                  (review ? (review.correct ? " is-correct" : " is-wrong") : "")
+                }
+                disabled={!!review}
+                title={review ? undefined : "Tap to remove"}
+                onClick={() => removePiece(pos)}
+              >
+                {tokens[tokenIdx]}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="reorder-group">
+        <div className="reorder-section-label">
+          <span>Pieces</span>
+        </div>
+        <div className="reorder-pieces-pool">
+          {available.length === 0 ? (
+            <span className="reorder-placeholder" style={{ fontSize: ".82rem" }}>
+              (All pieces used)
+            </span>
+          ) : (
+            available.map((tokenIdx) => (
+              <button
+                key={"a-" + tokenIdx}
+                type="button"
+                className="reorder-chip available"
+                disabled={!!review}
+                title={review ? undefined : "Tap to add to sentence"}
+                onClick={() => addPiece(tokenIdx)}
+              >
+                {tokens[tokenIdx]}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function QuestionField({ field, section, value, onChange, review, hlBase }) {
   const isChoice = field.type === "choice";
+  const isReorder = Array.isArray(field.tokens) && field.tokens.length > 0;
   const selectCount = Number(field.selectCount) || 1;
   const options = fieldOptions(field, section);
+  const underlineMode = underlineModeOf(field.formatLabel);
+  const isErrorLetters = isErrorIdFormat(field.formatLabel);
   const rowCls =
     "field-row" + (review ? (review.correct ? " correct" : review.partial ? " partial" : " wrong") : "");
 
@@ -127,6 +232,44 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
       : labelForValue(review.answer || "")
     : "";
 
+  if (isReorder) {
+    return (
+      <div className={rowCls} id={"row-" + field.id}>
+        <span className="num">{fieldNum(field)}.</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {field.imageUrl && <FieldImage field={field} />}
+          <div className="label" style={{ marginBottom: 6 }}>
+            {underlineMode === "label" ? (
+              <UnderlinedText text={field.label} errorLetters={isErrorLetters} />
+            ) : (
+              <HL base={hlBase} slot={field.id + ":label"} text={field.label} />
+            )}
+            {field.hint && (
+              <span className="field-hint"> <HL base={hlBase} slot={field.id + ":hint"} text={field.hint} /></span>
+            )}
+          </div>
+          <ReorderSentenceBuilder
+            tokens={field.tokens}
+            value={value}
+            onChange={onChange}
+            review={review}
+          />
+        </div>
+        {review && (
+          <span className={"result-mark " + (review.correct ? "correct" : "wrong")}>
+            <svg className="icon"><use href={review.correct ? "#icon-check" : "#icon-cross"} /></svg>
+          </span>
+        )}
+        {review && !review.correct && (
+          <div className="correct-answer-note">Correct answer: {review.answer || ""}</div>
+        )}
+        {review && review.explanation && (
+          <div className="answer-explanation">{review.explanation}</div>
+        )}
+      </div>
+    );
+  }
+
   if (isChoice) {
     // "Listen and choose — no printed question" (TOEIC Part 1/2): chỉ số câu + hàng nút chữ cái.
     const letterOnly = isLetterOnlyField(field);
@@ -137,7 +280,13 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
           {field.imageUrl && <FieldImage field={field} />}
           {(!letterOnly || field.hint) && (
             <div className="label" style={{ marginBottom: 6 }}>
-              {!letterOnly && <HL base={hlBase} slot={field.id + ":label"} text={field.label} />}
+              {!letterOnly && (
+                underlineMode === "label" ? (
+                  <UnderlinedText text={field.label} errorLetters={isErrorLetters} />
+                ) : (
+                  <HL base={hlBase} slot={field.id + ":label"} text={field.label} />
+                )
+              )}
               {selectCount > 1 && (
                 <span className="select-hint"> (Select up to {selectCount} answers)</span>
               )}
@@ -198,7 +347,11 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
                       } else onChange(o.value);
                     }}
                   />
-                  <HL base={hlBase} slot={field.id + ":opt:" + o.value} text={o.label} />
+                  {underlineMode === "options" ? (
+                    <UnderlinedText text={o.label} />
+                  ) : (
+                    <HL base={hlBase} slot={field.id + ":opt:" + o.value} text={o.label} />
+                  )}
                 </label>
               );
             })}
@@ -213,7 +366,11 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
         {review && !review.correct && (
           <div className="correct-answer-note">
             {review.partial ? "Partially correct — full answer: " : "Correct answer: "}
-            {correctAnswerLabel}
+            {underlineMode === "options" ? (
+              <UnderlinedText text={correctAnswerLabel} />
+            ) : (
+              correctAnswerLabel
+            )}
           </div>
         )}
         {review && review.explanation && (
@@ -227,7 +384,11 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
     <div className={rowCls} id={"row-" + field.id}>
       <span className="num">{fieldNum(field)}.</span>
       <span className="label">
-        <HL base={hlBase} slot={field.id + ":label"} text={field.label} />
+        {underlineMode === "label" ? (
+          <UnderlinedText text={field.label} errorLetters={isErrorLetters} />
+        ) : (
+          <HL base={hlBase} slot={field.id + ":label"} text={field.label} />
+        )}
         {field.pre ? <>: <HL base={hlBase} slot={field.id + ":pre"} text={field.pre} /></> : ""}
         {field.hint && <span className="field-hint"> <HL base={hlBase} slot={field.id + ":hint"} text={field.hint} /></span>}
       </span>
@@ -248,7 +409,9 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
         </span>
       )}
       {review && !review.correct && (
-        <div className="correct-answer-note">Correct answer: {review.answer || ""}</div>
+        <div className="correct-answer-note">
+          Correct answer: {underlineMode === "label" ? <UnderlinedText text={review.answer || ""} /> : (review.answer || "")}
+        </div>
       )}
       {review && review.explanation && (
         <div className="answer-explanation">{review.explanation}</div>

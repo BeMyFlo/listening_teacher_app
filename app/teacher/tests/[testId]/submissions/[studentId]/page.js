@@ -11,6 +11,8 @@ import { testSkillsFor } from "@/lib/teacher/testBuilder";
 import { programOf } from "@/lib/curriculum";
 import { usesTenPoint, formatTenPoint } from "@/lib/tenPoint";
 import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
+import UnderlinedText from "@/components/student/UnderlinedText";
+import { isErrorIdFormat } from "@/lib/generalFormats";
 
 function pct(score, total) {
   if (!total) return null;
@@ -181,10 +183,10 @@ function QuestionReview({ detail }) {
                       {d.imageUrl && (
                         <img src={d.imageUrl} alt={"Image for question " + d.id} style={{ display: "block", maxWidth: 180, maxHeight: 110, borderRadius: 6, marginBottom: d.label ? 6 : 0 }} />
                       )}
-                      {d.label}
+                      <UnderlinedText text={d.label} errorLetters={isErrorIdFormat(d.formatLabel)} />
                     </td>
-                    <td><span className={"answer-pill " + (bucket === "skipped" ? "blank" : bucket === "correct" ? "correct" : "wrong")}>{d.submittedText}</span></td>
-                    <td><span className="answer-pill correct">{d.answerText}</span></td>
+                    <td><span className={"answer-pill " + (bucket === "skipped" ? "blank" : bucket === "correct" ? "correct" : "wrong")}><UnderlinedText text={d.submittedText} /></span></td>
+                    <td><span className="answer-pill correct"><UnderlinedText text={d.answerText} /></span></td>
                     <td style={{ color: "var(--muted)" }}>{d.explanation ? "…" : "—"}</td>
                     <td>
                       <span className={"pill " + (bucket === "correct" ? "pill-ok" : bucket === "skipped" ? "pill-muted" : "pill-danger")}>
