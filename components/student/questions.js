@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useState } from "react";
 import ReadingPassage from "@/components/student/ReadingPassage";
 import { parseNoteInline, parseNoteLayout } from "@/lib/noteLayout";
 import { NoteDoc } from "@/components/student/RichDoc";
@@ -208,6 +208,9 @@ function ReorderSentenceBuilder({ tokens, value, onChange, review }) {
 }
 
 export function QuestionField({ field, section, value, onChange, review, hlBase }) {
+  // Tên nhóm radio phải riêng từng câu trên trang: hai bài tập cùng mở mà cùng có câu 2 thì "ans-2"
+  // bị dùng chung -> trình duyệt chỉ giữ một ô được chọn (dữ liệu vẫn đúng, hiển thị sai).
+  const radioName = "ans-" + field.id + "-" + useId();
   const isChoice = field.type === "choice";
   const isReorder = Array.isArray(field.tokens) && field.tokens.length > 0;
   const selectCount = Number(field.selectCount) || 1;
@@ -336,7 +339,7 @@ export function QuestionField({ field, section, value, onChange, review, hlBase 
                 >
                   <input
                     type={selectCount > 1 ? "checkbox" : "radio"}
-                    name={"ans-" + field.id}
+                    name={radioName}
                     checked={checked}
                     disabled={!!review || atLimit}
                     onChange={() => {
