@@ -70,6 +70,12 @@ function LessonsInner() {
     setClassFilter("all");
   }, [level, viewProgram]);
 
+  // Chương trình có khối cố định (vd General 6..12): level phải nằm trong danh sách
+  const targetFixed = PROGRAMS[viewProgram || labelProgram]?.fixedLevels;
+  useEffect(() => {
+    if (Array.isArray(targetFixed) && !targetFixed.includes(Number(formLevel))) setFormLevel(targetFixed[0]);
+  }, [targetFixed, formLevel]);
+
   const classById = useMemo(() => Object.fromEntries(classes.map((c) => [String(c._id), c])), [classes]);
 
   // Danh sách level: gộp từ lớp + unit, luôn có ít nhất 1..maxLevel.
@@ -260,7 +266,17 @@ function LessonsInner() {
         </div>
         <div className="form-row">
           <label>{levelWordOf(labelProgram)}</label>
-          <input type="number" min="1" step="1" value={formLevel} onChange={(e) => setFormLevel(e.target.value)} />
+          {Array.isArray(targetFixed) ? (
+            <select value={formLevel} onChange={(e) => setFormLevel(e.target.value)}>
+              {targetFixed.map((g) => (
+                <option key={g} value={g}>
+                  {levelWordOf(viewProgram || labelProgram)} {g}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input type="number" min="1" step="1" value={formLevel} onChange={(e) => setFormLevel(e.target.value)} />
+          )}
         </div>
         {PROGRAMS[viewProgram || labelProgram]?.textbook && (
           <div className="form-row">

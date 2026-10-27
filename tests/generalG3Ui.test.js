@@ -8,6 +8,7 @@ const {
   sectionsToEditor,
   sectionsToPayload,
   nextFieldId,
+  appendAiSections,
   fieldToServer,
 } = require("../lib/teacher/sectionTransforms");
 
@@ -42,109 +43,60 @@ test("aiFormatsFor: danh sách dạng đề theo từng kỹ năng, listening lu
 // -------------------------------------------------------------
 // 2. Thao tác thêm section từ AI và gán cờ vàng (SectionsEditor logic)
 // -------------------------------------------------------------
+const mkSec = (format, name, subject, qs) =>
+  toGeneralSection({ format, name, questions: qs }, { subject, startId: 1 }).section;
+const fillQ = (t) => ({ text: t + " ____.", options: [], answer: "x" });
+
 test("SectionsEditor AI import: đánh số tiếp từ nextFieldId và gán cờ vàng đúng index", () => {
-  const existingSections = [
-    {
-      name: "Existing Section 1",
-      fields: [
-        { id: 1, kind: "mcq", label: "Question 1" },
-        { id: 2, kind: "mcq", label: "Question 2" },
-      ],
-    },
+  const existing = [
+    { name: "Existing", fields: [{ id: 1, kind: "mcq" }, { id: 2, kind: "mcq" }] },
   ];
-
-  const firstId = 1;
-  let curId = nextFieldId(existingSections, firstId);
-  assert.equal(curId, 3);
-
-  // Giả lập output trả về từ generalExercise / ai-lesson
-  const { section: secPron } = toGeneralSection(
-    {
-      format: "g-pron",
-      name: "Pronunciation",
-      questions: [
-        { text: "", options: ["c<u>a</u>t", "b<u>a</u>t", "f<u>a</u>ther", "h<u>a</u>t"], answer: "father" },
-      ],
-    },
-    { subject: "vocabulary", startId: 1 }
-  );
-
-  const mockTopics = [
-    {
-      format: "g-pron",
-      name: "Pronunciation",
-      exerciseSections: [secPron],
-      flags: [{ fi: 0, reason: "Pronunciation/stress — please double-check" }],
-      check: { verified: true },
-    },
+  const secPron = mkSec("g-pron", "Pronunciation", "vocabulary", [
+    { text: "", options: ["c<u>a</u>t", "b<u>a</u>t", "f<u>a</u>ther", "h<u>a</u>t"], answer: "father" },
+  ]);
+  const topics = [
+    { exerciseSections: [secPron], flags: [{ fi: 0, reason: "Pronunciation/stress — please double-check" }], check: { verified: true } },
   ];
-
-  const newSections = [];
-  for (const topic of mockTopics) {
-    const edSections = sectionsToEditor(topic.exerciseSections);
-    const flags = topic.flags || [];
-    edSections.forEach((sec) => {
-      sec.fields.forEach((f, fi) => {
-        f.id = curId++;
-        const flagObj = flags.find((fl) => fl.fi === fi);
-        if (flagObj) {
-          f.aiFlag = flagObj.reason;
-        } else if (topic.check && !topic.check.verified) {
-          f.aiFlag = "Not verified — check every answer";
-        }
-      });
-    });
-    newSections.push(...edSections);
-  }
-
-  assert.equal(newSections.length, 1);
-  assert.equal(newSections[0].fields.length, 1);
-  assert.equal(newSections[0].fields[0].id, 3); // Đánh số tiếp từ 3
-  assert.equal(newSections[0].fields[0].aiFlag, "Pronunciation/stress — please double-check");
+  const out = appendAiSections(existing, topics, 1);
+  assert.equal(existing.length, 1); // không sửa đầu vào
+  assert.equal(out.length, 2);
+  assert.equal(out[1].fields[0].id, 3);
+  assert.equal(out[1].fields[0].aiFlag, "Pronunciation/stress — please double-check");
 });
 
 test("SectionsEditor AI import: check.verified false thì gán cờ vàng Not verified", () => {
-  const { section: secMcq } = toGeneralSection(
-    {
-      format: "g-mcq",
-      name: "Multiple choice",
-      questions: [
-        { text: "He ____ to school.", options: ["goes", "went", "go", "going"], answer: "goes" },
-      ],
-    },
-    { subject: "grammar", startId: 1 }
-  );
+  const sec = mkSec("g-mcq", "Multiple choice", "grammar", [
+    { text: "He ____ to school.", options: ["goes", "went", "go", "going"], answer: "goes" },
+  ]);
+  const out = appendAiSections([], [{ exerciseSections: [sec], flags: [], check: { verified: false, error: "timeout" } }], 1);
+  assert.equal(out[0].fields[0].id, 1);
+  assert.equal(out[0].fields[0].aiFlag, "Not verified — check every answer");
+});
 
-  const mockTopics = [
-    {
-      format: "g-mcq",
-      name: "Multiple choice",
-      exerciseSections: [secMcq],
-      flags: [], // không có cờ từ đợt soạn
-      check: { verified: false, error: "timeout" },
-    },
+test("SectionsEditor AI import: cờ chỉ gán cho câu fi 0 và 2 của section 3 câu", () => {
+  const sec = mkSec("g-mcq", "Multiple choice", "grammar", [0, 1, 2].map((i) => ({
+    text: "Q" + i + " ____.", options: ["a", "b", "c", "d"], answer: "a",
+  })));
+  const flags = [{ fi: 0, reason: "r0" }, { fi: 2, reason: "r2" }];
+  const out = appendAiSections([], [{ exerciseSections: [sec], flags, check: { verified: true } }], 1);
+  const f = out[0].fields;
+  assert.equal(f.length, 3);
+  assert.equal(f[0].aiFlag, "r0");
+  assert.equal(f[1].aiFlag, undefined);
+  assert.equal(f[2].aiFlag, "r2");
+});
+
+test("SectionsEditor AI import: đánh số tiếp qua nhiều topic, bỏ section rỗng", () => {
+  const mk1 = () => mkSec("g-mcq", "A", "grammar", [0, 1].map((i) => ({ text: "Q ____.", options: ["a", "b", "c", "d"], answer: "a" })));
+  const empty = { name: "Empty", fields: [] };
+  const topics = [
+    { exerciseSections: [mk1(), empty], flags: [], check: { verified: true } },
+    { exerciseSections: [mk1()], flags: [], check: { verified: true } },
   ];
-
-  let curId = 1;
-  const newSections = [];
-  for (const topic of mockTopics) {
-    const edSections = sectionsToEditor(topic.exerciseSections);
-    const flags = topic.flags || [];
-    edSections.forEach((sec) => {
-      sec.fields.forEach((f, fi) => {
-        f.id = curId++;
-        const flagObj = flags.find((fl) => fl.fi === fi);
-        if (flagObj) {
-          f.aiFlag = flagObj.reason;
-        } else if (topic.check && !topic.check.verified) {
-          f.aiFlag = "Not verified — check every answer";
-        }
-      });
-    });
-    newSections.push(...edSections);
-  }
-
-  assert.equal(newSections[0].fields[0].aiFlag, "Not verified — check every answer");
+  const out = appendAiSections([], topics, 1);
+  assert.equal(out.length, 2);
+  assert.deepEqual(out[0].fields.map((f) => f.id), [1, 2]);
+  assert.deepEqual(out[1].fields.map((f) => f.id), [3, 4]);
 });
 
 test("Bấm 'Mark as checked' xoá aiFlag; fieldToServer không đưa aiFlag lên server", () => {

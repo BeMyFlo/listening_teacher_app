@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/client/api";
-import { PROGRAMS } from "@/lib/curriculum";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
 import { GENERAL_LABELS, aiFormatsFor } from "@/lib/generalFormats";
 import AiQuestionPreview from "./AiQuestionPreview";
 
@@ -13,7 +13,7 @@ const LANGUAGES = [
 ];
 
 export default function AiExerciseDialog({ context, subject = "grammar", onAdd, onClose }) {
-  const aiLevel = PROGRAMS.general.aiLevel;
+  const aiLevel = PROGRAMS[programOf(context || {})].aiLevel;
   const availableFormats = aiFormatsFor(subject);
 
   const defaultLevel =
@@ -24,7 +24,7 @@ export default function AiExerciseDialog({ context, subject = "grammar", onAdd, 
       : "";
 
   const [form, setForm] = useState({
-    focus: "",
+    focus: (context && context.focus) || "",
     questionCount: 8,
     level: defaultLevel,
     unitName: (context && context.unitName) || "",

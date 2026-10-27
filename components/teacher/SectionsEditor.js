@@ -15,7 +15,7 @@ import {
   tfngOptions,
   ynngOptions,
   isFixedChoiceShape,
-  sectionsToEditor,
+  appendAiSections,
 } from "@/lib/teacher/sectionTransforms";
 import SpreadsheetImport from "./SpreadsheetImport";
 import AiExerciseDialog from "./AiExerciseDialog";
@@ -189,26 +189,7 @@ export default function SectionsEditor({
 
   // Thêm các section sinh từ AI: đánh số tiếp từ nextFieldId và gắn cờ vàng
   function handleAddAiSections(chosenTopics) {
-    let curId = nextFieldId(sections, firstId);
-    const newSections = [];
-    for (const topic of chosenTopics) {
-      const edSections = sectionsToEditor(topic.exerciseSections);
-      const validEdSections = edSections.filter((s) => s.fields && s.fields.length > 0);
-      const flags = topic.flags || [];
-      validEdSections.forEach((sec) => {
-        sec.fields.forEach((f, fi) => {
-          f.id = curId++;
-          const flagObj = flags.find((fl) => fl.fi === fi);
-          if (flagObj) {
-            f.aiFlag = flagObj.reason;
-          } else if (topic.check && !topic.check.verified) {
-            f.aiFlag = "Not verified — check every answer";
-          }
-        });
-      });
-      newSections.push(...validEdSections);
-    }
-    onChange([...sections, ...newSections]);
+    onChange(appendAiSections(sections, chosenTopics, firstId));
   }
 
   // Đếm tổng số câu có cờ vàng trong phiên soạn

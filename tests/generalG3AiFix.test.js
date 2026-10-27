@@ -207,3 +207,13 @@ test("finalizeTopic: mọi câu Error identification do AI soạn đều có c�
   assert.deepEqual(out.flags.map((f) => f.fi).sort(), [0, 1]);
   assert.ok(out.flags.every((f) => /Error identification/.test(f.reason)));
 });
+
+// Grade in the prompt: không in "Grade: Grade 7"
+test("buildPrompt: bỏ chữ Grade/Lớp đứng đầu khi in dòng Grade", () => {
+  const base = { focus: "Present simple", questionCount: 5, language: "vi", studentLevel: "" };
+  const g = (level) => generalExercise.buildPrompt({ ...base, level }, "g-mcq");
+  assert.match(g("Grade 7"), /^- Grade: 7$/m);
+  assert.match(g("grade 8"), /^- Grade: 8$/m);
+  assert.match(g("Lớp 9"), /^- Grade: 9$/m);
+  assert.match(g("7"), /^- Grade: 7$/m);
+});
