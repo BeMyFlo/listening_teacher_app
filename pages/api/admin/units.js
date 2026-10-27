@@ -201,7 +201,7 @@ async function handler(req, res) {
     targetField.answers.push(trimmed);
     unit.markModified("categories");
     await unit.save();
-    const regradedCount = await regradeUnitSubmissions(unit);
+    const regradedCount = await regradeUnitSubmissions(unit, { exerciseId: exercise._id });
     audit.record({
       req,
       res,
