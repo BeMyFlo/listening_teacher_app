@@ -11,8 +11,8 @@ export const dynamic = "force-dynamic";
 const DESCRIPTION =
   "BeMyFlo giúp giáo viên và trung tâm IELTS giao bài, chấm Writing và Speaking có AI hỗ trợ, điểm danh và theo dõi học viên. Đang miễn phí trong giai đoạn thử nghiệm.";
 
-export function generateMetadata() {
-  if (!shouldShowLanding(headers().get("host"))) return {};
+export async function generateMetadata() {
+  if (!shouldShowLanding((await headers()).get("host"))) return {};
   const origin = siteOrigin();
   const title = `${PLATFORM_NAME} – ${TAGLINE}`;
   return {
@@ -31,7 +31,7 @@ export function generateMetadata() {
   };
 }
 
-export default function Index() {
-  if (shouldShowLanding(headers().get("host"))) return <Landing />;
+export default async function Index() {
+  if (shouldShowLanding((await headers()).get("host"))) return <Landing />;
   return <SessionRedirect />;
 }
