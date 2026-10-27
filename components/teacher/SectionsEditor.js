@@ -1232,7 +1232,7 @@ function QuestionDetail({ f, fi, si, sec, media, patch, currentFormat }) {
                 onClick={() => {
                   const res = arrangeOptions(orderInput);
                   if (res.options.length < 4) {
-                    setArrangeErr("Please enter at least 2 letters (e.g. b-d-a-c-e).");
+                    setArrangeErr("Enter at least 3 letters so there are 4 different orders (e.g. b-d-a-c-e).");
                     return;
                   }
                   setArrangeErr(null);

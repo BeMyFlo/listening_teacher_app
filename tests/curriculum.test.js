@@ -273,3 +273,10 @@ test("Schema Class/Unit/Test/Submission nhận program: 'general'", () => {
   );
 });
 
+
+test("formatStatsSkills: IELTS/TOEIC giữ Reading + Listening như cũ, General thêm Grammar/Vocabulary", () => {
+  const { PROGRAMS } = require("../lib/curriculum");
+  assert.deepEqual(PROGRAMS.ielts.formatStatsSkills, ["reading", "listening"]);
+  assert.deepEqual(PROGRAMS.toeic.formatStatsSkills, ["reading", "listening"]);
+  assert.deepEqual(PROGRAMS.general.formatStatsSkills, ["grammar", "vocabulary", "reading", "listening"]);
+});
