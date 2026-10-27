@@ -5,7 +5,7 @@
 >
 > **Người thi hành đọc kỹ mục 0 và mục 2 trước khi gõ dòng code đầu tiên.**
 
-Trạng thái: ◐ bước 1–3 xong · Ngày lập: 2026-10-27
+Trạng thái: ◐ bước 1–4 xong · Ngày lập: 2026-10-27
 Tiền đề: G1 xong và đã vào nhánh gom `phase-12-general-g0` (PR #21), có Next 15.5 + React 19 (PR #22). Branch
 `phase-12-general-g3` cắt từ nhánh gom. Xong G3 → PR `phase-12-general-g3` → `phase-12-general-g0` (KHÔNG vào `main`;
 xem "Cách gộp nhánh" ở mục 5 của plan tổng).
@@ -442,3 +442,4 @@ có bảng đáp án, 1 đề có ảnh biển báo, 1 đề đánh số tự đ
 | 2026-10-27 | 2 (Gemini thật) | 2 lượt × 3 dạng (phát âm, tìm lỗi sai, viết lại câu), Grade 8 Global Success 8, ~20 s/lượt. Lượt 1 lộ 4 lỗi định dạng (gạch cả từ ở đuôi -ed; AI tự viết "(A)" sau phần gạch chân; phần mở đầu còn "____"; thiếu explanation) — đã sửa + test. Lượt 2: định dạng đúng hết, giám khảo loại đúng 2 câu hỏng. **Đáp án vẫn sai 2/15**: phát âm "v<u>i</u>llage/trad<u>i</u>tion/bel<u>ie</u>ve/d<u>i</u>fferent" chọn tradition (đúng là believe) — đã tô vàng theo D2; tìm lỗi sai "has lived … since five years" chọn "five years" thay vì "since" — lúc đó KHÔNG tô vàng → chủ dự án chốt tô vàng mọi câu Error identification do AI soạn (D2, `ALWAYS_FLAG` trong `generalExercise.js`). |
 | 2026-10-27 | Review tổng | Rà lại toàn bộ Phase 12 so với `main` (80 file). Sửa: regex lookbehind trong `lib/underline.js` (Safari iOS < 16.4 không tải được trang học sinh — mọi chương trình) + test cấm lookbehind ở code phía học sinh; `formatStatsSkills` vào registry; thông báo Arrange. Probe G0 96/96, G1 94/94, Phase 8 232/232. |
 | 2026-10-27 | 3 | Antigravity: AiExerciseDialog, AiQuestionPreview, ô Textbook (form Unit + tạo Unit), cờ vàng + dải "N questions need checking". Review (Sonnet sửa): tách `appendAiSections` (test gọi hàm thật), điền sẵn Focus, prompt không lặp "Grade: Grade 7", form tạo Unit General dùng ô chọn khối 6–12 (mặc định 1 bị 400). Trình duyệt: lưu Textbook, dialog 375px, IELTS không thấy nút/ô mới. 331 test pass. Lưu ý: dev server phải khởi động lại sau khi đổi nhánh / `npm install` (tiến trình cũ còn Next 14 → 500). |
+| 2026-10-27 | 4 | Antigravity: `lib/wordImport.js` (chia khúc, prompt, schema, `buildImport`), route `import-word`. Review (Sonnet sửa, có file thử chứng minh): dòng "Answer the questions…" bị nhận nhầm là bảng đáp án -> mất cả phần đọc hiểu (giờ `isKeyHeading` chỉ nhận tiêu đề đứng riêng); đề đánh số lại từ 1 mỗi phần bị bỏ câu trùng số 6->3 (giờ chỉ bỏ khi trùng số + nội dung trong cùng phần); bỏ thẻ `<mark>`/`[IMGn]` còn sót; trần ảnh tính theo base64 + tô vàng câu mất ảnh; sửa lý do cờ. 350 test pass, build qua. Chưa chạy Gemini thật với file Word (bước 6). |
