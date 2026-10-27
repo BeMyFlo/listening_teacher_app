@@ -6,8 +6,9 @@
 > **Người thi hành đọc kỹ mục 0 và mục 2 trước khi gõ dòng code đầu tiên.**
 
 Trạng thái: ☐ chưa code · Ngày lập: 2026-10-27
-Tiền đề: G1 xong (PR #21), đã có Next 15.5 + React 19 (PR #22, merge qua G0 → G1). Branch `phase-12-general-g3` cắt từ `phase-12-general-g1`. PR #20/#21 merge vào `main`
-rồi thì merge `main` vào `phase-12-general-g3`.
+Tiền đề: G1 xong và đã vào nhánh gom `phase-12-general-g0` (PR #21), có Next 15.5 + React 19 (PR #22). Branch
+`phase-12-general-g3` cắt từ nhánh gom. Xong G3 → PR `phase-12-general-g3` → `phase-12-general-g0` (KHÔNG vào `main`;
+xem "Cách gộp nhánh" ở mục 5 của plan tổng).
 
 ---
 
@@ -435,4 +436,4 @@ có bảng đáp án, 1 đề có ảnh biển báo, 1 đề đánh số tự đ
 
 | Ngày | Bước | Ghi chú |
 |---|---|---|
-| 2026-10-27 | Plan | Lập plan + prompt. Branch `phase-12-general-g3` cắt từ `phase-12-general-g1`. |
+| 2026-10-27 | Plan | Lập plan + prompt. Branch `phase-12-general-g3` cắt từ `phase-12-general-g1`; sau đó merge nhánh gom (Next 15 + PR #21). |

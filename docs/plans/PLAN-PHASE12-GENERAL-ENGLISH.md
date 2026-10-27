@@ -274,6 +274,11 @@ sửa file.
 
 ## 5. Lộ trình — mỗi đợt deploy độc lập được
 
+> **Cách gộp nhánh (chủ dự án chốt 2026-10-27):** cả Phase 12 lên `main` bằng **một** PR — PR #20
+> (`phase-12-general-g0` → `main`), để mở tới khi xong hết các đợt. `phase-12-general-g0` là **nhánh gom**: mỗi đợt
+> cắt nhánh `phase-12-general-gN` từ nhánh gom và mở PR vào nhánh gom (G1 = PR #21, đã merge). `main` có bản vá thì
+> merge `main` vào nhánh gom rồi vào nhánh đợt đang làm.
+
 Bất biến xuyên suốt (như Phase 8 mục 0.2): **workspace IELTS và TOEIC không đổi gì**, mọi thứ mới gắn với
 `program === "general"` qua registry; danh sách format IELTS/TOEIC trả **đúng danh sách cũ**.
 

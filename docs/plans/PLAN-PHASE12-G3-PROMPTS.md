@@ -3,7 +3,7 @@
 Plan thi hành: [PLAN-PHASE12-G3.md](PLAN-PHASE12-G3.md). Quy ước như G0/G1: Antigravity làm trên branch
 `g3-<bước>-antigravity` cắt từ `phase-12-general-g3`, commit ở đó, xong nhắn Claude Code "review g3-<bước>-antigravity".
 Claude Code review, sửa hoặc trả lại, rồi merge vào `phase-12-general-g3`. **Dán lần lượt**, prompt sau chỉ dán khi
-bước trước đã merge.
+bước trước đã merge. Xong bước 6: PR `phase-12-general-g3` → nhánh gom `phase-12-general-g0` (không vào `main`).
 
 | Bước | Ai | Prompt |
 |---|---|---|
