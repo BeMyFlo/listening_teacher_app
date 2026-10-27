@@ -14,11 +14,9 @@ bước trước đã merge. Xong bước 6: PR `phase-12-general-g3` → nhánh
 | 5 — Import Word (UI) | Antigravity | D |
 | 6 — kiểm tổng | Claude Code | — |
 
-**Mở thư mục nào:** `D:\Project\lta-g3-wt` (git worktree, có `node_modules` riêng, Next 15.5 + React 19 — đã merge
-bản vá bảo mật PR #22 qua G0 → G1 → G3). Thư mục chính `D:\Project\listening_teacher_app` để dành cho việc khác.
-Next 15: `headers()`/`cookies()` phải `await`; ref callback không được trả về giá trị (React 19 coi đó là cleanup).
-Trong worktree, branch `phase-12-general-g3` đang được checkout nên các prompt tạo nhánh bằng
-`git switch -c g3-stepN-antigravity` ngay tại đó.
+**Thư mục:** repo chính `D:\Project\listening_teacher_app` (Next 15.5 + React 19 — đã merge bản vá bảo mật PR #22
+qua G0 → G1 → G3). Next 15: `headers()`/`cookies()` phải `await`; ref callback không được trả về giá trị (React 19 coi
+đó là cleanup). Mỗi prompt bắt đầu bằng `git switch phase-12-general-g3` rồi `git switch -c g3-stepN-antigravity`.
 
 Luật chung (đã ghi trong từng prompt): không tự bật/tắt dev server; không `next build` khi dev server đang chạy; IELTS
 và TOEIC không đổi; `npm test` + `node scripts/check-tenant-scope.js --strict` phải qua; comment tiếng Việt ngắn, UI
@@ -29,10 +27,10 @@ tiếng Anh; không commit `scripts/_*-TMP.js`; không gọi Gemini thật trong
 ## Prompt A — Bước 2: bộ chuyển chung, AI soạn theo dạng, Textbook (server)
 
 ```
-Bạn làm việc trong git worktree D:\Project\lta-g3-wt (repo Next.js 15, React 19).
+Bạn làm việc trong repo D:\Project\listening_teacher_app (Next.js 15, React 19).
 
 TRƯỚC KHI CODE:
-- Đang ở phase-12-general-g3 (đã có bước 1). Chạy: git switch -c g3-step2-antigravity
+- Nhánh phase-12-general-g3 đã có bước 1. Chạy: git switch phase-12-general-g3 && git switch -c g3-step2-antigravity
 - Đọc kỹ docs/plans/PLAN-PHASE12-G3.md: mục 0, 1, 2 (toàn bộ), 3.1–3.6.
 - Đọc để bắt chước: lib/ai/grammarLesson.js (giao diện module, toSections, checkQuestions), lib/ai/common.js,
   pages/api/admin/ai-lesson.js, lib/generalFormats.js, lib/teacher/questionFormats.js (GENERAL_ALL_FORMATS),
@@ -87,10 +85,10 @@ generator by question type, unit textbook". Báo lại: file đổi, số test, 
 ## Prompt B — Bước 3: UI "Generate with AI", ô Textbook, cờ vàng
 
 ```
-Bạn làm việc trong git worktree D:\Project\lta-g3-wt (repo Next.js 15, React 19).
+Bạn làm việc trong repo D:\Project\listening_teacher_app (Next.js 15, React 19).
 
 TRƯỚC KHI CODE:
-- Đang ở phase-12-general-g3 (đã có bước 2). Chạy: git switch -c g3-step3-antigravity
+- Nhánh phase-12-general-g3 đã có bước 2. Chạy: git switch phase-12-general-g3 && git switch -c g3-step3-antigravity
 - Đọc docs/plans/PLAN-PHASE12-G3.md mục 0, 1, 2.3, 3.6 (phần form), 3.7.
 - Đọc: components/teacher/SectionsEditor.js, AiGrammarDialog.js (QuestionPreview, cách gọi api + sectionsToEditor),
   AiVocabOptions.js (LevelLanguageFields), GrammarTopicsEditor.js (aiContext), VocabGroupsEditor.js,
@@ -132,10 +130,10 @@ flagged questions in the builder". Báo lại: file đổi, ảnh chụp/ mô t�
 ## Prompt C — Bước 4: Import Word (server)
 
 ```
-Bạn làm việc trong git worktree D:\Project\lta-g3-wt (repo Next.js 15, React 19).
+Bạn làm việc trong repo D:\Project\listening_teacher_app (Next.js 15, React 19).
 
 TRƯỚC KHI CODE:
-- Đang ở phase-12-general-g3 (đã có bước 3). Chạy: git switch -c g3-step4-antigravity
+- Nhánh phase-12-general-g3 đã có bước 3. Chạy: git switch phase-12-general-g3 && git switch -c g3-step4-antigravity
 - Đọc docs/plans/PLAN-PHASE12-G3.md mục 0, 1, 2.2–2.4, 4.1–4.4.
 - Đọc: lib/zipRead.js, lib/docxRead.js (+ test, tests/helpers/makeDocx.js) — đã có từ bước 1;
   lib/ai/generalSections.js (bước 2); pages/api/admin/import.js (formidable, xoá file tạm);
@@ -176,10 +174,10 @@ extraction, conversion to General sections". Báo lại: file đổi, số test,
 ## Prompt D — Bước 5: Import Word (UI)
 
 ```
-Bạn làm việc trong git worktree D:\Project\lta-g3-wt (repo Next.js 15, React 19).
+Bạn làm việc trong repo D:\Project\listening_teacher_app (Next.js 15, React 19).
 
 TRƯỚC KHI CODE:
-- Đang ở phase-12-general-g3 (đã có bước 4). Chạy: git switch -c g3-step5-antigravity
+- Nhánh phase-12-general-g3 đã có bước 4. Chạy: git switch phase-12-general-g3 && git switch -c g3-step5-antigravity
 - Đọc docs/plans/PLAN-PHASE12-G3.md mục 0, 1 (D6, D7, D9), 2.3, 4.4, 4.5.
 - Đọc: components/teacher/SpreadsheetImport.js (khung modal), AiQuestionPreview.js và AiExerciseDialog.js (bước 3),
   components/teacher/MediaLibrary.js (uploadToCloudinary + POST /api/admin/images, folder), lib/client/api.js,
