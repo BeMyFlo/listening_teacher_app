@@ -5,7 +5,7 @@
 >
 > **Người thi hành đọc kỹ mục 0 và mục 2 trước khi gõ dòng code đầu tiên.**
 
-Trạng thái: ☐ chưa làm · Ngày lập: 2026-10-26
+Trạng thái: ◐ code xong trên branch `phase-12-general-g1`, đã kiểm (probe + trình duyệt), chưa merge · Ngày lập: 2026-10-26
 Tiền đề: G0 xong (PR #20). Branch `phase-12-general-g1` cắt từ `phase-12-general-g0` (PR #20 chưa merge thì vẫn cắt
 từ đó; merge `main` vào sau).
 
@@ -238,4 +238,34 @@ Không chạy `next build` khi dev server đang chạy; không tự bật/tắt 
 
 ## 6. Nhật ký
 
-*(trống — ghi khi thi hành)*
+### 2026-10-26 → 27 — G1 bước 1–6
+
+Chia việc theo [PLAN-PHASE12-G1-PROMPTS.md](PLAN-PHASE12-G1-PROMPTS.md): bước 1 Sonnet; bước 2–5 Antigravity
+(branch `g1-stepN-antigravity`, Claude Code review rồi merge `--no-ff`); bước 6 Claude Code + Sonnet viết probe.
+
+- **Bước 1** (`552f9cf`): `lib/underline.js`, `lib/sentenceMatch.js`, `lib/generalFormats.js` + 23 test. Ghi chú:
+  `'d` luôn mở thành `would` (`I'd been` cần giáo viên Accept), `'s` không mở.
+- **Bước 2** (`dbb3510`, merge `4255355`): `matchMode`, `tokens`, chấm khoan dung, 22 dạng General. **Sửa khi
+  review** (`cf913e4`): chỉ gửi `matchMode`/`tokens` khi có giá trị — payload IELTS giữ shape cũ.
+- **Bước 3** (`f39d1a1`, merge `b5ca75e`): builder. **Sửa khi review** (`1198909`): đáp án câu sắp xếp gõ kèm `/`
+  (như placeholder gợi ý) bị lưu cả dấu `/` → học sinh luôn sai; builder + server bỏ `/`. Ô "kiểu câu" của
+  IELTS/TOEIC không còn lựa chọn "Sentence building".
+- **Bước 4** (`a71d92a`, merge `e7b024a`): màn học sinh. **Sửa khi review** (`185064c`): mảnh nhiều từ ("gets up")
+  mất khi xem lại / tải lại vì khôi phục theo từng từ → `chosenTokenIndexes`.
+- **Bước 5** (`2bf05ff`, merge `08470fa`): Accept this answer. **Sửa khi review** (`23597fd`): chấm lại chỉ bài nộp
+  của đúng bài tập; bảng thống kê theo dạng ở Grammar/Vocab chỉ cho Unit General.
+- **Bước 6:**
+  - Sửa lỗi có sẵn từ `main` (`55c02f4`): radio `name="ans-<số câu>"` trùng giữa hai bài tập cùng mở → chỉ một ô
+    được chọn. Dùng `useId`. Ảnh hưởng mọi chương trình (chỉ hiển thị, dữ liệu vẫn đúng).
+  - Nhãn tab trang bài nộp giáo viên theo registry (`452c6b5`).
+  - `next build` sạch (worktree riêng). `npm test` 262 pass / 0 fail. `check-tenant-scope --strict` 0 vi phạm.
+  - Probe `scripts/_probe-g1-TMP.js` (tạm, không commit) **94/94** trên dev DB: lưu/normalize, payload học sinh,
+    chấm, Accept Unit + Test (chỉ chấm lại đúng bài tập / đúng kỹ năng, audit log, chặn chéo workspace), thống kê,
+    IELTS giữ luật chấm cũ.
+  - Trình duyệt (dev server khởi động lại 2026-10-27 vì bản cũ chạy route API chưa compile lại): builder Grammar
+    13 dạng, Split into pieces, Build options from underlines; học sinh 375px: chip sắp xếp, gạch chân + (A)(B)(C),
+    "10 / 10"; xem lại khôi phục đủ mảnh; radio hai bài cùng trang đều giữ ô đã chọn; giáo viên Accept → hộp xác
+    nhận "2 submissions", toast "Accepted — 2 submissions re-graded", câu chuyển đúng.
+- **Chưa kiểm:** Safari iOS thật; câu Open cloze (noteMode) với Accept; Mock Test listening General.
+- **Fixture còn trên dev DB:** `probe.g0.*` (có bài "G1 demo") và `probe.g1.*`, mật khẩu `123456`. Dọn:
+  `node scripts/_probe-g0-TMP.js --cleanup`, `node scripts/_probe-g1-TMP.js --cleanup`.
