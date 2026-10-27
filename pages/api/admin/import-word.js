@@ -20,7 +20,7 @@ const {
   buildImport,
 } = require("../../../lib/wordImport");
 
-const MAX_IMG_RESPONSE_BYTES = 3 * 1024 * 1024; // Giới hạn kích thước ảnh trả về tránh tràn payload Vercel
+const MAX_IMG_RESPONSE_CHARS = 3 * 1024 * 1024; // Giới hạn tổng độ dài BASE64 (ảnh gửi dạng base64 trong JSON) tránh tràn payload Vercel
 
 function getFirst(v) {
   return Array.isArray(v) ? v[0] : v;
@@ -174,18 +174,29 @@ async function handler(req, res) {
         byteLength: img.buffer.length,
       }));
 
-    // Cắt giảm ảnh nếu tổng kích thước response quá lớn
-    let totalBytes = keptImages.reduce((sum, img) => sum + img.byteLength, 0);
-    if (totalBytes > MAX_IMG_RESPONSE_BYTES) {
-      keptImages.sort((a, b) => b.byteLength - a.byteLength);
-      while (keptImages.length > 0 && totalBytes > MAX_IMG_RESPONSE_BYTES) {
+    // Cắt giảm ảnh nếu tổng độ dài base64 quá lớn (bỏ ảnh lớn nhất trước)
+    let totalChars = keptImages.reduce((sum, img) => sum + img.base64.length, 0);
+    if (totalChars > MAX_IMG_RESPONSE_CHARS) {
+      keptImages.sort((a, b) => b.base64.length - a.base64.length);
+      while (keptImages.length > 0 && totalChars > MAX_IMG_RESPONSE_CHARS) {
         const dropped = keptImages.shift();
-        totalBytes -= dropped.byteLength;
+        totalChars -= dropped.base64.length;
         importRes.warnings.push(
           `Image ${dropped.ref} (${dropped.name}) was omitted because the response is too large — add it by hand.`
         );
+        // Gắn cờ cho mọi câu dùng ảnh này (gộp vào cờ có sẵn của cùng si/fi)
+        const reason = "Image could not be included — add it by hand";
+        for (const l of importRes.imageLinks.filter((x) => x.ref === dropped.ref)) {
+          const ex = importRes.flags.find((f) => f.si === l.si && f.fi === l.fi);
+          if (ex) {
+            if (!String(ex.reason || "").includes(reason)) ex.reason = ex.reason ? `${ex.reason}; ${reason}` : reason;
+          } else {
+            importRes.flags.push({ si: l.si, fi: l.fi, reason });
+          }
+        }
         importRes.imageLinks = importRes.imageLinks.filter((l) => l.ref !== dropped.ref);
       }
+      importRes.stats.flagged = importRes.flags.length;
     }
 
     const finalImages = keptImages.map(({ ref, name, mimeType, base64 }) => ({

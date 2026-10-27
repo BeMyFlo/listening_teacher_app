@@ -253,7 +253,7 @@ test("buildImport: cờ vàng cho answerSource=ai, confidence=low, pron/stress, 
   assert.match(flagReasons, /Answer suggested by AI — not found in the file/);
   assert.match(flagReasons, /AI was unsure how to read this question: Handwriting was blurry/);
   assert.match(flagReasons, /Image not found in the file/);
-  assert.match(flagReasons, /Underlined parts do not match the options/);
+  assert.match(flagReasons, /Answer does not match any option — choose the correct one/);
 
   // Câu 5 có đáp án lệch: answer bị để trống
   const sec2 = res.sections[1];
@@ -272,7 +272,7 @@ test("buildImport: trùng số câu chỉ giữ câu đầu + warning", () => {
           format: "g-mcq",
           questions: [
             { number: 10, text: "First occurrence of question 10", options: ["A", "B"], answer: "A" },
-            { number: 10, text: "Duplicate occurrence of question 10", options: ["A", "B"], answer: "B" },
+            { number: 10, text: "First occurrence of question 10", options: ["A", "B"], answer: "B" },
           ],
         },
       ],
@@ -740,5 +740,182 @@ test("route import-word: mọi khúc lỗi -> 502; budget exceeded -> 429", asyn
     if (fs.existsSync(tmpDocxPath)) {
       try { fs.unlinkSync(tmpDocxPath); } catch {}
     }
+  }
+});
+
+// ---- Review fixes G3 bước 4 ----
+
+test("isKeyHeading / splitForAi: chỉ nhận dòng tiêu đề đáp án đứng riêng", () => {
+  const { isKeyHeading } = require("../lib/wordImport");
+  for (const ok of ["ĐÁP ÁN", "Đáp án", "DAP AN", "ANSWER KEY", "Answer keys:", "ANSWERS", "KEY", "KEYS",
+    "ĐÁP ÁN:", "ĐÁP ÁN ĐỀ 1", "ANSWERS TEST 2", "ANSWER KEY (Đề A)", "--- ĐÁP ÁN ---", "** ĐÁP ÁN **"]) {
+    assert.equal(isKeyHeading(ok), true, ok);
+  }
+  for (const no of [
+    "Answer the questions below in complete sentences.",
+    "Answer: B",
+    "Answer",
+    "Key words",
+    "The key to success is practice",
+    "Key: 1. A 2. B",
+    "ĐÁP ÁN của câu 1 là gì và vì sao như vậy, hãy giải thích",
+  ]) {
+    assert.equal(isKeyHeading(no), false, no);
+  }
+
+  // Câu hướng dẫn "Answer the questions…" ở 40% cuối không được cắt mất phần đọc hiểu
+  const head = "PART 1. GRAMMAR\n" + "Question 1. Choose A, B, C or D.\n".repeat(20);
+  const reading = "PART 2. READING\nAnswer the questions below in complete sentences.\n" + "Question 21. Why?\n".repeat(30);
+  const res = splitForAi(head + reading);
+  assert.equal(res.keyText, "");
+  assert.ok(res.chunks.join("\n").includes("Answer the questions below"));
+  assert.ok(res.chunks.join("\n").includes("Question 21"));
+
+  // Tiêu đề thật vẫn tách
+  const res2 = splitForAi(head + reading + "\n--- ĐÁP ÁN ---\n1. A 2. B");
+  assert.ok(res2.keyText.startsWith("--- ĐÁP ÁN ---"));
+  assert.ok(res2.chunks.join("\n").includes("Answer the questions below"));
+});
+
+test("buildImport: số câu đánh lại từ 1 ở mỗi phần -> giữ hết; lặp ở ranh giới khúc -> giữ 1", () => {
+  const mk = (n, t) => ({ number: n, text: t, options: ["a", "b"], answer: "a", answerSource: "document" });
+  const res = buildImport([
+    { ok: true, data: { sections: [
+      { instruction: "Part 1", format: "g-mcq", questions: [mk(1, "p1 q1"), mk(2, "p1 q2"), mk(3, "p1 q3")] },
+      { instruction: "Part 2", format: "g-mcq", questions: [mk(1, "p2 q1"), mk(2, "p2 q2"), mk(3, "p2 q3")] },
+    ] } },
+  ], { subject: "grammar" });
+  assert.equal(res.stats.questions, 6);
+  assert.ok(!res.warnings.some((w) => /Duplicate/.test(w)));
+
+  // Cùng số nhưng khác nội dung trong một section -> giữ
+  const res2 = buildImport([
+    { ok: true, data: { sections: [{ instruction: "P", format: "g-mcq", questions: [mk(1, "one"), mk(1, "other")] }] } },
+  ], { subject: "grammar" });
+  assert.equal(res2.stats.questions, 2);
+
+  // Section lặp qua ranh giới khúc với cùng câu (khác hoa thường) -> giữ 1
+  const res3 = buildImport([
+    { ok: true, data: { sections: [{ instruction: "P", format: "g-mcq", questions: [mk(5, "Same question")] }] } },
+    { ok: true, data: { sections: [{ instruction: "P", format: "g-mcq", questions: [mk(5, " same QUESTION ")] }] } },
+  ], { subject: "grammar" });
+  assert.equal(res3.stats.questions, 1);
+  assert.ok(res3.warnings.some((w) => w.includes("Duplicate question number 5")));
+});
+
+test("buildImport: bỏ <mark> và [IMGn] còn sót, cảnh báo ảnh nằm trong passage/instruction", () => {
+  const res = buildImport([
+    { ok: true, data: { sections: [{
+      instruction: "Read <mark>this</mark> [IMG2]",
+      format: "g-mcq",
+      passage: "Passage with [IMG3] picture <mark>text</mark>",
+      questions: [
+        { number: 1, text: "Pick <mark>one</mark> [IMG1]", imageRef: "IMG1",
+          options: ["<mark>red</mark>", "blue"], answer: "<mark>red</mark>", answerSource: "document" },
+        { number: 2, text: "Look [IMG4] here", options: ["x", "y"], answer: "x", answerSource: "document" },
+      ],
+    }] } },
+  ], { subject: "reading", images: [{ ref: "IMG1" }] });
+  const sec = res.sections[0];
+  const dump = JSON.stringify(res.sections);
+  assert.ok(!/<\/?mark>/.test(dump));
+  assert.ok(!/\[IMG\d\]/.test(dump));
+  assert.equal(sec.name, "Read this");
+  assert.equal(sec.passageText, "Passage with picture text");
+  assert.deepEqual(res.imageLinks, [{ si: 0, fi: 0, ref: "IMG1" }]);
+  assert.ok(res.warnings.includes("Image 2 is inside a passage or instruction — add it by hand."));
+  assert.ok(res.warnings.includes("Image 3 is inside a passage or instruction — add it by hand."));
+  assert.ok(res.warnings.includes("Image 4 is inside a passage or instruction — add it by hand."));
+  assert.ok(!res.warnings.some((w) => w.startsWith("Image 1 ")));
+  assert.ok(!res.flags.some((f) => /does not match/.test(f.reason)));
+});
+
+test("route import-word: tổng base64 ảnh > 3 MB -> bỏ ảnh lớn nhất, warning + cờ cho câu dùng ảnh", async () => {
+  process.env.JWT_SECRET = "test-secret-word-import";
+  const origKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = "dummy-gemini-key";
+  const origGenerateJSON = gemini.generateJSON;
+  const origIsEnabled = gemini.isEnabled;
+  const origFormidable = formidablePkg.formidable;
+  const origWmFindOne = WorkspaceMember.findOne;
+  const origWsFindById = Workspace.findById;
+  const origAppSettingFindOne = AppSetting.findOne;
+  if (!global._mongooseConn) global._mongooseConn = {};
+  global._mongooseConn.conn = {};
+
+  const png = (n) => Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), Buffer.alloc(n, 1)]);
+  const draw = (id) =>
+    `<w:r><w:drawing><wp:inline><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="${id}"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+  // 1.5 MB + 1.3 MB raw = 2.8 MB (qua giới hạn đọc docx) nhưng base64 ~3.7 MB
+  const docxBuf = makeDocx({
+    body:
+      `<w:p><w:r><w:t>Q1 </w:t></w:r>${draw("rId1")}</w:p><w:p><w:r><w:t>Q2 </w:t></w:r>${draw("rId2")}</w:p>`,
+    rels: [{ id: "rId1", target: "media/a.png" }, { id: "rId2", target: "media/b.png" }],
+    media: { "a.png": png(1500 * 1024), "b.png": png(1300 * 1024) },
+  });
+  const tmpDocxPath = path.join(os.tmpdir(), `test-word-big-${Date.now()}.docx`);
+  fs.writeFileSync(tmpDocxPath, docxBuf);
+
+  try {
+    gemini.isEnabled = () => true;
+    gemini.generateJSON = async () => ({
+      data: { sections: [{ instruction: "Images", format: "g-mcq", questions: [
+        { number: 1, text: "Q1", imageRef: "IMG1", options: ["a", "b"], answer: "a", answerSource: "ai" },
+        { number: 2, text: "Q2", imageRef: "IMG2", options: ["a", "b"], answer: "a", answerSource: "document" },
+      ] }] },
+      model: "mock", logId: "log-1",
+    });
+    WorkspaceMember.findOne = () => ({ select: () => ({ lean: async () => ({ workspaceId: "ws1", role: "teacher" }) }) });
+    Workspace.findById = () => ({ select: () => ({ lean: async () => ({ _id: "ws1", status: "active", settings: {} }) }) });
+    AppSetting.findOne = () => ({ lean: async () => ({ value: "gemini-2.5-flash" }) });
+    clearTenantCache();
+    formidablePkg.formidable = () => ({
+      parse: async () => [
+        { program: "general", subject: "grammar" },
+        { file: { filepath: tmpDocxPath, originalFilename: "big.docx", mimetype: "application/octet-stream" } },
+      ],
+    });
+
+    delete require.cache[require.resolve("../pages/api/admin/import-word")];
+    const route = require("../pages/api/admin/import-word");
+    const token = signUserToken({ _id: "t1", role: "teacher", name: "Teacher One" });
+    const req = {
+      method: "POST",
+      headers: { authorization: "Bearer " + token },
+      url: "/api/admin/import-word",
+      ws: { workspaceId: "ws1", demo: false },
+    };
+    let statusCode = 200;
+    let payload = null;
+    const res = {
+      setHeader() {},
+      status(c) { statusCode = c; return this; },
+      json(p) { payload = p; return this; },
+    };
+    await route(req, res);
+
+    assert.equal(statusCode, 200, JSON.stringify(payload).slice(0, 300));
+    assert.equal(payload.images.length, 1);
+    assert.equal(payload.images[0].ref, "IMG2");
+    assert.ok(payload.images.reduce((n, i) => n + i.base64.length, 0) <= 3 * 1024 * 1024);
+    assert.deepEqual(payload.imageLinks, [{ si: 0, fi: 1, ref: "IMG2" }]);
+    assert.ok(payload.warnings.some((w) => /Image IMG1 .* omitted/.test(w)));
+    // Câu 1 đã có cờ "AI" -> gộp lý do, không nhân đôi mục
+    const f0 = payload.flags.filter((f) => f.si === 0 && f.fi === 0);
+    assert.equal(f0.length, 1);
+    assert.match(f0[0].reason, /Answer suggested by AI/);
+    assert.match(f0[0].reason, /Image could not be included — add it by hand/);
+    assert.equal(payload.flags.filter((f) => f.fi === 1).length, 0);
+  } finally {
+    if (origKey !== undefined) process.env.GEMINI_API_KEY = origKey;
+    else delete process.env.GEMINI_API_KEY;
+    gemini.generateJSON = origGenerateJSON;
+    gemini.isEnabled = origIsEnabled;
+    formidablePkg.formidable = origFormidable;
+    WorkspaceMember.findOne = origWmFindOne;
+    Workspace.findById = origWsFindById;
+    AppSetting.findOne = origAppSettingFindOne;
+    clearTenantCache();
+    if (fs.existsSync(tmpDocxPath)) { try { fs.unlinkSync(tmpDocxPath); } catch {} }
   }
 });
