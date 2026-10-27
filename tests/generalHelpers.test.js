@@ -282,3 +282,18 @@ test("chosenTokenIndexes: mảnh nhiều từ, mảnh trùng chữ, phần lạ"
   assert.deepEqual(chosenTokenIndexes(t, "She xyz always"), [0, 1]);
   assert.deepEqual(chosenTokenIndexes(t, ""), []);
 });
+
+// Safari iOS < 16.4 báo lỗi cú pháp với regex lookbehind (?<! / (?<= -> cả trang học sinh không tải được.
+// Các file dưới đây được bundle vào trang làm bài của MỌI học sinh nên cấm lookbehind.
+test("không có regex lookbehind trong code chạy ở trang học sinh", () => {
+  const fs = require("fs");
+  const path = require("path");
+  const root = path.join(__dirname, "..");
+  const files = [
+    "lib/underline.js", "lib/generalFormats.js", "lib/sentenceMatch.js", "lib/tenPoint.js",
+    "lib/curriculum.js", "lib/levelNames.js",
+    ...fs.readdirSync(path.join(root, "components/student")).map((f) => "components/student/" + f),
+  ].filter((f) => f.endsWith(".js"));
+  const bad = files.filter((f) => /\(\?<[!=]/.test(fs.readFileSync(path.join(root, f), "utf8")));
+  assert.deepEqual(bad, []);
+});
