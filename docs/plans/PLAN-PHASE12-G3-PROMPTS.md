@@ -14,8 +14,9 @@ bước trước đã merge.
 | 5 — Import Word (UI) | Antigravity | D |
 | 6 — kiểm tổng | Claude Code | — |
 
-**Mở thư mục nào:** `D:\Project\lta-g3-wt` (git worktree, có `node_modules` riêng bản Next 14). Thư mục chính
-`D:\Project\listening_teacher_app` đang ở nhánh `upgrade-next15` với `node_modules` Next 15 — **không** code G3 ở đó.
+**Mở thư mục nào:** `D:\Project\lta-g3-wt` (git worktree, có `node_modules` riêng, Next 15.5 + React 19 — đã merge
+bản vá bảo mật PR #22 qua G0 → G1 → G3). Thư mục chính `D:\Project\listening_teacher_app` để dành cho việc khác.
+Next 15: `headers()`/`cookies()` phải `await`; ref callback không được trả về giá trị (React 19 coi đó là cleanup).
 Trong worktree, branch `phase-12-general-g3` đang được checkout nên các prompt tạo nhánh bằng
 `git switch -c g3-stepN-antigravity` ngay tại đó.
 
@@ -28,7 +29,7 @@ tiếng Anh; không commit `scripts/_*-TMP.js`; không gọi Gemini thật trong
 ## Prompt A — Bước 2: bộ chuyển chung, AI soạn theo dạng, Textbook (server)
 
 ```
-Bạn làm việc trong git worktree D:\Project\lta-g3-wt (repo Next.js 14).
+Bạn làm việc trong git worktree D:\Project\lta-g3-wt (repo Next.js 15, React 19).
 
 TRƯỚC KHI CODE:
 - Đang ở phase-12-general-g3 (đã có bước 1). Chạy: git switch -c g3-step2-antigravity
@@ -86,7 +87,7 @@ generator by question type, unit textbook". Báo lại: file đổi, số test, 
 ## Prompt B — Bước 3: UI "Generate with AI", ô Textbook, cờ vàng
 
 ```
-Bạn làm việc trong git worktree D:\Project\lta-g3-wt (repo Next.js 14).
+Bạn làm việc trong git worktree D:\Project\lta-g3-wt (repo Next.js 15, React 19).
 
 TRƯỚC KHI CODE:
 - Đang ở phase-12-general-g3 (đã có bước 2). Chạy: git switch -c g3-step3-antigravity
@@ -131,7 +132,7 @@ flagged questions in the builder". Báo lại: file đổi, ảnh chụp/ mô t�
 ## Prompt C — Bước 4: Import Word (server)
 
 ```
-Bạn làm việc trong git worktree D:\Project\lta-g3-wt (repo Next.js 14).
+Bạn làm việc trong git worktree D:\Project\lta-g3-wt (repo Next.js 15, React 19).
 
 TRƯỚC KHI CODE:
 - Đang ở phase-12-general-g3 (đã có bước 3). Chạy: git switch -c g3-step4-antigravity
@@ -175,7 +176,7 @@ extraction, conversion to General sections". Báo lại: file đổi, số test,
 ## Prompt D — Bước 5: Import Word (UI)
 
 ```
-Bạn làm việc trong git worktree D:\Project\lta-g3-wt (repo Next.js 14).
+Bạn làm việc trong git worktree D:\Project\lta-g3-wt (repo Next.js 15, React 19).
 
 TRƯỚC KHI CODE:
 - Đang ở phase-12-general-g3 (đã có bước 4). Chạy: git switch -c g3-step5-antigravity

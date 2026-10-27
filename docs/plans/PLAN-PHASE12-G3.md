@@ -6,7 +6,7 @@
 > **Người thi hành đọc kỹ mục 0 và mục 2 trước khi gõ dòng code đầu tiên.**
 
 Trạng thái: ☐ chưa code · Ngày lập: 2026-10-27
-Tiền đề: G1 xong (PR #21). Branch `phase-12-general-g3` cắt từ `phase-12-general-g1`. PR #20/#21 merge vào `main`
+Tiền đề: G1 xong (PR #21), đã có Next 15.5 + React 19 (PR #22, merge qua G0 → G1). Branch `phase-12-general-g3` cắt từ `phase-12-general-g1`. PR #20/#21 merge vào `main`
 rồi thì merge `main` vào `phase-12-general-g3`.
 
 ---
