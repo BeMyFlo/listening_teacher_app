@@ -68,7 +68,7 @@ async function handler(req, res) {
         dueAt: dl.unit,               // hạn chung
         deadlineByCategory: dl.byCategory, // hạn đã resolve từng kỹ năng
       },
-      categories: buildStudentDetail({ unit, submissions: mine, fieldImageUrls }),
+      categories: buildStudentDetail({ unit, submissions: mine, fieldImageUrls, allSubmissions: submissions }),
     });
   }
 

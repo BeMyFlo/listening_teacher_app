@@ -4,6 +4,9 @@ const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant")
 const Test = require("../../../lib/models/Test");
 const Class = require("../../../lib/models/Class");
 const { normalizeSections, validateSections, normalizePrompts, validatePrompts } = require("../../../lib/testSections");
+const { regradeTestSubmissions } = require("../../../lib/teacher/regrade");
+const { isCorrect } = require("../../../lib/grade");
+const audit = require("../../../lib/audit");
 const { PROGRAMS, DEFAULT_PROGRAM, isProgram, programOf, programFilter, levelAllowed } = require("../../../lib/curriculum");
 const { programLockReason, resolveProgramChange } = require("../../../lib/curriculumServer");
 
@@ -119,6 +122,50 @@ async function handler(req, res) {
     const rows = await populateSkillMedia(Test.find(tenantFilter(req.ws)).sort({ updatedAt: -1 })).lean();
     // lean() không áp default của schema -> doc cũ thiếu program phải được điền IELTS.
     return res.status(200).json({ ok: true, rows: rows.map((r) => ({ ...r, program: programOf(r) })) });
+  }
+
+  // Duyệt thêm đáp án đúng cho câu fill và chấm lại bài nộp của Test skill.
+  if (req.method === "POST" && req.query.action === "accept-answer") {
+    const test = await assertOwned(req.ws, Test, id, { message: "Mock test not found" });
+    const { skill, fieldId, answer } = req.body || {};
+    if (!QUESTION_SKILLS.includes(skill)) {
+      return res.status(400).json({ ok: false, error: "Invalid skill" });
+    }
+    const skillBlock = test.skills && test.skills[skill];
+    if (!skillBlock) {
+      return res.status(404).json({ ok: false, error: "Skill not found" });
+    }
+    let targetField = null;
+    for (const sec of skillBlock.sections || []) {
+      const f = (sec.fields || []).find((f) => Number(f.id) === Number(fieldId));
+      if (f) { targetField = f; break; }
+    }
+    if (!targetField) {
+      return res.status(404).json({ ok: false, error: "Question not found" });
+    }
+    if (targetField.type !== "fill") {
+      return res.status(400).json({ ok: false, error: "Only fill-in questions can accept answers" });
+    }
+    const trimmed = String(answer || "").trim();
+    if (!trimmed || trimmed.length > 300) {
+      return res.status(400).json({ ok: false, error: "Answer must be between 1 and 300 characters" });
+    }
+    if (isCorrect(targetField, trimmed)) {
+      return res.status(400).json({ ok: false, error: "This answer is already accepted." });
+    }
+    targetField.answers = targetField.answers || [];
+    targetField.answers.push(trimmed);
+    test.markModified("skills");
+    await test.save();
+    const regradedCount = await regradeTestSubmissions(test, skill);
+    audit.record({
+      req,
+      res,
+      action: "tests.accept_answer",
+      status: 200,
+      meta: { testId: test._id, skill, fieldId: Number(fieldId), answer: trimmed, regradedCount },
+    });
+    return res.status(200).json({ ok: true, regradedCount });
   }
 
   if (req.method === "POST") {
