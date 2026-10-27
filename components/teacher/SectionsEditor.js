@@ -24,6 +24,7 @@ import {
   GENERAL_LABELS,
   underlineModeOf,
   isErrorIdFormat,
+  optionLettersFromUnderlines,
   splitTokens,
   shuffleTokens,
   arrangeOptions,
@@ -1261,18 +1262,17 @@ function QuestionDetail({ f, fi, si, sec, media, patch, currentFormat }) {
               type="button"
               className="btn secondary sm"
               onClick={() => {
-                const parts = underlinedParts(f.label || "");
-                if (parts.length < 2 || parts.length > 4) {
-                  setErrorLettersErr(`Found ${parts.length} underlined parts. Error identification requires 2 to 4 underlined parts.`);
-                  return;
+                try {
+                  const letters = optionLettersFromUnderlines(f.label || "");
+                  setErrorLettersErr(null);
+                  patch((d) => {
+                    const ff = d[si].fields[fi];
+                    ff.options = letters.map((l) => ({ id: newOptionId(), text: l }));
+                    ff.correctOptionIds = [];
+                  });
+                } catch (err) {
+                  setErrorLettersErr(err.message);
                 }
-                setErrorLettersErr(null);
-                const letters = ["A", "B", "C", "D"].slice(0, parts.length);
-                patch((d) => {
-                  const ff = d[si].fields[fi];
-                  ff.options = letters.map((l) => ({ id: newOptionId(), text: l }));
-                  ff.correctOptionIds = [];
-                });
               }}
             >
               <svg className="icon"><use href="#icon-sparkles" /></svg> Build options from underlines

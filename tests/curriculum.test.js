@@ -22,11 +22,17 @@ test("registry: ielts, toeic và general đúng như plan", () => {
   assert.deepEqual(PROGRAMS.ielts.testSkills, ["listening", "reading", "writing", "speaking"]);
   assert.deepEqual(PROGRAMS.ielts.defaultDurations, { listening: 30, reading: 60, writing: 60, speaking: 14 });
   assert.equal(PROGRAMS.ielts.scoring, "ielts-band");
+  assert.equal(PROGRAMS.ielts.aiExercise, false);
+  assert.equal(PROGRAMS.ielts.wordImport, false);
+  assert.equal(PROGRAMS.ielts.textbook, false);
 
   assert.deepEqual(PROGRAMS.toeic.lessonSkills, ["grammar", "vocabulary", "listening", "reading", "writing", "speaking"]);
   assert.deepEqual(PROGRAMS.toeic.testSkills, ["listening", "reading", "writing", "speaking"]);
   assert.deepEqual(PROGRAMS.toeic.defaultDurations, { listening: 45, reading: 75, writing: 60, speaking: 20 });
   assert.equal(PROGRAMS.toeic.scoring, "toeic-scaled");
+  assert.equal(PROGRAMS.toeic.aiExercise, false);
+  assert.equal(PROGRAMS.toeic.wordImport, false);
+  assert.equal(PROGRAMS.toeic.textbook, false);
 
   assert.equal(PROGRAMS.general.label, "General English");
   assert.deepEqual(PROGRAMS.general.lessonSkills, ["grammar", "vocabulary", "listening", "reading"]);
@@ -38,6 +44,9 @@ test("registry: ielts, toeic và general đúng như plan", () => {
   assert.deepEqual(PROGRAMS.general.skillLabels, { vocabulary: "Vocabulary & Pronunciation" });
   assert.deepEqual(PROGRAMS.general.testSkillLabels, { reading: "Written paper" });
   assert.equal(PROGRAMS.general.excelImport, true);
+  assert.equal(PROGRAMS.general.aiExercise, true);
+  assert.equal(PROGRAMS.general.wordImport, true);
+  assert.equal(PROGRAMS.general.textbook, true);
   assert.equal(PROGRAMS.general.legacyFormatGuess, false);
   assert.equal(PROGRAMS.general.formatPlaceholder, "Choose a question type…");
   assert.deepEqual(PROGRAMS.general.aiLevel, {

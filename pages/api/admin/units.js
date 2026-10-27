@@ -231,11 +231,14 @@ async function handler(req, res) {
     const deadlines = await sanitizeDeadlines(req.ws, req.body.deadlines, level, program);
     if (deadlines.error) return res.status(400).json({ ok: false, error: deadlines.error });
 
+    const textbook = PROGRAMS[program].textbook ? S(req.body && req.body.textbook).trim().slice(0, 80) : "";
+
     const unit = await Unit.create({
       workspaceId: req.ws.workspaceId,
       level,
       program,
       name: String(name).trim(),
+      textbook,
       order: Number(req.body.order) || 0,
       status: "draft",
       classIds: await sanitizeClassIds(req.ws, req.body.classIds, level, program),
@@ -257,7 +260,7 @@ async function handler(req, res) {
   }
 
   if (req.method === "PUT") {
-    const { name, order, status, categories, level, classIds, deadlines, skillLocks, program } = req.body || {};
+    const { name, order, status, categories, level, classIds, deadlines, skillLocks, program, textbook } = req.body || {};
     const levelChanged = level != null && Number(level) !== unit.level;
 
     // Đổi chương trình chỉ khi chưa giao lớp nào và chưa có bài nộp (C7); gửi
@@ -286,6 +289,11 @@ async function handler(req, res) {
     if (programChange.changed) unit.program = program;
     // Từ đây mọi sanitize lọc lớp theo (workspace, level, program) của Unit.
     const unitProgram = programOf(unit);
+    if (textbook !== undefined || programChange.changed) {
+      unit.textbook = PROGRAMS[unitProgram].textbook
+        ? S(textbook !== undefined ? textbook : unit.textbook).trim().slice(0, 80)
+        : "";
+    }
     if (!levelAllowed(unitProgram, unit.level)) {
       return res.status(400).json({
         ok: false,
