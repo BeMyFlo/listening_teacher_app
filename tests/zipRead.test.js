@@ -60,3 +60,13 @@ test("xlsxRead.readWorkbook vẫn đọc workbook nhỏ (shared + inline + số)
   const wb = readWorkbook(buf);
   assert.deepEqual(wb.Q, [["Question & one", "B"], ["inline", "", "42"]]);
 });
+
+test("xlsxRead: nhiều sheet trỏ cùng 1 file lớn bị chặn bởi trần tổng", () => {
+  const sheets = Array.from({ length: 6 }, (_, i) => `<sheet name="S${i}" sheetId="${i + 1}" r:id="rId1"/>`).join("");
+  const buf = makeZip({
+    "xl/workbook.xml": `<workbook><sheets>${sheets}</sheets></workbook>`,
+    "xl/_rels/workbook.xml.rels": '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
+    "xl/worksheets/sheet1.xml": "<worksheet>" + " ".repeat(15 * 1024 * 1024) + "</worksheet>",
+  });
+  assert.throws(() => readWorkbook(buf), /too large after decompression/);
+});
