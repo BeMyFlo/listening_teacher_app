@@ -195,6 +195,8 @@ VIỆC CẦN LÀM:
 2. Import into builder: tải ảnh (base64 -> File -> uploadToCloudinary -> POST images), sectionsToEditor, đánh số tiếp
    bằng nextFieldId, gán imageId theo imageLinks (fi null -> ảnh section), gán aiFlag, ảnh lỗi -> flag
    "Image could not be uploaded". Làm mới danh sách media của trang (thêm callback nếu chưa có).
+   Đánh số + gán cờ: DÙNG LẠI / mở rộng hàm thuần appendAiSections trong lib/teacher/sectionTransforms.js (bước 3),
+   không viết vòng lặp thứ hai trong component; phần gán imageId cũng nên là hàm thuần có test.
 3. SectionsEditor: nút "Import from Word" cạnh "Import from spreadsheet".
 4. Kiểm bằng tay nếu dev server đang chạy sẵn: 1 file .docx nhỏ tự soạn (gạch chân, đánh số A–D, 1 ảnh, bảng đáp
    án) import vào Mock Test General Written paper — tối đa vài lần gọi Gemini thật; KHÔNG dùng file đề thật của chủ
