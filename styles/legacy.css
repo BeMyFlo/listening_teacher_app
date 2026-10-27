@@ -4450,3 +4450,61 @@ tr:hover td { background: var(--pink-wash-2); }
   font-style: italic;
   padding: 4px 0;
 }
+
+/* Flagged question in builder (Phase 12 G3, mục 2.3) */
+.question-row.flagged {
+  border-left: 4px solid var(--amber, #f59e0b) !important;
+  background: #FFFDF5;
+  padding-left: 10px;
+}
+.question-flag-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  background: #FFEBD1;
+  color: #B96C1E;
+  border: 1px solid #F5DBB4;
+  border-radius: 6px;
+  font-size: .82rem;
+  font-weight: 500;
+}
+.question-flag-bar .flag-reason {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.question-flag-bar button {
+  background: #fff;
+  border: 1px solid #B96C1E;
+  color: #B96C1E;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: .76rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.question-flag-bar button:hover {
+  background: #FDF1DE;
+}
+
+:root[data-theme="dark"] .question-row.flagged {
+  border-left-color: var(--amber, #f59e0b) !important;
+  background: rgba(245, 158, 11, 0.08);
+}
+:root[data-theme="dark"] .question-flag-bar {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+:root[data-theme="dark"] .question-flag-bar button {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: #fcd34d;
+  color: #fcd34d;
+}
+:root[data-theme="dark"] .question-flag-bar button:hover {
+  background: rgba(245, 158, 11, 0.25);
+}

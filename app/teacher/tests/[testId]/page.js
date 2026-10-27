@@ -322,6 +322,12 @@ function TestBuilderInner() {
                 program={b.program || undefined}
                 firstId={b.program === "toeic" && activeKey === "reading" ? 101 : 1}
                 media={media}
+                aiContext={{
+                  testId: b._id,
+                  unitName: b.title || "",
+                  program: b.program,
+                  level: b.level || "",
+                }}
                 onChange={(next) => updateSkill(activeKey, (s) => (s.sections = next))}
               />
             </>

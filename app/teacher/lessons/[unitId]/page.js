@@ -44,6 +44,21 @@ const CAT_LABELS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.label]));
 const CAT_ICONS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.icon]));
 const CAT_COLORS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.color]));
 
+// Gợi ý bộ sách giáo khoa cho chương trình General English (D10)
+const TEXTBOOK_SUGGESTIONS = [
+  "Global Success 6",
+  "Global Success 7",
+  "Global Success 8",
+  "Global Success 9",
+  "Global Success 10",
+  "Global Success 11",
+  "Global Success 12",
+  "Friends Plus",
+  "i-Learn Smart World",
+  "Bright",
+  "English Discovery",
+];
+
 // Lý do khoá ô Program của Unit (khớp thông báo 409 của server, C7).
 const UNIT_PROGRAM_LOCKED_HINT =
   "This unit is already assigned to a class or has submissions, so its program can't be changed.";
@@ -65,6 +80,7 @@ function toEditorUnit(u, prevLocked = false) {
     _id: u._id,
     name: u.name || "",
     level: u.level,
+    textbook: u.textbook || "",
     program: programOf(u),
     originalProgram: programOf(u),
     programLocked: u.programLocked !== undefined ? !!u.programLocked : !!prevLocked || assigned,
@@ -181,6 +197,7 @@ function catHasContent(c) {
 function toPayload(unit, status) {
   const body = {
     name: unit.name.trim(),
+    textbook: (unit.textbook || "").trim(),
     // Chỉ gửi khi giáo viên đổi chương trình -> unit IELTS lưu y như trước Phase 8.
     ...(unit.program !== unit.originalProgram ? { program: unit.program } : {}),
     classIds: unit.classIds || [],
@@ -733,6 +750,32 @@ export default function UnitEditorPage() {
               </div>
             )}
 
+            {PROGRAMS[program]?.textbook && (
+              <div className="settings-row">
+                <div className="settings-row-icon"><svg className="icon"><use href="#icon-book-open" /></svg></div>
+                <div className="settings-row-label">
+                  <div className="settings-row-title">Textbook (optional)</div>
+                  <div className="settings-row-desc">Textbook series for AI prompts (e.g. Global Success 8).</div>
+                </div>
+                <div className="settings-row-control">
+                  <input
+                    type="text"
+                    className="unit-textbook-input"
+                    list="unit-textbook-suggestions"
+                    placeholder="e.g. Global Success 8"
+                    maxLength={80}
+                    value={unit.textbook || ""}
+                    onChange={(e) => setUnit((u) => ({ ...u, textbook: e.target.value }))}
+                  />
+                  <datalist id="unit-textbook-suggestions">
+                    {TEXTBOOK_SUGGESTIONS.map((v) => (
+                      <option key={v} value={v} />
+                    ))}
+                  </datalist>
+                </div>
+              </div>
+            )}
+
             <div className="settings-row">
               <div className="settings-row-icon"><svg className="icon"><use href="#icon-student" /></svg></div>
               <div className="settings-row-label">
@@ -843,7 +886,7 @@ export default function UnitEditorPage() {
             <GrammarTopicsEditor
               topics={cat.topics || []}
               media={media}
-              aiContext={{ unitId, level: unit.level, unitName: unit.name, program, levelName: levelDefault }}
+              aiContext={{ unitId, level: unit.level, unitName: unit.name, textbook: unit.textbook || "", program, levelName: levelDefault }}
               program={program}
               onChange={(next) => updateCat((c) => (c.topics = next))}
             />
@@ -851,7 +894,7 @@ export default function UnitEditorPage() {
             <VocabGroupsEditor
               groups={cat.groups || []}
               media={media}
-              aiContext={{ unitId, level: unit.level, unitName: unit.name, program, levelName: levelDefault }}
+              aiContext={{ unitId, level: unit.level, unitName: unit.name, textbook: unit.textbook || "", program, levelName: levelDefault }}
               program={program}
               onChange={(next) => updateCat((c) => (c.groups = next))}
             />
@@ -866,7 +909,7 @@ export default function UnitEditorPage() {
               aiOptions={withLevelDefault(aiOptions)}
               onAiOptionsChange={updateAiOptions}
               onGenerate={() =>
-                vrAi.run(catKey, cat, { unitId, level: unit.level, unitName: unit.name, program }, withLevelDefault(aiOptions))
+                vrAi.run(catKey, cat, { unitId, level: unit.level, unitName: unit.name, textbook: unit.textbook || "", program }, withLevelDefault(aiOptions))
               }
               program={program}
               onPicked={(p) => vrAi.setPicked(catKey, p)}
@@ -883,7 +926,13 @@ export default function UnitEditorPage() {
           ) : isPrompt ? (
             <PromptsEditor prompts={cat.prompts} media={media} skill={catKey} program={program} onChange={(next) => updateCat((c) => (c.prompts = next))} />
           ) : (
-            <ExercisesEditor cat={cat} media={media} program={program} onChange={(next) => updateCat((c) => (c.exercises = next))} />
+            <ExercisesEditor
+              cat={cat}
+              media={media}
+              program={program}
+              aiContext={{ unitId, level: unit.level, unitName: unit.name, textbook: unit.textbook || "", program, levelName: levelDefault }}
+              onChange={(next) => updateCat((c) => (c.exercises = next))}
+            />
           )}
             </div>
           </>
@@ -996,7 +1045,7 @@ function ClassDeadlineEditor({ cls, slots, onChange, locks = {}, onLock, cats = 
   );
 }
 
-function ExercisesEditor({ cat, media, program, onChange }) {
+function ExercisesEditor({ cat, media, program, onChange, aiContext }) {
   const dialog = useDialog();
   function patch(mut) {
     const draft = structuredClone(cat.exercises);
@@ -1034,6 +1083,7 @@ function ExercisesEditor({ cat, media, program, onChange }) {
               program={program}
               media={media}
               showTranscript
+              aiContext={aiContext}
               onChange={(next) => patch((d) => (d[i]._sections = next))}
             />
           </div>

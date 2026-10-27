@@ -10,6 +10,21 @@ import { programParam, usePrograms } from "@/lib/client/program";
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
+// Gợi ý bộ sách giáo khoa cho chương trình General English (D10)
+const TEXTBOOK_SUGGESTIONS = [
+  "Global Success 6",
+  "Global Success 7",
+  "Global Success 8",
+  "Global Success 9",
+  "Global Success 10",
+  "Global Success 11",
+  "Global Success 12",
+  "Friends Plus",
+  "i-Learn Smart World",
+  "Bright",
+  "English Discovery",
+];
+
 function LessonsInner() {
   const dialog = useDialog();
   const router = useRouter();
@@ -33,6 +48,7 @@ function LessonsInner() {
   // create form
   const [name, setName] = useState("");
   const [formLevel, setFormLevel] = useState(1);
+  const [formTextbook, setFormTextbook] = useState("");
   const [formClassIds, setFormClassIds] = useState([]);
   const [status, setStatus] = useState(null);
 
@@ -75,11 +91,14 @@ function LessonsInner() {
       return;
     }
     setStatus(null);
+    const targetProgram = viewProgram || labelProgram;
+    const hasTextbook = !!PROGRAMS[targetProgram]?.textbook;
     try {
       const d = await api.teacher.createUnit({
         name: name.trim(),
         level: Number(formLevel) || 1,
         classIds: formClassIds,
+        ...(hasTextbook && formTextbook.trim() ? { textbook: formTextbook.trim() } : {}),
         ...(viewProgram ? { program: viewProgram } : {}),
       });
       router.push("/teacher/lessons/" + d.unit._id);
@@ -243,6 +262,24 @@ function LessonsInner() {
           <label>{levelWordOf(labelProgram)}</label>
           <input type="number" min="1" step="1" value={formLevel} onChange={(e) => setFormLevel(e.target.value)} />
         </div>
+        {PROGRAMS[viewProgram || labelProgram]?.textbook && (
+          <div className="form-row">
+            <label>Textbook (optional)</label>
+            <input
+              type="text"
+              list="new-unit-textbook-suggestions"
+              placeholder="e.g. Global Success 8"
+              maxLength={80}
+              value={formTextbook}
+              onChange={(e) => setFormTextbook(e.target.value)}
+            />
+            <datalist id="new-unit-textbook-suggestions">
+              {TEXTBOOK_SUGGESTIONS.map((v) => (
+                <option key={v} value={v} />
+              ))}
+            </datalist>
+          </div>
+        )}
         <div className="form-row">
           <label>Assign to classes (required for publishing — không tick lớp nào thì không học sinh nào thấy Unit này)</label>
           {classesAtLevel(Number(formLevel)).length === 0 ? (

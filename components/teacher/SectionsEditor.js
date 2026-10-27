@@ -15,8 +15,10 @@ import {
   tfngOptions,
   ynngOptions,
   isFixedChoiceShape,
+  sectionsToEditor,
 } from "@/lib/teacher/sectionTransforms";
 import SpreadsheetImport from "./SpreadsheetImport";
+import AiExerciseDialog from "./AiExerciseDialog";
 import { questionFormatsFor } from "@/lib/teacher/questionFormats";
 import { LETTERS, letterOptions, isLetterEditorField } from "@/lib/letterQuestion";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
@@ -28,6 +30,7 @@ import {
   splitTokens,
   shuffleTokens,
   arrangeOptions,
+  aiFormatsFor,
 } from "@/lib/generalFormats";
 import { parseUnderline, underlinedParts } from "@/lib/underline";
 
@@ -161,9 +164,22 @@ function addNoteBlock(s, id) {
 // program: "ielts" (mặc định) | "toeic" — quyết định danh sách dạng câu hỏi và ẩn
 // nút import spreadsheet với nội dung TOEIC (chưa có template, Phase 8 bước 5.6).
 // firstId: số câu đầu tiên của kỹ năng khi chưa có câu nào (TOEIC Reading = 101).
-export default function SectionsEditor({ sections, subject, media, onChange, showTranscript = false, program, firstId = 1 }) {
+export default function SectionsEditor({
+  sections,
+  subject,
+  media,
+  onChange,
+  showTranscript = false,
+  program,
+  firstId = 1,
+  aiContext,
+}) {
   const [importing, setImporting] = useState(false);
-  const canImport = !!PROGRAMS[programOf({ program })]?.excelImport;
+  const [aiExerciseOpen, setAiExerciseOpen] = useState(false);
+
+  const prog = programOf({ program: program || (aiContext && aiContext.program) });
+  const canImport = !!PROGRAMS[prog]?.excelImport;
+  const canAiExercise = !!PROGRAMS[prog]?.aiExercise && aiFormatsFor(subject).length > 0;
 
   function patch(mut) {
     const draft = structuredClone(sections);
@@ -171,8 +187,77 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
     onChange(draft);
   }
 
+  // Thêm các section sinh từ AI: đánh số tiếp từ nextFieldId và gắn cờ vàng
+  function handleAddAiSections(chosenTopics) {
+    let curId = nextFieldId(sections, firstId);
+    const newSections = [];
+    for (const topic of chosenTopics) {
+      const edSections = sectionsToEditor(topic.exerciseSections);
+      const validEdSections = edSections.filter((s) => s.fields && s.fields.length > 0);
+      const flags = topic.flags || [];
+      validEdSections.forEach((sec) => {
+        sec.fields.forEach((f, fi) => {
+          f.id = curId++;
+          const flagObj = flags.find((fl) => fl.fi === fi);
+          if (flagObj) {
+            f.aiFlag = flagObj.reason;
+          } else if (topic.check && !topic.check.verified) {
+            f.aiFlag = "Not verified — check every answer";
+          }
+        });
+      });
+      newSections.push(...validEdSections);
+    }
+    onChange([...sections, ...newSections]);
+  }
+
+  // Đếm tổng số câu có cờ vàng trong phiên soạn
+  const flaggedCount = sections.reduce(
+    (acc, sec) => acc + (sec.fields || []).filter((f) => !!f.aiFlag).length,
+    0
+  );
+
+  function scrollToNextFlag() {
+    const flagged = document.querySelectorAll(".question-row.flagged");
+    if (!flagged.length) return;
+    let target = Array.from(flagged).find((el) => {
+      const rect = el.getBoundingClientRect();
+      return rect.top > 120;
+    });
+    if (!target) target = flagged[0];
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   return (
     <>
+      {flaggedCount > 0 && (
+        <div
+          className="notice warn builder-flag-notice"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 12,
+          }}
+        >
+          <span>
+            ⚠ {flaggedCount} question{flaggedCount === 1 ? "" : "s"} need checking
+          </span>
+          <button
+            type="button"
+            className="btn secondary sm"
+            style={{
+              borderColor: "currentColor",
+              color: "inherit",
+              padding: "4px 10px",
+              fontSize: ".82rem",
+            }}
+            onClick={scrollToNextFlag}
+          >
+            Next
+          </button>
+        </div>
+      )}
       {sections.length === 0 && (
         <div className="empty-state">No sections added — click &quot;Add Section&quot; to start.</div>
       )}
@@ -199,6 +284,16 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
         >
           <svg className="icon"><use href="#icon-plus" /></svg> Add Section
         </button>
+        {canAiExercise && (
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setAiExerciseOpen(true)}
+          >
+            <svg className="icon"><use href="#icon-sparkles" /></svg> Generate with AI
+          </button>
+        )}
         {canImport && (
           <button
             type="button"
@@ -210,6 +305,15 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
           </button>
         )}
       </div>
+
+      {canAiExercise && aiExerciseOpen && (
+        <AiExerciseDialog
+          context={aiContext}
+          subject={subject}
+          onAdd={handleAddAiSections}
+          onClose={() => setAiExerciseOpen(false)}
+        />
+      )}
 
       {canImport && importing && (
         <SpreadsheetImport
@@ -815,7 +919,22 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
     const fmt = formats ? formats.find((x) => x.label === f.formatLabel) : null;
     const wantsImage = !!(fmt && fmt.needsFieldImage);
     return (
-      <div className="question-row letter-row">
+      <div className={"question-row letter-row" + (f.aiFlag ? " flagged" : "")}>
+        {f.aiFlag && (
+          <div className="question-flag-bar">
+            <span className="flag-reason">⚠ {f.aiFlag}</span>
+            <button
+              type="button"
+              onClick={() =>
+                patch((d) => {
+                  delete d[si].fields[fi].aiFlag;
+                })
+              }
+            >
+              Mark as checked
+            </button>
+          </div>
+        )}
         <div className="letter-row-main">
           <input
             type="text"
@@ -885,7 +1004,22 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
   }
 
   return (
-    <div className="question-row">
+    <div className={"question-row" + (f.aiFlag ? " flagged" : "")}>
+      {f.aiFlag && (
+        <div className="question-flag-bar">
+          <span className="flag-reason">⚠ {f.aiFlag}</span>
+          <button
+            type="button"
+            onClick={() =>
+              patch((d) => {
+                delete d[si].fields[fi].aiFlag;
+              })
+            }
+          >
+            Mark as checked
+          </button>
+        </div>
+      )}
       <div className="question-grid-cols">
         <span className="question-drag" title="Reorder by Order number">
           <svg className="icon"><use href="#icon-menu" /></svg>

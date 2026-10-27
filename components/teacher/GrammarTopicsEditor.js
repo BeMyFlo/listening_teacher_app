@@ -200,6 +200,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange, aiContext
                   media={media}
                   subject="grammar"
                   program={program}
+                  aiContext={{ ...aiContext, focus: t.name || (aiContext && aiContext.focus) || "" }}
                   onChange={(next) => patch((d) => (d[i].exercises = next))}
                 />
               </>
@@ -237,7 +238,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange, aiContext
 }
 
 // Bài tập của 1 topic/group — mỗi exercise có title + _sections (SectionsEditor).
-export function TopicExercises({ exercises, media, subject, program, onChange }) {
+export function TopicExercises({ exercises, media, subject, program, onChange, aiContext }) {
   const dialog = useDialog();
   function patch(mut) {
     const draft = structuredClone(exercises);
@@ -274,6 +275,7 @@ export function TopicExercises({ exercises, media, subject, program, onChange })
               subject={subject}
               program={program}
               media={media}
+              aiContext={aiContext}
               onChange={(next) => patch((d) => (d[i]._sections = next))}
             />
           </div>

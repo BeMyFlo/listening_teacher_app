@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "@/lib/client/api";
 import { sectionsToEditor } from "@/lib/teacher/sectionTransforms";
 import { PROGRAMS, programOf, levelWordOf } from "@/lib/curriculum";
+import QuestionPreview from "./AiQuestionPreview";
 
 const LANGUAGES = [
   ["vi", "Vietnamese explanations, English examples"],
@@ -35,27 +36,6 @@ function Check({ checked, onChange, children }) {
   );
 }
 
-// Xem trước 1 câu hỏi (section theo shape server).
-function QuestionPreview({ f }) {
-  const correct = f.type === "choice" ? (f.options.find((o) => o.value === f.answers[0]) || {}).label : f.answers.join(" / ");
-  const sentence =
-    f.type === "choice" ? f.label : `${f.label} ${f.hint ? f.hint + " " : ""}___ ${f.post}`.replace(/\s+/g, " ").trim();
-  return (
-    <li style={{ marginBottom: 6 }}>
-      <div>{sentence}</div>
-      {f.type === "choice" && (
-        <div style={{ color: "var(--muted)", fontSize: ".8rem" }}>
-          {f.options.map((o) => o.label).join(" · ")}
-        </div>
-      )}
-      <div style={{ fontSize: ".8rem" }}>
-        <b style={{ color: "var(--green)" }}>✓ {correct}</b>
-        {f.explanation && <span style={{ color: "var(--muted)" }}> — {f.explanation}</span>}
-      </div>
-    </li>
-  );
-}
-
 // Giáo viên mô tả lớp + chủ đề + tick các phần cần soạn -> AI soạn -> xem
 // trước, chọn chủ đề muốn giữ -> thêm vào bài (chưa lưu, vẫn phải bấm Save).
 export default function AiGrammarDialog({ context, onAdd, onClose }) {
@@ -63,6 +43,7 @@ export default function AiGrammarDialog({ context, onAdd, onClose }) {
   const [form, setForm] = useState({
     level: context && context.level ? `${levelWordOf(context.program)} ${context.level}` : "",
     unitName: (context && context.unitName) || "",
+    textbook: (context && context.textbook) || "",
     topics: "",
     // Mặc định = tên level của Unit (nếu có); giáo viên sửa tự do.
     studentLevel: (context && context.levelName) || "",
