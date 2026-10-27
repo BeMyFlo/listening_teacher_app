@@ -169,3 +169,29 @@ test("g-error / g-syn: leftover ____ does not break the underlined parts", () =>
   assert.equal(syn.removed.length, 0, JSON.stringify(syn.removed));
   assert.match(syn.section.fields[0].label, /… __happy__/);
 });
+
+// Lỗi lộ ra khi chạy Gemini thật (2026-10-27)
+test("g-pron: gạch cả từ bị loại; gạch đúng phần so sánh thì giữ; đề trùng hướng dẫn bị bỏ", () => {
+  const whole = conv("g-pron", [{ text: "x", options: ["<u>watched</u>", "<u>wanted</u>", "<u>stopped</u>", "<u>washed</u>"], answer: "<u>wanted</u>" }]);
+  assert.equal(whole.section.fields.length, 0);
+  assert.match(whole.removed[0].reason, /only the letters being compared/);
+  const ok = conv("g-pron", [{ text: "x", options: ["watch<u>ed</u>", "want<u>ed</u>", "stopp<u>ed</u>", "wash<u>ed</u>"], answer: "want<u>ed</u>" }]);
+  assert.equal(ok.section.fields.length, 1);
+  assert.equal(ok.section.fields[0].label, "");
+  assert.equal(ok.section.fields[0].options[1].label, "want__ed__");
+});
+
+test("g-error: nhãn (A)–(D) sau phần gạch chân bị bỏ", () => {
+  const r = conv("g-error", [{ text: "My brother <u>has visited</u> (A) Ha Long Bay <u>last summer</u> (B) <u>with</u> (C) his <u>friends</u> (D).", answer: "A" }]);
+  assert.equal(r.section.fields[0].label, "My brother __has visited__ Ha Long Bay __last summer__ __with__ his __friends__.");
+  assert.equal(r.section.fields[0].options.length, 4);
+});
+
+test("g-rewrite: bỏ chỗ trống cuối phần mở đầu và phần mở đầu bị chép vào đáp án", () => {
+  const r = conv("g-rewrite", [{ text: "My family started living here five years ago.", start: "My family has ____", answer: "lived here for five years.", altAnswers: ["My family has been living here for five years."] }]);
+  const f = r.section.fields[0];
+  assert.equal(f.pre, "My family has");
+  assert.deepEqual(f.answers, ["lived here for five years.", "been living here for five years."]);
+  const dots = conv("g-rewrite", [{ text: "a b", start: "Although...", answer: "x" }]);
+  assert.equal(dots.section.fields[0].pre, "Although");
+});
