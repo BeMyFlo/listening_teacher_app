@@ -19,6 +19,7 @@ import {
 import SectionsEditor from "@/components/teacher/SectionsEditor";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
 import { toeicPromptsError } from "@/lib/toeicStandardSet";
+import { findGeneralSectionError } from "@/lib/generalFormats";
 
 // Đổi chương trình của đề mới: bỏ lớp đã tick (thuộc chương trình cũ) và đổi thời lượng
 // còn nguyên giá trị mặc định của chương trình cũ sang mặc định của chương trình mới.
@@ -110,6 +111,27 @@ function TestBuilderInner() {
         if (e) {
           setActive(key);
           setSaveErr(e);
+          return;
+        }
+      }
+    }
+    // Câu hỏi General (reorder thiếu mảnh/đáp án, Error id sai số lựa chọn): chặn lưu, báo lỗi rõ, nhảy tới câu.
+    for (const key of ["reading", "listening"]) {
+      const skill = b.skills[key];
+      if (skill && skill.sections) {
+        const err = findGeneralSectionError(skill.sections);
+        if (err) {
+          setActive(key);
+          setSaveErr(err.message);
+          setTimeout(() => {
+            const rows = Array.from(document.querySelectorAll(".question-row"));
+            const target = rows.find((r) => r.querySelector(".f-id")?.value === String(err.fieldId));
+            if (target) {
+              target.scrollIntoView({ behavior: "smooth", block: "center" });
+              const input = target.querySelector(".f-label, .f-answers, input");
+              if (input) input.focus();
+            }
+          }, 100);
           return;
         }
       }
