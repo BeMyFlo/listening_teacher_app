@@ -10,7 +10,7 @@ import { blankIdsFromDoc } from "@/lib/tiptap/doc";
 import { isLetterOnlyField } from "@/lib/letterQuestion";
 import { groupFieldsByPart } from "@/lib/partGroups";
 import UnderlinedText from "@/components/student/UnderlinedText";
-import { underlineModeOf, isErrorIdFormat } from "@/lib/generalFormats";
+import { underlineModeOf, isErrorIdFormat, chosenTokenIndexes } from "@/lib/generalFormats";
 
 // Highlightable static text in the question column. `base` scopes it to the
 // current section; `slot` + a hash of the text keep the localStorage key stable
@@ -107,30 +107,14 @@ function fieldNum(field) {
   return field.idEnd && field.idEnd > field.id ? `${field.id}-${field.idEnd}` : field.id;
 }
 
-// Khôi phục mảng chỉ số mảnh đã chọn từ chuỗi giá trị đã nộp/nhập.
-function deriveChosen(tokens, value) {
-  if (!value || typeof value !== "string" || !Array.isArray(tokens)) return [];
-  const words = value.trim().split(/\s+/).filter(Boolean);
-  const remaining = tokens.map((text, idx) => ({ text, idx }));
-  const chosen = [];
-  for (const w of words) {
-    const foundIdx = remaining.findIndex((r) => r.text === w);
-    if (foundIdx >= 0) {
-      chosen.push(remaining[foundIdx].idx);
-      remaining.splice(foundIdx, 1);
-    }
-  }
-  return chosen;
-}
-
 // UI sắp xếp từ thành câu (kind reorder, Phase 12 G1 bước 4)
 function ReorderSentenceBuilder({ tokens, value, onChange, review }) {
-  const [chosen, setChosen] = useState(() => deriveChosen(tokens, value));
+  const [chosen, setChosen] = useState(() => chosenTokenIndexes(tokens, value));
 
   useEffect(() => {
     const currentStr = chosen.map((i) => tokens[i]).join(" ");
     if (currentStr !== String(value || "").trim()) {
-      setChosen(deriveChosen(tokens, value));
+      setChosen(chosenTokenIndexes(tokens, value));
     }
   }, [value, tokens]);
 

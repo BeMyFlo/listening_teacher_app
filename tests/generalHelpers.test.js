@@ -271,3 +271,14 @@ test("parseUnderline kết hợp errorLetters: sinh đúng thứ tự chữ A, B
   const letters = parts.map((_, i) => String.fromCharCode(65 + i));
   assert.deepEqual(letters, ["A", "B", "C", "D"]);
 });
+
+// Review G1 bước 4: khôi phục chip từ câu đã nộp, kể cả mảnh nhiều từ và mảnh trùng chữ.
+test("chosenTokenIndexes: mảnh nhiều từ, mảnh trùng chữ, phần lạ", () => {
+  const { chosenTokenIndexes } = require("../lib/generalFormats");
+  const t = ["She", "always", "early.", "gets up"];
+  assert.deepEqual(chosenTokenIndexes(t, "She always gets up early.").map((i) => t[i]), ["She", "always", "gets up", "early."]);
+  const d = ["the", "cat", "the", "mat", "sat on"];
+  assert.deepEqual(chosenTokenIndexes(d, "the cat sat on the mat"), [0, 1, 4, 2, 3]);
+  assert.deepEqual(chosenTokenIndexes(t, "She xyz always"), [0, 1]);
+  assert.deepEqual(chosenTokenIndexes(t, ""), []);
+});
