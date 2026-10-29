@@ -9,6 +9,7 @@ const {
   sectionsToPayload,
   nextFieldId,
   appendAiSections,
+  appendImportedSections,
   applyImageLinks,
   fieldToServer,
 } = require("../lib/teacher/sectionTransforms");
@@ -170,7 +171,7 @@ test("applyImageLinks: gán imageId cho section (fi null) và câu (fi cụ th�
   assert.equal(out[0].fields[2].aiFlag, "Existing flag; Image could not be uploaded");
 });
 
-test("appendAiSections (Word import): nhận server sections + options đánh số tiếp và gán cờ + imageId", () => {
+test("appendImportedSections (Word import): nhận server sections + options đánh số tiếp và gán cờ + imageId", () => {
   const existing = [
     { name: "Existing section", fields: [{ id: 1 }, { id: 2 }] },
   ];
@@ -183,7 +184,7 @@ test("appendAiSections (Word import): nhận server sections + options đánh s�
   const imageLinks = [{ si: 0, fi: 0, ref: "IMG1" }];
   const imageMap = { IMG1: "cloud-img-id-123" };
 
-  const out = appendAiSections(existing, [wordServerSec], {
+  const out = appendImportedSections(existing, [wordServerSec], {
     flags,
     imageLinks,
     imageMap,
@@ -198,4 +199,18 @@ test("appendAiSections (Word import): nhận server sections + options đánh s�
   assert.equal(out[1].fields[0].aiFlag, undefined);
   assert.equal(out[1].fields[1].id, 4);
   assert.equal(out[1].fields[1].aiFlag, "Answer suggested by AI — not found in the file");
+});
+
+test("appendAiSections: topics rỗng trả về đúng danh sách đầu vào", () => {
+  const existing = [{ name: "Existing", fields: [{ id: 1 }] }];
+  const out = appendAiSections(existing, [], 1);
+  assert.deepEqual(out, existing);
+  assert.equal(existing.length, 1);
+});
+
+test("appendImportedSections: danh sách rỗng trả về đúng danh sách đầu vào", () => {
+  const existing = [{ name: "Existing", fields: [{ id: 1 }] }];
+  const out = appendImportedSections(existing, [], { firstId: 1 });
+  assert.deepEqual(out, existing);
+  assert.equal(existing.length, 1);
 });

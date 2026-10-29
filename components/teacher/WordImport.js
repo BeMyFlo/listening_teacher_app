@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { api, uploadToCloudinary } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
 import { useBranding } from "@/lib/client/branding";
-import { appendAiSections } from "@/lib/teacher/sectionTransforms";
+import { appendImportedSections } from "@/lib/teacher/sectionTransforms";
 import AiQuestionPreview from "./AiQuestionPreview";
 
 // Helper chuyển base64 thành File để upload lên Cloudinary
@@ -104,8 +104,8 @@ export default function WordImport({
         dialog.toast(`Failed to upload ${failedImageRefs.size} image(s). Flagged in builder.`);
       }
 
-      // Đánh số tiếp từ nextFieldId, gán imageId và cờ vàng qua appendAiSections
-      const nextSections = appendAiSections(existingSections, preview.sections, {
+      // Đánh số tiếp từ nextFieldId, gán imageId và cờ vàng qua appendImportedSections
+      const nextSections = appendImportedSections(existingSections, preview.sections, {
         flags: preview.flags,
         imageLinks: preview.imageLinks,
         imageMap: uploadedMap,
