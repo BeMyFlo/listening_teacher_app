@@ -352,6 +352,8 @@ Synonym/Antonym. Chỉ bật trong format General → IELTS không đổi.
 
 ### G2 — Đề thi theo khuôn *(~2 ngày)*
 
+> Bản thi hành: [PLAN-PHASE12-G2.md](PLAN-PHASE12-G2.md) (+ prompt: [PLAN-PHASE12-G2-PROMPTS.md](PLAN-PHASE12-G2-PROMPTS.md)).
+
 1. `lib/curriculum/generalTemplates.js` (4.4). Nút "New test from template" trong trang Mock Tests khi lọc General.
 2. Đánh số câu liền mạch qua các section, tiêu đề từng phần, như TOEIC C9.
 3. Giờ làm bài theo khuôn (50 phút THPT, 90 phút vào 10 HCM...).
