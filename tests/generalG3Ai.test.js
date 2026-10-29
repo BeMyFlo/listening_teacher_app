@@ -241,7 +241,7 @@ test("toGeneralSection: <u> chỉ thành __ ở format gạch chân (error, syn,
     { format: "g-pron", questions: [{ text: "Pronounce <u>this</u>", options: ["c<u>a</u>t", "m<u>a</u>ke"], answer: "c<u>a</u>t" }] },
     { subject: "vocabulary", strict: true }
   );
-  assert.equal(sPron.fields[0].label, "Pronounce this");
+  assert.equal(sPron.fields[0].label, "");
   assert.equal(sPron.fields[0].options[0].label, "c__a__t");
   assert.equal(sPron.fields[0].options[1].label, "m__a__ke");
 

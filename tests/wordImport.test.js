@@ -919,3 +919,50 @@ test("route import-word: tổng base64 ảnh > 3 MB -> bỏ ảnh lớn nhất, 
     if (fs.existsSync(tmpDocxPath)) { try { fs.unlinkSync(tmpDocxPath); } catch {} }
   }
 });
+
+// 4. Gemini thật: thiếu đáp án, before/after một nửa, text bịa ở pron
+const REAL_GEMINI = () => ({
+  sections: [
+    { instruction: "Choose the word whose underlined part is pronounced differently from the others.", format: "g-pron", questions: [
+      { number: 1, options: ["watch<u>ed</u>", "want<u>ed</u>", "need<u>ed</u>", "visit<u>ed</u>"], text: "<u>ed</u> endings pronunciation: A. watch<u>ed</u> B. want<u>ed</u> C. need<u>ed</u> D. visit<u>ed</u>" }] },
+    { instruction: "Give the correct form of the verbs in brackets.", format: "g-verb", questions: [
+      { number: 1, before: "She ", hint: "go", text: "She ____ (go) to school by bike every day." }] },
+    { instruction: "Look at the sign and choose the best answer.", format: "g-sign", questions: [
+      { number: 1, imageRef: "IMG1", options: ["You must stop here.", "You can park here.", "You can turn left.", "You must go fast."], text: "What does this sign mean? [IMG1]" }] },
+    { instruction: "Answer the questions below in complete sentences.", format: "g-rq", passage: "Nam lives in Hue ...", questions: [{ number: 1, text: "Where does Nam live?" }] },
+  ],
+});
+
+test("WORD_SCHEMA: câu hỏi bắt buộc có answer/answerSource/confidence", () => {
+  const req = WORD_SCHEMA.properties.sections.items.properties.questions.items.required;
+  for (const k of ["number", "text", "options", "answer", "answerSource", "confidence"]) assert.ok(req.includes(k), k);
+});
+
+test("buildImport: JSON Gemini thật thiếu đáp án -> nhãn sạch, không có 'undefined'", () => {
+  const r = buildImport([{ ok: true, data: REAL_GEMINI() }], { subject: "general" });
+  const fields = r.sections.flatMap((s) => s.fields);
+  const verb = fields.find((f) => f.type === "fill" && /She/.test(f.label));
+  assert.equal(verb.label, "She");
+  assert.equal(verb.post, "to school by bike every day.");
+  assert.equal(verb.hint, "(go)");
+  assert.equal(fields[0].label, "");
+  for (const w of r.warnings) assert.ok(!/undefined|null/.test(w), w);
+  for (const f of r.flags) assert.ok(!/undefined|null/.test(f.reason), f.reason);
+});
+
+test("buildImport: có đáp án thì điền đúng và không còn cờ 'does not match'", () => {
+  const d = REAL_GEMINI();
+  d.sections[0].questions[0].answer = "A";
+  d.sections[1].questions[0].answer = "goes";
+  d.sections[2].questions[0].answer = "You must stop here.";
+  d.sections[3].questions[0].answer = "He lives in Hue.";
+  const r = buildImport([{ ok: true, data: d }], { subject: "general" });
+  const fields = r.sections.flatMap((s) => s.fields);
+  assert.equal(fields.length, 4);
+  assert.deepEqual(fields[1].answers, ["goes"]);
+  assert.deepEqual(fields[3].answers, ["He lives in Hue."]);
+  assert.equal(fields[0].answers.length, 1);
+  assert.equal(fields[2].answers.length, 1);
+  for (const f of r.flags) assert.ok(!/does not match|No answer/.test(f.reason), f.reason);
+  for (const w of r.warnings) assert.ok(!/does not match|undefined/.test(w), w);
+});
