@@ -5,7 +5,7 @@
 >
 > **Người thi hành đọc kỹ mục 0 và mục 2 trước khi gõ dòng code đầu tiên.**
 
-Trạng thái: ◐ bước 1–5 xong, còn bước 6 (đề Word thật) · Ngày lập: 2026-10-27
+Trạng thái: ◐ bước 1–5 xong; bước 6 (đề Word thật) dời tới đợt kiểm tổng cuối Phase 12 (chủ dự án chốt 2026-10-29) · Ngày lập: 2026-10-27
 Tiền đề: G1 xong và đã vào nhánh gom `phase-12-general-g0` (PR #21), có Next 15.5 + React 19 (PR #22). Branch
 `phase-12-general-g3` cắt từ nhánh gom. Xong G3 → PR `phase-12-general-g3` → `phase-12-general-g0` (KHÔNG vào `main`;
 xem "Cách gộp nhánh" ở mục 5 của plan tổng).
@@ -444,3 +444,4 @@ có bảng đáp án, 1 đề có ảnh biển báo, 1 đề đánh số tự đ
 | 2026-10-27 | 3 | Antigravity: AiExerciseDialog, AiQuestionPreview, ô Textbook (form Unit + tạo Unit), cờ vàng + dải "N questions need checking". Review (Sonnet sửa): tách `appendAiSections` (test gọi hàm thật), điền sẵn Focus, prompt không lặp "Grade: Grade 7", form tạo Unit General dùng ô chọn khối 6–12 (mặc định 1 bị 400). Trình duyệt: lưu Textbook, dialog 375px, IELTS không thấy nút/ô mới. 331 test pass. Lưu ý: dev server phải khởi động lại sau khi đổi nhánh / `npm install` (tiến trình cũ còn Next 14 → 500). |
 | 2026-10-27 | 4 | Antigravity: `lib/wordImport.js` (chia khúc, prompt, schema, `buildImport`), route `import-word`. Review (Sonnet sửa, có file thử chứng minh): dòng "Answer the questions…" bị nhận nhầm là bảng đáp án -> mất cả phần đọc hiểu (giờ `isKeyHeading` chỉ nhận tiêu đề đứng riêng); đề đánh số lại từ 1 mỗi phần bị bỏ câu trùng số 6->3 (giờ chỉ bỏ khi trùng số + nội dung trong cùng phần); bỏ thẻ `<mark>`/`[IMGn]` còn sót; trần ảnh tính theo base64 + tô vàng câu mất ảnh; sửa lý do cờ. 350 test pass, build qua. Chưa chạy Gemini thật với file Word (bước 6). |
 | 2026-10-29 | 5 | Antigravity: `WordImport.js` (chọn .docx, xem trước, tải ảnh lúc "Import into builder"), nút trong SectionsEditor, `applyImageLinks`, `media.reload`. Review chạy Gemini thật với file .docx tự soạn (gạch chân, đánh số, 1 ảnh, bảng ĐÁP ÁN): **cả 7 câu mất đáp án** vì `WORD_SCHEMA` chỉ bắt buộc `number` (lỗi của bước 4, test Gemini giả không bắt được) -> Sonnet sửa: schema bắt buộc answer/answerSource/confidence/text/options, prompt khớp đáp án theo phần + số câu, câu điền lấy chỗ trống từ `text`, nhãn phát âm luôn rỗng, không in "undefined"; tách `appendAiSections` / `appendImportedSections`. Chạy lại: 7/7 đáp án khớp bảng đáp án, ảnh tải lên + gắn đúng câu biển báo, đánh số nối tiếp; ảnh thử đã xoá khỏi Cloudinary. 357 test pass, build qua. |
+| 2026-10-29 | 6 | **Dời** — chủ dự án chốt: chạy đề Word thật + kiểm tổng một lần khi xong hết G2/G5/G4, trước khi merge PR #20 vào `main`. Việc còn treo cho đợt đó: 3–5 đề .docx thật (`D:\Project\samples-g3\`), Safari iOS cũ, `_*-TMP.js` dọn sau. |
