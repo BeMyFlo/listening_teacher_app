@@ -8,6 +8,7 @@
 // standardSet: (chỉ Mock Test) hiện nút "Add standard TOEIC set" khi kỹ năng chưa có đề.
 import { useDialog } from "@/components/ui/Dialog";
 import { ASPECT_LABELS, toeicTask, tasksForSkill } from "@/lib/toeicTasks";
+import { PROGRAMS, isProgram } from "@/lib/curriculum";
 import { taskDefaults, blankToeicPrompt, standardSet, promptCues } from "@/lib/toeicStandardSet";
 
 const fmtSec = (n) => (n >= 60 && n % 60 === 0 ? n / 60 + " min" : n + "s");
@@ -16,6 +17,8 @@ export default function PromptsEditor({ prompts, media, onChange, skill, program
   const dialog = useDialog();
   const isWriting = skill === "writing";
   const toeic = program === "toeic"; // G5: general.writing
+  // Chương trình có rubric riêng theo kỹ năng (General) không dùng Task 1/Task 2 của IELTS: đọc registry.
+  const ownRubric = isProgram(program) && !!PROGRAMS[program].rubricVariants;
 
   function patch(mut) {
     const draft = structuredClone(prompts);
@@ -42,7 +45,7 @@ export default function PromptsEditor({ prompts, media, onChange, skill, program
               <input
                 type="text"
                 className="p-title"
-                placeholder="Prompt Title (e.g. Task 1)"
+                placeholder={ownRubric ? "Prompt Title (e.g. Question 1)" : "Prompt Title (e.g. Task 1)"}
                 style={{ flex: 1 }}
                 value={p.title}
                 onChange={(e) => patch((d) => (d[i].title = e.target.value))}
@@ -89,7 +92,7 @@ export default function PromptsEditor({ prompts, media, onChange, skill, program
                 )}
               </div>
             )}
-            {isWriting && !toeic && (
+            {isWriting && !toeic && !ownRubric && (
               <div className="form-row" style={{ marginBottom: 10 }}>
                 <label>Task type (grading rubric)</label>
                 <div style={{ display: "flex", gap: 16 }}>

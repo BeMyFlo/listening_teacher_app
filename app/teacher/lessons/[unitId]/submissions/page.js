@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { avgScoreText } from "@/lib/grading/generalUi";
 
 const CATS = [
   { key: "grammar", label: "Grammar" },
@@ -41,7 +42,7 @@ function CatCell({ c }) {
     }
     if (c.submitted > c.graded)
       return <td><span className="pill pill-warn">Pending</span></td>;
-    return <td><b>{c.avgScore != null ? c.avgScore : "✓"}</b></td>;
+    return <td><b>{avgScoreText(c)}</b></td>;
   }
   if (!c.done) return <td style={{ color: "var(--muted)" }}>—</td>;
   return (

@@ -51,13 +51,11 @@ const gc = (keys, vals) => keys.map((key, i) => ({ key, band: vals[i], comment: 
 
 // ------------------------------------------------------------------ registry + rubric
 
-test("registry: rubricVariants — IELTS/TOEIC null, General có writing + speaking; lessonSkills chưa mở", () => {
+test("registry: rubricVariants — IELTS/TOEIC null, General có writing + speaking; lessonSkills đã mở (bước 3)", () => {
   assert.equal(PROGRAMS.ielts.rubricVariants, null);
   assert.equal(PROGRAMS.toeic.rubricVariants, null);
   assert.deepEqual(PROGRAMS.general.rubricVariants, { writing: "general.writing", speaking: "general.speaking" });
-  // Bước 3 mới mở UI.
-  assert.deepEqual(PROGRAMS.general.lessonSkills, ["grammar", "vocabulary", "listening", "reading"]);
-  assert.deepEqual(PROGRAMS.general.testSkills, ["listening", "reading"]);
+  assert.deepEqual(PROGRAMS.general.testSkills, ["listening", "reading", "writing", "speaking"]);
 });
 
 test("resolveVariant: General theo program; IELTS/TOEIC/thiếu program y như cũ", () => {

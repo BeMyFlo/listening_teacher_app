@@ -183,7 +183,7 @@ function ExerciseRow({ ex, categoryKey, onAcceptAnswer }) {
   );
 }
 
-function GradeForm({ prompt, submissionId, kind, writingTask, onGraded }) {
+function GradeForm({ prompt, submissionId, kind, writingTask, program, onGraded }) {
   const dialog = useDialog();
   const graded = prompt.gradingStatus === "graded";
   const [editing, setEditing] = useState(!graded);
@@ -245,6 +245,7 @@ function GradeForm({ prompt, submissionId, kind, writingTask, onGraded }) {
           submissionId,
           rubricVariant: prompt.rubricVariant,
           writingTask,
+          program,
           gradingStatus: prompt.gradingStatus,
           criteria: prompt.criteria,
           manualScore: prompt.manualScore,
@@ -299,7 +300,7 @@ function ReflectionLogView({ kind, log }) {
   );
 }
 
-function PromptRow({ prompt, onGraded }) {
+function PromptRow({ prompt, program, onGraded }) {
   const done = !!prompt.submissionId;
   return (
     <div className="lesson-block" style={{ marginBottom: 10 }}>
@@ -324,6 +325,7 @@ function PromptRow({ prompt, onGraded }) {
             submissionId={prompt.submissionId}
             kind={prompt.kind}
             writingTask={prompt.writingTask}
+            program={program}
             onGraded={onGraded}
           />
 
@@ -341,6 +343,7 @@ function PromptRow({ prompt, onGraded }) {
                 submissionId={prompt.attempt2.submissionId}
                 kind={prompt.kind}
                 writingTask={prompt.writingTask}
+                program={program}
                 onGraded={onGraded}
               />
             </div>
@@ -539,7 +542,7 @@ export default function StudentUnitSubmissionPage() {
                 ) : cat.prompts.length === 0 ? (
                   <div className="empty-state">No prompts in this section.</div>
                 ) : (
-                  cat.prompts.map((p) => <PromptRow key={p._id} prompt={p} onGraded={load} />)
+                  cat.prompts.map((p) => <PromptRow key={p._id} prompt={p} program={programOf(data.unit)} onGraded={load} />)
                 )}
               </div>
             );

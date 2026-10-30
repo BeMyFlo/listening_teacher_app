@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { avgScoreText } from "@/lib/grading/generalUi";
 import { usesTenPoint, formatTenPoint } from "@/lib/tenPoint";
 import { usesToeicScale, estimateToeic, formatToeicTotal } from "@/lib/toeicScale";
 
@@ -31,7 +32,7 @@ function SkillCell({ s, skillKey, toeic, ten }) {
       return s.graded < s.itemsTotal ? <td><span className="pill pill-warn">{s.graded}/{s.itemsTotal} graded</span></td> : <td><b>{s.scoreSum}/{s.maxSum}</b></td>;
     }
     if (s.submitted > s.graded) return <td><span className="pill pill-warn">Pending</span></td>;
-    return <td><b>{s.avgScore != null ? s.avgScore : "✓"}</b></td>;
+    return <td><b>{avgScoreText(s)}</b></td>;
   }
   if (!s.done) return <td style={{ color: "var(--muted)" }}>—</td>;
   const est = toeic ? estimateToeic(skillKey, s.score, s.total) : null;

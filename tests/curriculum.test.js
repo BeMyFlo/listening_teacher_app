@@ -35,9 +35,9 @@ test("registry: ielts, toeic và general đúng như plan", () => {
   assert.equal(PROGRAMS.toeic.textbook, false);
 
   assert.equal(PROGRAMS.general.label, "General English");
-  assert.deepEqual(PROGRAMS.general.lessonSkills, ["grammar", "vocabulary", "listening", "reading"]);
-  assert.deepEqual(PROGRAMS.general.testSkills, ["listening", "reading"]);
-  assert.deepEqual(PROGRAMS.general.defaultDurations, { listening: 15, reading: 45 });
+  assert.deepEqual(PROGRAMS.general.lessonSkills, ["grammar", "vocabulary", "listening", "reading", "writing", "speaking"]);
+  assert.deepEqual(PROGRAMS.general.testSkills, ["listening", "reading", "writing", "speaking"]);
+  assert.deepEqual(PROGRAMS.general.defaultDurations, { listening: 15, reading: 45, writing: 30, speaking: 10 });
   assert.equal(PROGRAMS.general.scoring, "ten-point");
   assert.equal(PROGRAMS.general.levelWord, "Grade");
   assert.deepEqual(PROGRAMS.general.fixedLevels, [6, 7, 8, 9, 10, 11, 12]);
@@ -244,16 +244,16 @@ test("levelAllowed: ielts/toeic số nguyên >= 1 (không trần); general chỉ
   }
 });
 
-test("lessonSkillAllowed / testSkillAllowed: general chưa mở writing/speaking (G0)", () => {
+test("lessonSkillAllowed / testSkillAllowed: general mở cả writing/speaking (G5)", () => {
   for (const k of ["grammar", "vocabulary", "listening", "reading"]) {
     assert.equal(lessonSkillAllowed({ program: "general" }, k), true, k);
   }
-  assert.equal(lessonSkillAllowed({ program: "general" }, "writing"), false);
-  assert.equal(lessonSkillAllowed({ program: "general" }, "speaking"), false);
+  assert.equal(lessonSkillAllowed({ program: "general" }, "writing"), true);
+  assert.equal(lessonSkillAllowed({ program: "general" }, "speaking"), true);
   assert.equal(testSkillAllowed({ program: "general" }, "listening"), true);
   assert.equal(testSkillAllowed({ program: "general" }, "reading"), true);
-  assert.equal(testSkillAllowed({ program: "general" }, "writing"), false);
-  assert.equal(testSkillAllowed({ program: "general" }, "speaking"), false);
+  assert.equal(testSkillAllowed({ program: "general" }, "writing"), true);
+  assert.equal(testSkillAllowed({ program: "general" }, "speaking"), true);
 });
 
 test("Schema Class/Unit/Test/Submission nhận program: 'general'", () => {

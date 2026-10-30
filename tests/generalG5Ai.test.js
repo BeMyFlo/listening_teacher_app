@@ -277,3 +277,34 @@ test("IELTS và TOEIC vẫn đi đường cũ với đúng system prompt cũ", a
   assert.equal(req.systemInstruction, toeicWriting.buildSystem(WE));
   assert.deepEqual(req.schema, toeicGradeSchema(WE));
 });
+
+test("runAiGrade general: đề có ảnh -> gửi ảnh + prompt báo có ảnh (Writing và Speaking)", async () => {
+  const { state, runAiGrade } = createHarness();
+  const withImage = (prompt) => ({ _id: "u1", name: "U", level: 8, categories: [{ key: "x", prompts: [{ _id: "p1", ...prompt, imageId: { cloudinaryUrl: "https://res.cloudinary.com/x/image/upload/v1/pic.png" } }] }] });
+  state.unit = withImage({ title: "Picture", instructions: "Describe the picture." });
+  state.submission = sub({ kind: "writing", rubricVariant: GW, essayText: "A boy plays." });
+  state.raw = writingPayload();
+  await runAiGrade("s1");
+  let req = requestShape(state.calls[0]);
+  assert.deepEqual(req.image, { mimeType: "image/png", hasData: true });
+  assert.ok(/picture is attached/.test(req.prompt));
+  assert.ok(!/IELTS|TOEIC|band/i.test(req.prompt));
+
+  state.calls.length = 0;
+  state.submission = sub({ kind: "speaking", rubricVariant: GS, audioUrl: "https://res.cloudinary.com/x/video/upload/v1/a.webm" });
+  state.raw = speakingPayload();
+  await runAiGrade("s1");
+  req = requestShape(state.calls[0]);
+  assert.ok(req.image && req.audio);
+  assert.ok(/picture is attached/.test(req.prompt));
+
+  // Không có ảnh -> không gửi ảnh, prompt không nhắc ảnh.
+  state.calls.length = 0;
+  state.unit = unitWith({ title: "T", instructions: "x" }, 8);
+  state.submission = sub({ kind: "writing", rubricVariant: GW, essayText: "A boy plays." });
+  state.raw = writingPayload();
+  await runAiGrade("s1");
+  req = requestShape(state.calls[0]);
+  assert.equal(req.image, null);
+  assert.ok(!/picture is attached/.test(req.prompt));
+});

@@ -388,7 +388,7 @@ function StatsTab({ skills }) {
   );
 }
 
-function GradeForm({ prompt, submissionId, kind, writingTask, onGraded }) {
+function GradeForm({ prompt, submissionId, kind, writingTask, program, onGraded }) {
   const dialog = useDialog();
   const graded = prompt.gradingStatus === "graded";
   const [editing, setEditing] = useState(!graded);
@@ -450,6 +450,7 @@ function GradeForm({ prompt, submissionId, kind, writingTask, onGraded }) {
           submissionId,
           rubricVariant: prompt.rubricVariant,
           writingTask,
+          program,
           gradingStatus: prompt.gradingStatus,
           criteria: prompt.criteria,
           manualScore: prompt.manualScore,
@@ -507,6 +508,7 @@ function PromptRow({ prompt, onGraded }) {
             submissionId={prompt.submissionId}
             kind={prompt.kind}
             writingTask={prompt.writingTask}
+            program={program}
             onGraded={onGraded}
           />
         </>
@@ -515,7 +517,7 @@ function PromptRow({ prompt, onGraded }) {
   );
 }
 
-function PromptSkillPanel({ skill, onGraded }) {
+function PromptSkillPanel({ skill, program, onGraded }) {
   if (skill.itemsTotal === 0) return <div className="empty-state">No prompts in this skill.</div>;
   return (
     <div>
@@ -523,7 +525,7 @@ function PromptSkillPanel({ skill, onGraded }) {
         {skill.submitted}/{skill.itemsTotal} submitted
       </p>
       {skill.prompts.map((p) => (
-        <PromptRow key={p._id} prompt={p} onGraded={onGraded} />
+        <PromptRow key={p._id} prompt={p} program={program} onGraded={onGraded} />
       ))}
     </div>
   );
@@ -658,7 +660,7 @@ function Inner() {
               onAcceptAnswer={handleAcceptAnswer}
             />
           ) : (
-            <PromptSkillPanel skill={activeSkill} onGraded={load} />
+            <PromptSkillPanel skill={activeSkill} program={programOf(data.test)} onGraded={load} />
           )}
         </div>
       )}

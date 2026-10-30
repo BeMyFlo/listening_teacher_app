@@ -2802,6 +2802,8 @@ tr:hover td { background: var(--pink-wash-2); }
 .rubric-crit-name { font-weight: 700; font-size: .9rem; color: var(--ink); flex: 1; min-width: 160px; }
 .rubric-crit-key { color: var(--muted); font-weight: 500; }
 .rubric-crit-head select { padding: 6px 10px; font-size: .85rem; }
+.rubric-gscore { white-space: nowrap; }
+.rubric-gscore input { padding: 6px 10px; font-size: .85rem; }
 .rubric-showbands {
   background: none;
   border: none;

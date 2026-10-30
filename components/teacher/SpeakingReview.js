@@ -9,7 +9,7 @@
 import { useState } from "react";
 import { CATEGORIES } from "@/lib/grading/annotate";
 import { annotationCriteria } from "@/lib/grading/rubric";
-import { ASPECT_LABELS } from "@/lib/toeicTasks";
+import { criterionLabel } from "@/lib/grading/generalUi";
 import EssayAnnotator from "./EssayAnnotator";
 
 const CRIT = ["FC", "LR", "GRA", "PR"];
@@ -115,7 +115,7 @@ export default function SpeakingReview({
                   <span className="ea-note" style={{ fontStyle: "normal", flex: 1, minWidth: 160 }}>{n.comment}</span>
                   <select className="ea-mini" value={n.criterion || ""} onChange={(e) => patch(n.id, { criterion: e.target.value || null })}>
                     <option value="">—</option>
-                    {crits.map((c) => <option key={c} value={c}>{ASPECT_LABELS[c] || c}</option>)}
+                    {crits.map((c) => <option key={c} value={c}>{criterionLabel(variant, c)}</option>)}
                   </select>
                   <button type="button" className="icon-btn danger" title="Remove" onClick={() => remove(n.id)}>
                     <svg className="icon"><use href="#icon-trash" /></svg>
@@ -136,7 +136,7 @@ export default function SpeakingReview({
             </select>
             <select value={draft.criterion} onChange={(e) => setDraft((d) => ({ ...d, criterion: e.target.value }))}>
               <option value="">criterion…</option>
-              {crits.map((c) => <option key={c} value={c}>{ASPECT_LABELS[c] || c}</option>)}
+              {crits.map((c) => <option key={c} value={c}>{criterionLabel(variant, c)}</option>)}
             </select>
             <input type="text" placeholder="Note…" style={{ flex: 1, minWidth: 120 }} value={draft.comment}
               onChange={(e) => setDraft((d) => ({ ...d, comment: e.target.value }))}
