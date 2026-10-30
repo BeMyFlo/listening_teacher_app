@@ -3,7 +3,7 @@
 > Tài liệu thi hành cho đợt **G4** của [PLAN-PHASE12-GENERAL-ENGLISH.md](PLAN-PHASE12-GENERAL-ENGLISH.md) (mong muốn #8, #9,
 > #10, mục 5-G4). Sonnet code, Claude Code (lead) review + merge từng bước.
 
-Trạng thái: ☐ chưa code · Ngày lập: 2026-10-30
+Trạng thái: ◐ code xong trên `phase-12-general-g4`, đã kiểm (trừ mục ghi ở nhật ký), chưa merge · Ngày lập: 2026-10-30
 Tiền đề: G5 xong. Branch `phase-12-general-g4` cắt từ `phase-12-general-g5` (chưa push). Xong → PR vào nhánh gom. G4 là đợt
 cuối trước kiểm tổng Phase 12.
 
@@ -120,3 +120,5 @@ cuối trước kiểm tổng Phase 12.
 | Ngày | Bước | Ghi chú |
 |---|---|---|
 | 2026-10-30 | Plan | Lập plan. |
+| 2026-10-30 | 1–5 | Sonnet code, lead review + merge từng bước: `QuestionItem` + API, trang Question Bank, lưu từ builder và Word, `fillFromBank` + Swap, `shuffleExam`, `zipWrite`, `docx`, trang in, `topicStats`. |
+| 2026-10-30 | 6 | Kiểm tổng: 543 test pass, tenant scope sạch, build qua, Phase 8 232/232, G1 94/94. E2E qua handler thật trên DB dev 16/16 (đếm ô ma trận, bốc câu + thiếu, cách ly workspace, xuất docx đọc lại được, chặn học sinh lấy đáp án, thống kê chủ điểm). Trình duyệt: menu IELTS không đổi, trang ngân hàng, trang in. Xem bản in lộ 2 lỗi đã sửa: câu tìm lỗi sai thiếu chữ (A)–(D), phần chỉ có dòng hướng dẫn không được trộn câu. Chưa kiểm: mở .docx bằng Word thật (máy không có Word; XML hợp lệ); bảng ma trận và Swap trên trình duyệt với ngân hàng có dữ liệu; import Word vào ngân hàng với Gemini thật; 375px các trang mới. |
