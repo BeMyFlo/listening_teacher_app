@@ -14,9 +14,13 @@ import { useTabSwitchGuard } from "@/components/student/useTabSwitchGuard";
 import { useDialog } from "@/components/ui/Dialog";
 import RubricResult from "@/components/RubricResult";
 import NotebookFab from "@/components/student/NotebookFab";
-import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { PROGRAMS, programOf, testSkillLabel } from "@/lib/curriculum";
+import { usesTenPoint, formatTenPoint } from "@/lib/tenPoint";
+import PartResultsTable from "@/components/PartResultsTable";
+import UnderlinedText from "@/components/student/UnderlinedText";
+import { underlineModeOf, isErrorIdFormat } from "@/lib/generalFormats";
 import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
-import { groupFieldsByPart, groupPromptsByTask } from "@/lib/partGroups";
+import { groupFieldsByPart, groupPromptsByTask, fieldRangeLabel, partBreakdown } from "@/lib/partGroups";
 import { isToeicTaskType, toeicTask } from "@/lib/toeicTasks";
 import ToeicSpeakingRunner, { isToeicSpeakingCompleted } from "@/components/student/ToeicSpeakingRunner";
 
@@ -141,7 +145,7 @@ export default function TakeTestPage() {
               storageKey={timerKey}
             />
           ) : null}
-          <span className={"badge test " + skill}>{tab.label} Test</span>
+          <span className={"badge test " + skill}>{testSkillLabel(programOf(test), skill, tab.label)} Test</span>
           <h2>{(test.unit ? test.unit + " · " : "") + test.title}</h2>
           {skillData.instructions && (
             <p style={{ color: "var(--muted)", marginBottom: 20 }}>{skillData.instructions}</p>
@@ -292,6 +296,12 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
   const isListening = skill === "listening";
   // Đề TOEIC (thang quy đổi): tiêu đề Part + điểm ước tính. IELTS không đổi.
   const toeic = usesToeicScale(programOf(test));
+  // General: điểm thang 10.
+  const ten = usesTenPoint(programOf(test));
+  // Cờ registry (G2): tiêu đề phần kèm khoảng câu + bảng kết quả theo phần.
+  const programCfg = PROGRAMS[programOf(test)];
+  const showRanges = !!programCfg.sectionRanges;
+  const showPartResults = !!programCfg.partResults;
 
   const setSectionPhase = (si) => (p) =>
     setAudioPhase((prev) => (prev[si] === p ? prev : { ...prev, [si]: p }));
@@ -396,7 +406,7 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
         <div className="card">
           <div className="score-box">
             <div style={{ color: "var(--muted)", fontWeight: 600 }}>
-              {test.unit} · {test.title} — {tab.label} — {studentName}
+              {test.unit} · {test.title} — {testSkillLabel(programOf(test), skill, tab.label)} — {studentName}
             </div>
             <div className="big">
               <span>{result.score}</span>
@@ -405,6 +415,11 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
                 / <span>{result.total}</span>
               </span>
             </div>
+            {ten && formatTenPoint(result.score, result.total) && (
+              <div className="toeic-estimate">
+                <div>{formatTenPoint(result.score, result.total)} ({result.score}/{result.total} correct)</div>
+              </div>
+            )}
             {toeic && (
               <div className="toeic-estimate">
                 <div>{toeicResultLine(skill, result.score, result.total)}</div>
@@ -420,6 +435,7 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
                 })()}
               </div>
             )}
+            {showPartResults && <PartResultsTable parts={partBreakdown(sections, result.detailById)} />}
             <p className="notice success" style={{ display: "inline-block" }}>
               <svg className="icon"><use href="#icon-check-circle" /></svg> Test results submitted to teacher
               successfully.
@@ -428,7 +444,7 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
           <div id="resultDetail">
             {sections.map((sec, si) => (
               <div key={si} style={{ marginBottom: 24 }}>
-                <div className="section-title">{sec.name}</div>
+                <div className="section-title">{showRanges && fieldRangeLabel(sec.fields) ? `${sec.name} · ${fieldRangeLabel(sec.fields)}` : sec.name}</div>
                 {(toeic ? groupFieldsByPart(sec.fields) : [{ label: "", fields: sec.fields || [] }]).map((g, gi) => (
                   <Fragment key={gi}>
                 {g.label && <h4 className="part-heading">{g.label}</h4>}
@@ -436,6 +452,8 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
                   const d = result.detailById[f.id];
                   if (!d) return null;
                   const shown = answerLabel(f, answersApi.getValue(f), sec) || "(blank)";
+                  // G2: chế độ gạch chân theo dạng câu (label = đề, options = đáp án).
+                  const uMode = underlineModeOf(f.formatLabel);
                   return (
                     <div key={f.id} className={"field-row " + (d.correct ? "correct" : "wrong")}>
                       <span className="num">{f.id}.</span>
@@ -444,13 +462,15 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
                           <img src={f.imageUrl} alt={"Image for question " + f.id} className="diagram-image field-image" style={{ maxHeight: 180, marginBottom: 6 }} />
                         </div>
                       )}
-                      <span className="label">{f.label}</span>
+                      <span className="label">
+                        {uMode === "label" ? <UnderlinedText text={f.label} errorLetters={isErrorIdFormat(f.formatLabel)} /> : f.label}
+                      </span>
                       <span className="tail" style={{ flex: 1 }}>
-                        Your answer: <b>{shown}</b>
+                        Your answer: <b>{uMode === "options" ? <UnderlinedText text={shown} /> : shown}</b>
                         {!d.correct && (
                           <>
                             {" "}
-                            · Correct answer: <b>{d.answer || ""}</b>
+                            · Correct answer: <b>{uMode === "options" ? <UnderlinedText text={d.answer || ""} /> : (d.answer || "")}</b>
                           </>
                         )}
                       </span>
@@ -495,7 +515,7 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
         {skillData.durationMinutes ? (
           <Countdown minutes={Number(skillData.durationMinutes)} onExpire={submit} storageKey={timerKey} />
         ) : null}
-        <span className={"badge test " + skill}>{tab.label} Test</span>
+        <span className={"badge test " + skill}>{testSkillLabel(programOf(test), skill, tab.label)} Test</span>
         <h2>{test.unit} · {test.title}</h2>
         <p style={{ color: "var(--muted)", marginBottom: 20 }}>{skillData.instructions}</p>
         {sections.length > 1 && (
@@ -515,6 +535,7 @@ function QuestionRunner({ test, testId, skill, tab, skillData, subs, subsLoaded,
             answersApi={answersApi}
             examAudio={isListening}
             partHeadings={toeic}
+            sectionRanges={showRanges}
             audioPhase={audioPhase[activeSection] || "idle"}
             onAudioPhase={setSectionPhase(activeSection)}
             onReplay={() => setReplayCount((n) => n + 1)}

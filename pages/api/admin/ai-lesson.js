@@ -17,6 +17,7 @@ const { flagAiLog } = require("../../../lib/ai/aiLog");
 const MODULES = {
   grammar: require("../../../lib/ai/grammarLesson"),
   vocab: require("../../../lib/ai/vocabLesson"),
+  exercise: require("../../../lib/ai/generalExercise"),
 };
 
 async function handler(req, res) {

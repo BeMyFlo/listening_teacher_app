@@ -8,6 +8,8 @@ import RubricGrader from "@/components/teacher/RubricGrader";
 import RubricResult from "@/components/RubricResult";
 import { useDialog } from "@/components/ui/Dialog";
 import { pollAiGrade } from "@/lib/client/aiGrade";
+import UnderlinedText from "@/components/student/UnderlinedText";
+import { isErrorIdFormat } from "@/lib/generalFormats";
 
 function pct(score, total) {
   if (!total) return null;
@@ -38,7 +40,7 @@ function LateLine({ item }) {
   );
 }
 
-function QuestionTable({ detail }) {
+function QuestionTable({ detail, onAccept }) {
   return (
     <div className="table-wrap" style={{ marginTop: 8 }}>
       <table className="data-table">
@@ -53,25 +55,42 @@ function QuestionTable({ detail }) {
           </tr>
         </thead>
         <tbody>
-          {detail.map((d) => (
-            <tr key={d.id} style={{ background: d.correct ? "#DFF7E9" : "#FFE0E2" }}>
-              <td>{d.id}</td>
-              <td>
-                {d.imageUrl && (
-                  <img src={d.imageUrl} alt={"Image for question " + d.id} style={{ display: "block", maxWidth: 180, maxHeight: 110, borderRadius: 6, marginBottom: d.label ? 6 : 0 }} />
-                )}
-                {d.label}
-              </td>
-              <td>{d.submittedText}</td>
-              <td>{d.correct ? "" : <b>{d.answerText}</b>}</td>
-              <td style={{ color: "var(--muted)" }}>{d.explanation || ""}</td>
-              <td>
-                <span className={"result-mark " + (d.correct ? "correct" : "wrong")}>
-                  <svg className="icon"><use href={d.correct ? "#icon-check" : "#icon-cross"} /></svg>
-                </span>
-              </td>
-            </tr>
-          ))}
+          {detail.map((d) => {
+            const canAccept = !d.correct && d.type === "fill" && d.submittedText && d.submittedText !== "(blank)" && onAccept;
+            return (
+              <tr key={d.id} style={{ background: d.correct ? "#DFF7E9" : "#FFE0E2" }}>
+                <td>{d.id}</td>
+                <td>
+                  {d.imageUrl && (
+                    <img src={d.imageUrl} alt={"Image for question " + d.id} style={{ display: "block", maxWidth: 180, maxHeight: 110, borderRadius: 6, marginBottom: d.label ? 6 : 0 }} />
+                  )}
+                  <UnderlinedText text={d.label} errorLetters={isErrorIdFormat(d.formatLabel)} />
+                </td>
+                <td>
+                  <UnderlinedText text={d.submittedText} />
+                  {canAccept && (
+                    <div style={{ marginTop: 4 }}>
+                      <button
+                        type="button"
+                        className="btn secondary"
+                        style={{ padding: "2px 8px", fontSize: ".72rem", lineHeight: 1.4 }}
+                        onClick={() => onAccept(d)}
+                      >
+                        Accept this answer
+                      </button>
+                    </div>
+                  )}
+                </td>
+                <td>{d.correct ? "" : <b><UnderlinedText text={d.answerText} /></b>}</td>
+                <td style={{ color: "var(--muted)" }}>{d.explanation || ""}</td>
+                <td>
+                  <span className={"result-mark " + (d.correct ? "correct" : "wrong")}>
+                    <svg className="icon"><use href={d.correct ? "#icon-check" : "#icon-cross"} /></svg>
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -112,7 +131,7 @@ function FormatStatsPanel({ stats }) {
   );
 }
 
-function ExerciseRow({ ex }) {
+function ExerciseRow({ ex, categoryKey, onAcceptAnswer }) {
   const [open, setOpen] = useState(false);
   const done = !!ex.submissionId;
   return (
@@ -142,7 +161,24 @@ function ExerciseRow({ ex }) {
           </button>
         )}
       </div>
-      {open && ex.detail && <QuestionTable detail={ex.detail} />}
+      {open && ex.detail && (
+        <QuestionTable
+          detail={ex.detail}
+          onAccept={
+            onAcceptAnswer
+              ? (d) =>
+                  onAcceptAnswer({
+                    categoryKey,
+                    exerciseId: ex._id,
+                    fieldId: d.id,
+                    questionNum: d.id,
+                    answer: d.submittedText || d.submitted,
+                    count: ex.totalSubmissionsCount || 1,
+                  })
+              : null
+          }
+        />
+      )}
     </div>
   );
 }
@@ -351,6 +387,7 @@ function StatsTab({ categories }) {
 export default function StudentUnitSubmissionPage() {
   const { unitId, studentId } = useParams();
   const router = useRouter();
+  const dialog = useDialog();
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [active, setActive] = useState("stats");
@@ -364,6 +401,30 @@ export default function StudentUnitSubmissionPage() {
   useEffect(() => {
     load();
   }, [unitId, studentId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleAcceptAnswer({ categoryKey, exerciseId, fieldId, questionNum, answer, count }) {
+    const trimmed = String(answer || "").trim();
+    if (!trimmed) return;
+    const k = Number(count) || 1;
+    const ok = await dialog.confirm({
+      title: "Accept this answer?",
+      message: `Accept "${trimmed}" as a correct answer for question ${questionNum}? This re-grades every submission of this exercise (${k} submission${k === 1 ? "" : "s"}).`,
+      confirmText: "Accept & re-grade",
+    });
+    if (!ok) return;
+    try {
+      const res = await api.teacher.acceptUnitAnswer(unitId, {
+        categoryKey,
+        exerciseId,
+        fieldId,
+        answer: trimmed,
+      });
+      await load();
+      dialog.toast(`Accepted — ${res.regradedCount} submission${res.regradedCount === 1 ? "" : "s"} re-graded`);
+    } catch (e) {
+      dialog.alert({ tone: "error", title: "Could not accept answer", message: e.message });
+    }
+  }
 
   const head = (
     <div className="page-head">
@@ -466,7 +527,14 @@ export default function StudentUnitSubmissionPage() {
                   cat.exercises.length === 0 ? (
                     <div className="empty-state">No exercises in this section.</div>
                   ) : (
-                    cat.exercises.map((ex) => <ExerciseRow key={ex._id} ex={ex} />)
+                    cat.exercises.map((ex) => (
+                      <ExerciseRow
+                        key={ex._id}
+                        ex={ex}
+                        categoryKey={cat.key}
+                        onAcceptAnswer={handleAcceptAnswer}
+                      />
+                    ))
                   )
                 ) : cat.prompts.length === 0 ? (
                   <div className="empty-state">No prompts in this section.</div>

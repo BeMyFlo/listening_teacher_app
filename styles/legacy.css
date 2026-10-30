@@ -38,6 +38,9 @@
   --program-toeic: #7A4FD0;
   --program-toeic-bg: #EEE8FB;
   --program-toeic-border: #D6C9F3;
+  --program-general: #2E8B57;
+  --program-general-bg: #E6F4EC;
+  --program-general-border: #C3E3D0;
   /* Dẫn xuất từ màu chính — themeToCss ghi đè khi workspace đổi màu gốc. */
   --red-light: #FFE0E2;
   --blue-border: #C1E9E1;
@@ -1354,6 +1357,7 @@ tr:hover td { background: var(--pink-wash-2); }
 }
 .program-badge.program-ielts { color: var(--program-ielts); background: var(--program-ielts-bg); border-color: var(--program-ielts-border); }
 .program-badge.program-toeic { color: var(--program-toeic); background: var(--program-toeic-bg); border-color: var(--program-toeic-border); }
+.program-badge.program-general { color: var(--program-general); background: var(--program-general-bg); border-color: var(--program-general-border); }
 
 .program-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
 .program-chip {
@@ -1387,6 +1391,9 @@ tr:hover td { background: var(--pink-wash-2); }
   --program-toeic: #C3AEF2;
   --program-toeic-bg: rgba(139, 111, 217, .18);
   --program-toeic-border: rgba(139, 111, 217, .4);
+  --program-general: #7FD8A7;
+  --program-general-bg: rgba(46, 139, 87, .2);
+  --program-general-border: rgba(46, 139, 87, .45);
 }
 
 .builder-section {
@@ -4312,3 +4319,192 @@ tr:hover td { background: var(--pink-wash-2); }
 .toeic-stage-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
 .toeic-stage-clock { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .toeic-bg-upload-note { margin: 10px 0 0; font-size: .82rem; color: var(--muted); }
+
+/* Phase 12 G1 bước 4 — General English: Underline & Reorder chip UI */
+.error-letter {
+  font-weight: 700;
+  font-size: .78em;
+  margin-left: 2px;
+  color: var(--blue);
+  text-decoration: none;
+}
+.u-part {
+  display: inline;
+}
+.u-part u {
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+.reorder-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  margin-top: 8px;
+}
+.reorder-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.reorder-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.reorder-target-zone {
+  min-height: 52px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  transition: all .15s ease;
+}
+.reorder-target-zone.has-chips {
+  border-style: solid;
+  border-color: var(--blue-border, var(--border));
+  background: var(--card);
+}
+.reorder-pieces-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 0;
+}
+.reorder-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 6px 14px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all .15s ease;
+  user-select: none;
+  max-width: 100%;
+  word-break: break-word;
+}
+.reorder-chip:hover:not(:disabled) {
+  border-color: var(--blue);
+  color: var(--blue);
+  transform: translateY(-1px);
+}
+.reorder-chip.chosen {
+  background: var(--blue-light);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.reorder-chip:disabled {
+  cursor: default;
+  opacity: .85;
+  transform: none;
+}
+.reorder-chip.is-correct {
+  border-color: var(--green);
+  background: var(--teal-light);
+  color: var(--green);
+}
+.reorder-chip.is-wrong {
+  border-color: var(--red);
+  background: var(--red-light);
+  color: var(--red);
+}
+.reorder-clear-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s ease;
+}
+.reorder-clear-btn:hover {
+  color: var(--red);
+  border-color: var(--red);
+  background: var(--red-light);
+}
+.reorder-placeholder {
+  color: var(--muted);
+  font-size: .9rem;
+  font-style: italic;
+  padding: 4px 0;
+}
+
+/* Flagged question in builder (Phase 12 G3, mục 2.3) */
+.question-row.flagged {
+  border-left: 4px solid var(--amber, #f59e0b) !important;
+  background: #FFFDF5;
+  padding-left: 10px;
+}
+.question-flag-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  background: #FFEBD1;
+  color: #B96C1E;
+  border: 1px solid #F5DBB4;
+  border-radius: 6px;
+  font-size: .82rem;
+  font-weight: 500;
+}
+.question-flag-bar .flag-reason {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.question-flag-bar button {
+  background: #fff;
+  border: 1px solid #B96C1E;
+  color: #B96C1E;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: .76rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.question-flag-bar button:hover {
+  background: #FDF1DE;
+}
+
+:root[data-theme="dark"] .question-row.flagged {
+  border-left-color: var(--amber, #f59e0b) !important;
+  background: rgba(245, 158, 11, 0.08);
+}
+:root[data-theme="dark"] .question-flag-bar {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+:root[data-theme="dark"] .question-flag-bar button {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: #fcd34d;
+  color: #fcd34d;
+}
+:root[data-theme="dark"] .question-flag-bar button:hover {
+  background: rgba(245, 158, 11, 0.25);
+}

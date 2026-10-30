@@ -4,7 +4,11 @@ const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant")
 const Test = require("../../../lib/models/Test");
 const Class = require("../../../lib/models/Class");
 const { normalizeSections, validateSections, normalizePrompts, validatePrompts } = require("../../../lib/testSections");
-const { DEFAULT_PROGRAM, isProgram, programOf, programFilter } = require("../../../lib/curriculum");
+const { regradeTestSubmissions } = require("../../../lib/teacher/regrade");
+const { isCorrect } = require("../../../lib/grade");
+const audit = require("../../../lib/audit");
+const { PROGRAMS, DEFAULT_PROGRAM, isProgram, programOf, programFilter, levelAllowed } = require("../../../lib/curriculum");
+const { templatesFor, incompleteQuestions } = require("../../../lib/generalTemplates");
 const { programLockReason, resolveProgramChange } = require("../../../lib/curriculumServer");
 
 // Lọc classIds hợp lệ: ObjectId có thật, thuộc workspace, đúng level VÀ đúng
@@ -121,20 +125,72 @@ async function handler(req, res) {
     return res.status(200).json({ ok: true, rows: rows.map((r) => ({ ...r, program: programOf(r) })) });
   }
 
+  // Duyệt thêm đáp án đúng cho câu fill và chấm lại bài nộp của Test skill.
+  if (req.method === "POST" && req.query.action === "accept-answer") {
+    const test = await assertOwned(req.ws, Test, id, { message: "Mock test not found" });
+    const { skill, fieldId, answer } = req.body || {};
+    if (!QUESTION_SKILLS.includes(skill)) {
+      return res.status(400).json({ ok: false, error: "Invalid skill" });
+    }
+    const skillBlock = test.skills && test.skills[skill];
+    if (!skillBlock) {
+      return res.status(404).json({ ok: false, error: "Skill not found" });
+    }
+    let targetField = null;
+    for (const sec of skillBlock.sections || []) {
+      const f = (sec.fields || []).find((f) => Number(f.id) === Number(fieldId));
+      if (f) { targetField = f; break; }
+    }
+    if (!targetField) {
+      return res.status(404).json({ ok: false, error: "Question not found" });
+    }
+    if (targetField.type !== "fill") {
+      return res.status(400).json({ ok: false, error: "Only fill-in questions can accept answers" });
+    }
+    const trimmed = String(answer || "").trim();
+    if (!trimmed || trimmed.length > 300) {
+      return res.status(400).json({ ok: false, error: "Answer must be between 1 and 300 characters" });
+    }
+    if (isCorrect(targetField, trimmed)) {
+      return res.status(400).json({ ok: false, error: "This answer is already accepted." });
+    }
+    targetField.answers = targetField.answers || [];
+    targetField.answers.push(trimmed);
+    test.markModified("skills");
+    await test.save();
+    const regradedCount = await regradeTestSubmissions(test, skill);
+    audit.record({
+      req,
+      res,
+      action: "tests.accept_answer",
+      status: 200,
+      meta: { testId: test._id, skill, fieldId: Number(fieldId), answer: trimmed, regradedCount },
+    });
+    return res.status(200).json({ ok: true, regradedCount });
+  }
+
   if (req.method === "POST") {
     const { title, unit } = req.body || {};
     const level = Number(req.body && req.body.level);
     if (!title || !String(title).trim()) {
       return res.status(400).json({ ok: false, error: "Missing test title" });
     }
-    if (!Number.isInteger(level) || level < 1) {
-      return res.status(400).json({ ok: false, error: "Please select a valid level" });
-    }
 
     // Không gửi program -> IELTS (client cũ giữ hành vi cũ); gửi giá trị lạ -> 400.
     const rawProgram = req.body && req.body.program;
     const program = rawProgram == null ? DEFAULT_PROGRAM : rawProgram;
     if (!isProgram(program)) return res.status(400).json({ ok: false, error: "Invalid program" });
+    if (!levelAllowed(program, level)) {
+      return res.status(400).json({
+        ok: false,
+        error: PROGRAMS[program].fixedLevels ? "Choose a grade from 6 to 12." : "Please select a valid level",
+      });
+    }
+
+    const rawTemplate = req.body && req.body.templateKey;
+    const templateKey = typeof rawTemplate === "string" && templatesFor(program).some((t) => t.key === rawTemplate)
+      ? rawTemplate
+      : "";
 
     const built = buildSkillsFromBody(req.body || {});
     if (built.error) return res.status(400).json({ ok: false, error: built.error });
@@ -150,6 +206,8 @@ async function handler(req, res) {
       unit: String(unit || "").trim(),
       level,
       program,
+      // Khuôn chỉ nhận khi thuộc chương trình; lạ -> bỏ qua. Key mới chỉ thêm khi có khuôn (IELTS/TOEIC giữ payload cũ).
+      ...(templateKey ? { templateKey } : {}),
       status: "draft",
       classIds: await sanitizeClassIds(req.ws, req.body && req.body.classIds, level, program),
       opensAt: schedule.opensAt || null,
@@ -189,22 +247,23 @@ async function handler(req, res) {
       test.title = String(title).trim();
     }
     if (unit != null) test.unit = String(unit).trim();
-    if (level != null) {
-      const lvl = Number(level);
-      if (!Number.isInteger(lvl) || lvl < 1) {
-        return res.status(400).json({ ok: false, error: "Invalid level" });
-      }
-      test.level = lvl;
-    }
+    if (level != null) test.level = Number(level);
     if (programChange.changed) test.program = program;
+    const testProgram = programOf(test);
+    if (!levelAllowed(testProgram, test.level)) {
+      return res.status(400).json({
+        ok: false,
+        error: PROGRAMS[testProgram].fixedLevels ? "Choose a grade from 6 to 12." : "Invalid level",
+      });
+    }
     if (req.body && req.body.classIds != null) {
-      test.classIds = await sanitizeClassIds(req.ws, req.body.classIds, test.level, programOf(test));
+      test.classIds = await sanitizeClassIds(req.ws, req.body.classIds, test.level, testProgram);
     }
 
     if (req.body && req.body.skills != null) {
       const built = buildSkillsFromBody(req.body);
       if (built.error) return res.status(400).json({ ok: false, error: built.error });
-      const error = await validateAllSkills(req.ws, built.skills, programOf(test));
+      const error = await validateAllSkills(req.ws, built.skills, testProgram);
       if (error) return res.status(400).json({ ok: false, error });
       test.skills = built.skills;
     }
@@ -220,6 +279,17 @@ async function handler(req, res) {
             ok: false,
             error: "Requires content in at least 1 skill before publishing."
           });
+        }
+        // Chương trình có publishCheck (General): không xuất bản đề còn câu dở. test.skills đã là
+        // skills hiệu lực (body.skills nếu có đã gán ở trên).
+        if (PROGRAMS[testProgram].publishCheck) {
+          const unfinished = incompleteQuestions(test.skills);
+          if (unfinished.length) {
+            return res.status(400).json({
+              ok: false,
+              error: `Question ${unfinished[0].fieldId} is not finished: ${unfinished[0].reason}`
+            });
+          }
         }
         // classIds rỗng = chưa giao cho lớp nào, không phải "giao cho tất cả" —
         // publish mà không tick lớp thì không học sinh nào thấy bài, chặn luôn.

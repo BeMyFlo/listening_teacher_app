@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
-import { PROGRAMS, PROGRAM_KEYS, programOf } from "@/lib/curriculum";
+import { PROGRAMS, PROGRAM_KEYS, implicitProgram, programOf, levelWordOf } from "@/lib/curriculum";
 import { programParam, usePrograms } from "@/lib/client/program";
 import ProgramBadge from "@/components/ProgramBadge";
 import { useMediaLibraries } from "@/lib/teacher/useMediaLibraries";
@@ -17,8 +17,13 @@ import {
   defaultDurationsFor,
 } from "@/lib/teacher/testBuilder";
 import SectionsEditor from "@/components/teacher/SectionsEditor";
+import TemplatePicker from "@/components/teacher/TemplatePicker";
+import { useDialog } from "@/components/ui/Dialog";
+import { describeIncomplete } from "@/lib/teacher/templateSkeleton";
+import { incompleteQuestions } from "@/lib/generalTemplates";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
 import { toeicPromptsError } from "@/lib/toeicStandardSet";
+import { findGeneralSectionError } from "@/lib/generalFormats";
 
 // Đổi chương trình của đề mới: bỏ lớp đã tick (thuộc chương trình cũ) và đổi thời lượng
 // còn nguyên giá trị mặc định của chương trình cũ sang mặc định của chương trình mới.
@@ -31,14 +36,32 @@ function withProgram(prev, k) {
       skills[key] = { ...skills[key], durationMinutes: after[key] || "" };
     }
   });
-  return { ...prev, program: k, classIds: [], skills };
+  // Khối cố định (vd General 6..12): level không nằm trong danh sách -> về khối đầu tiên.
+  const fixed = PROGRAMS[k] && PROGRAMS[k].fixedLevels;
+  const level = Array.isArray(fixed) && !fixed.includes(Number(prev.level)) ? fixed[0] : prev.level;
+  return { ...prev, program: k, level, classIds: [], skills };
+}
+
+// Cuộn + focus tới câu có số fieldId (đợi 100ms cho tab kỹ năng render xong).
+function scrollToQuestion(fieldId) {
+  setTimeout(() => {
+    const rows = Array.from(document.querySelectorAll(".question-row"));
+    const target = rows.find((r) => r.querySelector(".f-id")?.value === String(fieldId));
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      const input = target.querySelector(".f-label, .f-answers, input");
+      if (input) input.focus();
+    }
+  }, 100);
 }
 
 function TestBuilderInner() {
+  const dialog = useDialog();
   const { testId } = useParams();
   const router = useRouter();
   const search = useSearchParams();
-  const { isMulti, loaded } = usePrograms();
+  const { programs, isMulti, loaded } = usePrograms();
+  const soloProgram = !isMulti ? implicitProgram(programs) : null; // workspace 1 chương trình ≠ IELTS
   const isNew = testId === "new";
   const paramProgram = programParam(search);
   const media = useMediaLibraries();
@@ -49,6 +72,7 @@ function TestBuilderInner() {
   const [saveErr, setSaveErr] = useState("");
   const [saving, setSaving] = useState(false);
   const [classes, setClasses] = useState([]);
+  const [templateKey, setTemplateKey] = useState(""); // khuôn đã dùng để dựng đề mới ("" = không dùng)
 
   useEffect(() => {
     api.teacher.listClasses().then((d) => setClasses(d.rows || [])).catch(() => {});
@@ -66,6 +90,12 @@ function TestBuilderInner() {
     setB((p) => (p && !p.program ? withProgram(p, paramProgram) : p));
   }, [isNew, loaded, isMulti, paramProgram]);
 
+  // Workspace chỉ có 1 chương trình khác IELTS: đề mới lấy luôn chương trình đó.
+  useEffect(() => {
+    if (!isNew || !loaded || !soloProgram) return;
+    setB((p) => (p && !p.program ? withProgram(p, soloProgram) : p));
+  }, [isNew, loaded, soloProgram]);
+
   function chooseProgram(k) {
     // Lớp đã tick thuộc chương trình cũ -> bỏ, tránh giao nhầm.
     setB((p) => withProgram(p, k));
@@ -78,6 +108,33 @@ function TestBuilderInner() {
       const has = (prev.classIds || []).includes(id);
       return { ...prev, classIds: has ? prev.classIds.filter((x) => x !== id) : [...(prev.classIds || []), id] };
     });
+  }
+
+  // Dùng khuôn: thay các phần hiện có bằng khung dựng sẵn, giờ làm bài + khối theo khuôn.
+  async function useTemplate(template, built) {
+    const hasQuestions = ["listening", "reading"].some((k) => b.skills[k].sections.length > 0);
+    if (hasQuestions) {
+      const ok = await dialog.confirm({
+        title: "Replace existing questions",
+        message: "This test already has questions. Using a template replaces all sections in Listening and Reading. Continue?",
+        confirmText: "Replace",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    setB((p) => {
+      const skills = { ...p.skills };
+      for (const k of ["listening", "reading"]) {
+        const built1 = built.skills[k];
+        skills[k] = built1
+          ? { ...skills[k], sections: built1.sections, durationMinutes: built.durations[k] }
+          : { ...skills[k], sections: [] };
+      }
+      return { ...p, level: template.defaultGrade, skills };
+    });
+    setTemplateKey(template.key);
+    setActive(built.skills.reading ? "reading" : "listening");
+    dialog.toast("Template applied — fill in the content, then save.");
   }
 
   function setField(k, v) {
@@ -114,16 +171,45 @@ function TestBuilderInner() {
         }
       }
     }
+    // Câu hỏi General (reorder thiếu mảnh/đáp án, Error id sai số lựa chọn): chặn lưu, báo lỗi rõ, nhảy tới câu.
+    for (const key of ["reading", "listening"]) {
+      const skill = b.skills[key];
+      if (skill && skill.sections) {
+        const err = findGeneralSectionError(skill.sections);
+        if (err) {
+          setActive(key);
+          setSaveErr(err.message);
+          scrollToQuestion(err.fieldId);
+          return;
+        }
+      }
+    }
     if (status === "published" && !(b.classIds || []).length) {
       setSaveErr("Chọn ít nhất 1 lớp trước khi Publish — không tick lớp nào thì không học sinh nào thấy bài.");
       return;
+    }
+    // Chương trình bật publishCheck (General): đề còn câu dở thì không xuất bản (Save Draft vẫn được).
+    if (status === "published" && PROGRAMS[programOf(b)].publishCheck) {
+      const unfinished = describeIncomplete(incompleteQuestions(builderToPayload(b).skills));
+      if (unfinished.total) {
+        const first = unfinished.first;
+        setActive(first.skill);
+        setSaveErr(
+          `Can't publish yet — ${unfinished.total} question${unfinished.total === 1 ? " is" : "s are"} not finished:\n` +
+            unfinished.lines.join("\n")
+        );
+        scrollToQuestion(first.fieldId);
+        return;
+      }
     }
     setSaving(true);
     setSaveErr("");
     try {
       const payload = builderToPayload(b);
-      // Workspace 1 chương trình: không gửi gì, đề là IELTS như trước.
-      if (isNew && isMulti && b.program) payload.program = b.program;
+      // Chỉ gửi khi đề mới được dựng từ khuôn -> payload đề thường (IELTS/TOEIC) giữ nguyên.
+      if (isNew && templateKey) payload.templateKey = templateKey;
+      // Workspace IELTS-only: không gửi gì, đề là IELTS như trước.
+      if (isNew && (isMulti || soloProgram) && b.program) payload.program = b.program;
       const saved = isNew ? await api.teacher.createTest(payload) : await api.teacher.updateTest(testId, payload);
       const id = isNew ? saved.test._id : testId;
       await api.teacher.updateTest(id, { status });
@@ -156,7 +242,7 @@ function TestBuilderInner() {
   // Tab kỹ năng theo chương trình của đề (IELTS = đủ 4 như cũ).
   const skillTabs = testSkillsFor(b.program);
   const activeKey = skillTabs.some((s) => s.key === active) ? active : skillTabs[0].key;
-  const skillMeta = TEST_SKILLS.find((s) => s.key === activeKey);
+  const skillMeta = skillTabs.find((s) => s.key === activeKey) || TEST_SKILLS.find((s) => s.key === activeKey);
   const skill = b.skills[activeKey];
 
   return (
@@ -189,6 +275,14 @@ function TestBuilderInner() {
           </div>
         )}
 
+        {isNew && (
+          <TemplatePicker
+            program={b.program}
+            defaultOpen={search.get("template") === "1"}
+            onUse={useTemplate}
+          />
+        )}
+
         <div className="form-row">
           <label>Test Title</label>
           <input type="text" placeholder="e.g. Full Mock Test 2A" value={b.title} onChange={(e) => setField("title", e.target.value)} />
@@ -198,22 +292,32 @@ function TestBuilderInner() {
           <input type="text" placeholder="e.g. Unit 2" value={b.unit} onChange={(e) => setField("unit", e.target.value)} />
         </div>
         <div className="form-row">
-          <label>Level</label>
-          <input
-            type="number"
-            min="1"
-            step="1"
-            style={{ width: 120, padding: "11px 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: "1rem" }}
-            value={b.level}
-            onChange={(e) => setField("level", e.target.value)}
-          />
+          <label>{levelWordOf(b.program)}</label>
+          {Array.isArray(PROGRAMS[programOf({ program: b.program })].fixedLevels) ? (
+            <select value={b.level} onChange={(e) => setField("level", e.target.value)}>
+              {PROGRAMS[programOf({ program: b.program })].fixedLevels.map((g) => (
+                <option key={g} value={g}>
+                  {levelWordOf(b.program)} {g}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="number"
+              min="1"
+              step="1"
+              style={{ width: 120, padding: "11px 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: "1rem" }}
+              value={b.level}
+              onChange={(e) => setField("level", e.target.value)}
+            />
+          )}
         </div>
 
         <div className="form-row">
           <label>Assign to classes (required — không tick lớp nào thì không học sinh nào thấy bài)</label>
           {levelClasses.length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: ".85rem", margin: 0 }}>
-              No classes at Level {b.level}.
+              No classes at {levelWordOf(b.program)} {b.level}.
             </p>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
@@ -300,6 +404,13 @@ function TestBuilderInner() {
                 program={b.program || undefined}
                 firstId={b.program === "toeic" && activeKey === "reading" ? 101 : 1}
                 media={media}
+                onMediaChanged={media?.reload}
+                aiContext={{
+                  testId: b._id,
+                  unitName: b.title || "",
+                  program: b.program,
+                  level: b.level || "",
+                }}
                 onChange={(next) => updateSkill(activeKey, (s) => (s.sections = next))}
               />
             </>
@@ -319,7 +430,7 @@ function TestBuilderInner() {
         </div>
 
         {saveErr && (
-          <p className="notice error" style={{ marginTop: 16 }}>
+          <p className="notice error" style={{ marginTop: 16, whiteSpace: "pre-line" }}>
             <svg className="icon"><use href="#icon-warning" /></svg> {saveErr}
           </p>
         )}

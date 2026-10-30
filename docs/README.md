@@ -17,6 +17,11 @@
 - [PLAN-UNIT-VOCAB-REVIEW.md](plans/PLAN-UNIT-VOCAB-REVIEW.md): Vocab Review theo từng skill Reading / Listening (AI + nhập tay)
 - [PLAN-LEVEL-NAMES.md](plans/PLAN-LEVEL-NAMES.md): tên cho từng Level theo trung tâm và chương trình (Band 3.5–5.0, 300–450...)
 - [PLAN-LANDING-PAGE.md](plans/PLAN-LANDING-PAGE.md): Phase 11, trang giới thiệu www.bemyflo.com
+- [PLAN-PHASE12-GENERAL-ENGLISH.md](plans/PLAN-PHASE12-GENERAL-ENGLISH.md): Phase 12, chương trình General English lớp 6–12 (phân tích + lộ trình, đã chốt Q1–Q10)
+- [PLAN-PHASE12-G0.md](plans/PLAN-PHASE12-G0.md): Phase 12 đợt G0, bản thi hành (registry General, 27 chỗ `=== "toeic"`, level Grade 6–12, điểm thang 10)
+- [PLAN-PHASE12-G1.md](plans/PLAN-PHASE12-G1.md): Phase 12 đợt G1, đủ dạng bài phổ thông (gạch chân, sắp xếp từ, viết lại câu, Accept this answer)
+- [PLAN-PHASE12-G3.md](plans/PLAN-PHASE12-G3.md): Phase 12 đợt G3, AI soạn bài theo dạng đề phổ thông + import đề Word (.docx)
+- [PLAN-PHASE12-G2.md](plans/PLAN-PHASE12-G2.md): Phase 12 đợt G2, đề thi theo khuôn (THPT, vào 10 HCM, kiểm tra trên lớp), chặn xuất bản đề dở, kết quả theo phần
 
 ## Multi-tenant (`plans/multi-tenant/`)
 

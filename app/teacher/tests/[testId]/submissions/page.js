@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { usesTenPoint, formatTenPoint } from "@/lib/tenPoint";
 import { usesToeicScale, estimateToeic, formatToeicTotal } from "@/lib/toeicScale";
 
 const SKILLS = [
@@ -20,7 +21,7 @@ const STATUS = {
 };
 
 // toeic: Mock Test TOEIC -> thêm điểm ước tính (chỉ hiển thị) dưới "đúng/tổng".
-function SkillCell({ s, skillKey, toeic }) {
+function SkillCell({ s, skillKey, toeic, ten }) {
   if (!s) return <td style={{ color: "var(--muted)" }}>—</td>;
   if (s.kind === "prompt") {
     if (s.itemsTotal === 0) return <td style={{ color: "var(--muted)" }}>—</td>;
@@ -34,6 +35,7 @@ function SkillCell({ s, skillKey, toeic }) {
   }
   if (!s.done) return <td style={{ color: "var(--muted)" }}>—</td>;
   const est = toeic ? estimateToeic(skillKey, s.score, s.total) : null;
+  const tenText = ten ? formatTenPoint(s.score, s.total) : "";
   return (
     <td>
       <b>{s.score}</b>/{s.total}
@@ -41,6 +43,12 @@ function SkillCell({ s, skillKey, toeic }) {
         <>
           <br />
           <span style={{ color: "var(--muted)", fontSize: ".8rem" }}>≈ {est} / 495 (est.)</span>
+        </>
+      )}
+      {tenText && (
+        <>
+          <br />
+          <span style={{ color: "var(--muted)", fontSize: ".8rem" }}>{tenText}</span>
         </>
       )}
     </td>
@@ -163,6 +171,7 @@ function Inner() {
 
   // ---------- Student list for a class ----------
   const toeic = usesToeicScale(programOf(data.test));
+  const ten = usesTenPoint(programOf(data.test));
   // Cột tổng chỉ có nghĩa khi bảng quy đổi đang bật (estimateToeic trả null khi tắt).
   const showTotal = toeic && estimateToeic("listening", 0, 1) != null;
   const skillCols = SKILLS.filter((sk) => PROGRAMS[programOf(data.test)].testSkills.includes(sk.key));
@@ -220,7 +229,7 @@ function Inner() {
                       <br />
                       <span style={{ color: "var(--muted)", fontSize: ".8rem" }}>{s.username}</span>
                     </td>
-                    {skillCols.map((sk) => <SkillCell key={sk.key} s={s.skills[sk.key]} skillKey={sk.key} toeic={toeic} />)}
+                    {skillCols.map((sk) => <SkillCell key={sk.key} s={s.skills[sk.key]} skillKey={sk.key} toeic={toeic} ten={ten} />)}
                     {showTotal && <td style={{ fontSize: ".85rem" }}>{totalCell(s)}</td>}
                     <td><span className={"pill " + st.cls}>{st.label}</span></td>
                     <td><svg className="icon"><use href="#icon-chevron-right" /></svg></td>

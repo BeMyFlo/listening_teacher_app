@@ -10,8 +10,10 @@ const { sanitizeDoc } = require("../../../lib/tiptap/doc");
 const { sanitizeYouTube } = require("../../../lib/lessonImport");
 const { sanitizeVocabReview } = require("../../../lib/vocabReviewSource");
 const { announceDeadlines } = require("../../../lib/notifications/deadlineAssign");
-const { regradeUnitSubmissions } = require("../../../lib/teacher/regrade");
-const { DEFAULT_PROGRAM, isProgram, programOf, programFilter } = require("../../../lib/curriculum");
+const { regradeUnitSubmissions, findExerciseInUnit } = require("../../../lib/teacher/regrade");
+const { isCorrect } = require("../../../lib/grade");
+const audit = require("../../../lib/audit");
+const { PROGRAMS, DEFAULT_PROGRAM, isProgram, programOf, programFilter, levelAllowed } = require("../../../lib/curriculum");
 const { programLockReason, resolveProgramChange } = require("../../../lib/curriculumServer");
 
 const S = (v) => String(v == null ? "" : v);
@@ -169,27 +171,74 @@ async function handler(req, res) {
     return res.status(200).json({ ok: true, regradedCount });
   }
 
+  // Duyệt thêm đáp án đúng cho câu fill và chấm lại toàn bộ bài nộp của Unit.
+  if (req.method === "POST" && req.query.action === "accept-answer") {
+    const unit = await assertOwned(req.ws, Unit, id, { message: "Unit not found" });
+    const { categoryKey, exerciseId, fieldId, answer } = req.body || {};
+    const exercise = findExerciseInUnit(unit, categoryKey, exerciseId);
+    if (!exercise) {
+      return res.status(404).json({ ok: false, error: "Exercise not found" });
+    }
+    let targetField = null;
+    for (const sec of exercise.sections || []) {
+      const f = (sec.fields || []).find((f) => Number(f.id) === Number(fieldId));
+      if (f) { targetField = f; break; }
+    }
+    if (!targetField) {
+      return res.status(404).json({ ok: false, error: "Question not found" });
+    }
+    if (targetField.type !== "fill") {
+      return res.status(400).json({ ok: false, error: "Only fill-in questions can accept answers" });
+    }
+    const trimmed = String(answer || "").trim();
+    if (!trimmed || trimmed.length > 300) {
+      return res.status(400).json({ ok: false, error: "Answer must be between 1 and 300 characters" });
+    }
+    if (isCorrect(targetField, trimmed)) {
+      return res.status(400).json({ ok: false, error: "This answer is already accepted." });
+    }
+    targetField.answers = targetField.answers || [];
+    targetField.answers.push(trimmed);
+    unit.markModified("categories");
+    await unit.save();
+    const regradedCount = await regradeUnitSubmissions(unit, { exerciseId: exercise._id });
+    audit.record({
+      req,
+      res,
+      action: "units.accept_answer",
+      status: 200,
+      meta: { unitId: unit._id, categoryKey, exerciseId, fieldId: Number(fieldId), answer: trimmed, regradedCount },
+    });
+    return res.status(200).json({ ok: true, regradedCount });
+  }
+
   if (req.method === "POST") {
     const { name } = req.body || {};
     const level = Number(req.body && req.body.level);
     if (!name || !String(name).trim()) {
       return res.status(400).json({ ok: false, error: "Missing Unit name" });
     }
-    if (!Number.isInteger(level) || level < 1) {
-      return res.status(400).json({ ok: false, error: "Please select a valid level" });
-    }
     // Không gửi program -> IELTS (client cũ giữ hành vi cũ); gửi giá trị lạ -> 400.
     const rawProgram = req.body.program;
     const program = rawProgram == null ? DEFAULT_PROGRAM : rawProgram;
     if (!isProgram(program)) return res.status(400).json({ ok: false, error: "Invalid program" });
+    if (!levelAllowed(program, level)) {
+      return res.status(400).json({
+        ok: false,
+        error: PROGRAMS[program].fixedLevels ? "Choose a grade from 6 to 12." : "Please select a valid level",
+      });
+    }
     const deadlines = await sanitizeDeadlines(req.ws, req.body.deadlines, level, program);
     if (deadlines.error) return res.status(400).json({ ok: false, error: deadlines.error });
+
+    const textbook = PROGRAMS[program].textbook ? S(req.body && req.body.textbook).trim().slice(0, 80) : "";
 
     const unit = await Unit.create({
       workspaceId: req.ws.workspaceId,
       level,
       program,
       name: String(name).trim(),
+      textbook,
       order: Number(req.body.order) || 0,
       status: "draft",
       classIds: await sanitizeClassIds(req.ws, req.body.classIds, level, program),
@@ -211,7 +260,7 @@ async function handler(req, res) {
   }
 
   if (req.method === "PUT") {
-    const { name, order, status, categories, level, classIds, deadlines, skillLocks, program } = req.body || {};
+    const { name, order, status, categories, level, classIds, deadlines, skillLocks, program, textbook } = req.body || {};
     const levelChanged = level != null && Number(level) !== unit.level;
 
     // Đổi chương trình chỉ khi chưa giao lớp nào và chưa có bài nộp (C7); gửi
@@ -236,16 +285,21 @@ async function handler(req, res) {
       }
       unit.name = String(name).trim();
     }
-    if (level != null) {
-      const lvl = Number(level);
-      if (!Number.isInteger(lvl) || lvl < 1) {
-        return res.status(400).json({ ok: false, error: "Invalid level" });
-      }
-      unit.level = lvl;
-    }
+    if (level != null) unit.level = Number(level);
     if (programChange.changed) unit.program = program;
     // Từ đây mọi sanitize lọc lớp theo (workspace, level, program) của Unit.
     const unitProgram = programOf(unit);
+    if (textbook !== undefined || programChange.changed) {
+      unit.textbook = PROGRAMS[unitProgram].textbook
+        ? S(textbook !== undefined ? textbook : unit.textbook).trim().slice(0, 80)
+        : "";
+    }
+    if (!levelAllowed(unitProgram, unit.level)) {
+      return res.status(400).json({
+        ok: false,
+        error: PROGRAMS[unitProgram].fixedLevels ? "Choose a grade from 6 to 12." : "Invalid level",
+      });
+    }
     if (classIds != null) {
       unit.classIds = await sanitizeClassIds(req.ws, classIds, unit.level, unitProgram);
     }

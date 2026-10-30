@@ -7,6 +7,7 @@ import { readSession } from "@/lib/client/session";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { buildStudentHome } from "@/lib/student/dashboard";
 import { skillBarValue } from "@/lib/student/skillBar";
+import { levelWordOf } from "@/lib/curriculum";
 
 function greeting() {
   const h = new Date().getHours();
@@ -153,7 +154,7 @@ export default function StudentDashboard() {
 
           <div className="dash-stats">
             <DashStat icon="book-open" value={home.stats.unitCount} label="Units for your level"
-              hint={extra && extra.classLevelName ? `Level ${extra.classLevel} · ${extra.classLevelName}` : undefined} />
+              hint={extra && extra.classLevelName ? `${levelWordOf(extra.classProgram)} ${extra.classLevel} · ${extra.classLevelName}` : undefined} />
             <DashStat icon="flame" value={streak.current} label="On-time streak" tone="amber"
               hint={streak.longest ? `Best: ${streak.longest}` : undefined} />
             <DashStat icon="trophy" value={lb.myRank ? "#" + lb.myRank : "—"} label="Class rank" tone="pink"

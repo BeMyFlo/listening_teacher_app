@@ -17,12 +17,13 @@ import {
   saveAiOptions,
 } from "@/lib/teacher/vocabReviewClient";
 import { useBranding } from "@/lib/client/branding";
-import { PROGRAMS, PROGRAM_KEYS, programOf } from "@/lib/curriculum";
+import { PROGRAMS, PROGRAM_KEYS, programOf, skillLabel, levelWordOf } from "@/lib/curriculum";
 import { usePrograms } from "@/lib/client/program";
 import ProgramBadge from "@/components/ProgramBadge";
 import { sectionsToEditor, sectionsToPayload, refId } from "@/lib/teacher/sectionTransforms";
 import { toDatetimeLocal, taskFieldsToBuilder, taskFieldsToPayload } from "@/lib/teacher/testBuilder";
 import { toeicPromptsError } from "@/lib/toeicStandardSet";
+import { findGeneralSectionError } from "@/lib/generalFormats";
 import { LESSON_CATS, PROMPT_CATS } from "@/lib/student/constants";
 import SectionsEditor from "@/components/teacher/SectionsEditor";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
@@ -42,6 +43,21 @@ const LESSON_LIST_CATS = ["grammar", "vocabulary"];
 const CAT_LABELS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.label]));
 const CAT_ICONS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.icon]));
 const CAT_COLORS = Object.fromEntries(LESSON_CATS.map((c) => [c.key, c.color]));
+
+// Gợi ý bộ sách giáo khoa cho chương trình General English (D10)
+const TEXTBOOK_SUGGESTIONS = [
+  "Global Success 6",
+  "Global Success 7",
+  "Global Success 8",
+  "Global Success 9",
+  "Global Success 10",
+  "Global Success 11",
+  "Global Success 12",
+  "Friends Plus",
+  "i-Learn Smart World",
+  "Bright",
+  "English Discovery",
+];
 
 // Lý do khoá ô Program của Unit (khớp thông báo 409 của server, C7).
 const UNIT_PROGRAM_LOCKED_HINT =
@@ -64,6 +80,7 @@ function toEditorUnit(u, prevLocked = false) {
     _id: u._id,
     name: u.name || "",
     level: u.level,
+    textbook: u.textbook || "",
     program: programOf(u),
     originalProgram: programOf(u),
     programLocked: u.programLocked !== undefined ? !!u.programLocked : !!prevLocked || assigned,
@@ -180,6 +197,7 @@ function catHasContent(c) {
 function toPayload(unit, status) {
   const body = {
     name: unit.name.trim(),
+    textbook: (unit.textbook || "").trim(),
     // Chỉ gửi khi giáo viên đổi chương trình -> unit IELTS lưu y như trước Phase 8.
     ...(unit.program !== unit.originalProgram ? { program: unit.program } : {}),
     classIds: unit.classIds || [],
@@ -405,6 +423,55 @@ export default function UnitEditorPage() {
         }
       }
     }
+    // Câu hỏi General (reorder thiếu mảnh/đáp án, Error id sai số lựa chọn): chặn lưu, báo lỗi rõ, nhảy tới câu.
+    const scrollToField = (fieldId) => {
+      setTimeout(() => {
+        const rows = Array.from(document.querySelectorAll(".question-row"));
+        const target = rows.find((r) => r.querySelector(".f-id")?.value === String(fieldId));
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+          const input = target.querySelector(".f-label, .f-answers, input");
+          if (input) input.focus();
+        }
+      }, 100);
+    };
+    for (const c of unit.categories) {
+      for (const ex of c.exercises || []) {
+        const err = findGeneralSectionError(ex._sections);
+        if (err) {
+          setActiveTab("content");
+          setCatKey(c.key);
+          setSubTab("practice");
+          setSaveErr(err.message);
+          scrollToField(err.fieldId);
+          return false;
+        }
+      }
+      for (const t of c.topics || []) {
+        for (const ex of t.exercises || []) {
+          const err = findGeneralSectionError(ex._sections);
+          if (err) {
+            setActiveTab("content");
+            setCatKey(c.key);
+            setSaveErr(err.message);
+            scrollToField(err.fieldId);
+            return false;
+          }
+        }
+      }
+      for (const g of c.groups || []) {
+        for (const ex of g.exercises || []) {
+          const err = findGeneralSectionError(ex._sections);
+          if (err) {
+            setActiveTab("content");
+            setCatKey(c.key);
+            setSaveErr(err.message);
+            scrollToField(err.fieldId);
+            return false;
+          }
+        }
+      }
+    }
     return true;
   }
 
@@ -599,7 +666,7 @@ export default function UnitEditorPage() {
               </div>
             </div>
             <div className="unit-overview-stats">
-              <div className="unit-overview-stat"><span className="value">{ov.totalStudents}</span><span className="label">Students (Level {unit.level})</span></div>
+              <div className="unit-overview-stat"><span className="value">{ov.totalStudents}</span><span className="label">Students ({levelWordOf(program)} {unit.level})</span></div>
               <div className="unit-overview-stat"><span className="value">{ov.totalSubmissions}</span><span className="label">Total Submissions</span></div>
               <div className="unit-overview-stat"><span className="value">{ov.avgCompletionPct}%</span><span className="label">Avg Completion</span></div>
               <div className="unit-overview-stat"><span className="value">{ov.avgScorePct != null ? ov.avgScorePct + "%" : "—"}</span><span className="label">Avg Score</span></div>
@@ -630,7 +697,7 @@ export default function UnitEditorPage() {
                   setSubTab("theory");
                 }}
               >
-                <svg className="icon"><use href={"#icon-" + CAT_ICONS[c.key]} /></svg> {CAT_LABELS[c.key]}
+                <svg className="icon"><use href={"#icon-" + CAT_ICONS[c.key]} /></svg> {skillLabel(program, c.key, CAT_LABELS[c.key])}
                 {catHasContent(cc) && (
                   <span className="cat-done"><svg className="icon"><use href="#icon-check" /></svg></span>
                 )}
@@ -683,6 +750,32 @@ export default function UnitEditorPage() {
               </div>
             )}
 
+            {PROGRAMS[program]?.textbook && (
+              <div className="settings-row">
+                <div className="settings-row-icon"><svg className="icon"><use href="#icon-book-open" /></svg></div>
+                <div className="settings-row-label">
+                  <div className="settings-row-title">Textbook (optional)</div>
+                  <div className="settings-row-desc">Textbook series for AI prompts (e.g. Global Success 8).</div>
+                </div>
+                <div className="settings-row-control">
+                  <input
+                    type="text"
+                    className="unit-textbook-input"
+                    list="unit-textbook-suggestions"
+                    placeholder="e.g. Global Success 8"
+                    maxLength={80}
+                    value={unit.textbook || ""}
+                    onChange={(e) => setUnit((u) => ({ ...u, textbook: e.target.value }))}
+                  />
+                  <datalist id="unit-textbook-suggestions">
+                    {TEXTBOOK_SUGGESTIONS.map((v) => (
+                      <option key={v} value={v} />
+                    ))}
+                  </datalist>
+                </div>
+              </div>
+            )}
+
             <div className="settings-row">
               <div className="settings-row-icon"><svg className="icon"><use href="#icon-student" /></svg></div>
               <div className="settings-row-label">
@@ -692,7 +785,7 @@ export default function UnitEditorPage() {
               <div className="settings-row-control">
                 {levelClasses.length === 0 ? (
                   <p className="settings-hint">
-                    {isMulti ? `No ${programLabel} classes at Level ${unit.level} yet.` : `No classes at Level ${unit.level} yet.`}
+                    {isMulti ? `No ${programLabel} classes at ${levelWordOf(program)} ${unit.level} yet.` : `No classes at ${levelWordOf(program)} ${unit.level} yet.`}
                   </p>
                 ) : (
                   <>
@@ -793,7 +886,7 @@ export default function UnitEditorPage() {
             <GrammarTopicsEditor
               topics={cat.topics || []}
               media={media}
-              aiContext={{ unitId, level: unit.level, unitName: unit.name, program, levelName: levelDefault }}
+              aiContext={{ unitId, level: unit.level, unitName: unit.name, textbook: unit.textbook || "", program, levelName: levelDefault }}
               program={program}
               onChange={(next) => updateCat((c) => (c.topics = next))}
             />
@@ -801,7 +894,7 @@ export default function UnitEditorPage() {
             <VocabGroupsEditor
               groups={cat.groups || []}
               media={media}
-              aiContext={{ unitId, level: unit.level, unitName: unit.name, program, levelName: levelDefault }}
+              aiContext={{ unitId, level: unit.level, unitName: unit.name, textbook: unit.textbook || "", program, levelName: levelDefault }}
               program={program}
               onChange={(next) => updateCat((c) => (c.groups = next))}
             />
@@ -816,7 +909,7 @@ export default function UnitEditorPage() {
               aiOptions={withLevelDefault(aiOptions)}
               onAiOptionsChange={updateAiOptions}
               onGenerate={() =>
-                vrAi.run(catKey, cat, { unitId, level: unit.level, unitName: unit.name, program }, withLevelDefault(aiOptions))
+                vrAi.run(catKey, cat, { unitId, level: unit.level, unitName: unit.name, textbook: unit.textbook || "", program }, withLevelDefault(aiOptions))
               }
               program={program}
               onPicked={(p) => vrAi.setPicked(catKey, p)}
@@ -833,7 +926,13 @@ export default function UnitEditorPage() {
           ) : isPrompt ? (
             <PromptsEditor prompts={cat.prompts} media={media} skill={catKey} program={program} onChange={(next) => updateCat((c) => (c.prompts = next))} />
           ) : (
-            <ExercisesEditor cat={cat} media={media} program={program} onChange={(next) => updateCat((c) => (c.exercises = next))} />
+            <ExercisesEditor
+              cat={cat}
+              media={media}
+              program={program}
+              aiContext={{ unitId, level: unit.level, unitName: unit.name, textbook: unit.textbook || "", program, levelName: levelDefault }}
+              onChange={(next) => updateCat((c) => (c.exercises = next))}
+            />
           )}
             </div>
           </>
@@ -946,7 +1045,7 @@ function ClassDeadlineEditor({ cls, slots, onChange, locks = {}, onLock, cats = 
   );
 }
 
-function ExercisesEditor({ cat, media, program, onChange }) {
+function ExercisesEditor({ cat, media, program, onChange, aiContext }) {
   const dialog = useDialog();
   function patch(mut) {
     const draft = structuredClone(cat.exercises);
@@ -983,7 +1082,9 @@ function ExercisesEditor({ cat, media, program, onChange }) {
               subject={cat.key}
               program={program}
               media={media}
+              onMediaChanged={media?.reload}
               showTranscript
+              aiContext={aiContext}
               onChange={(next) => patch((d) => (d[i]._sections = next))}
             />
           </div>
