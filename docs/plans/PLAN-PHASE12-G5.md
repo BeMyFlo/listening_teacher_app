@@ -3,7 +3,7 @@
 > Tài liệu thi hành cho đợt **G5** của [PLAN-PHASE12-GENERAL-ENGLISH.md](PLAN-PHASE12-GENERAL-ENGLISH.md) (mục 5-G5, Q8).
 > Toàn bộ code do Sonnet viết, Claude Code (lead) review + merge từng bước (không dùng Antigravity nữa).
 
-Trạng thái: ☐ chưa code · Ngày lập: 2026-10-30
+Trạng thái: ◐ code xong trên `phase-12-general-g5`, đã kiểm, chưa merge · Ngày lập: 2026-10-30
 Tiền đề: G0, G1, G3, G2 đã vào nhánh gom. Branch `phase-12-general-g5` cắt từ `phase-12-general-g0`. Xong → PR vào nhánh
 gom (cách gộp: mục 5 plan tổng).
 
@@ -118,3 +118,5 @@ trang học sinh (bài Lesson + Mock Test), `EssayAnnotator` (nhãn tiêu chí).
 | Ngày | Bước | Ghi chú |
 |---|---|---|
 | 2026-10-30 | Plan | Lập plan. PR #23 (G3 + G2) đã merge vào nhánh gom. |
+| 2026-10-30 | 1–3 | Sonnet: `tests/gradingContract.test.js` khoá hành vi IELTS/TOEIC trước khi sửa (commit riêng, không sửa lại); `generalRubric.js`, `rubricVariants`, `overallScore`, 10-point ở route chấm + dashboard + bảng xếp hạng; `runGeneralGrade` + prompt theo khối, server tự cộng tổng; mở Writing/Speaking, `RubricGrader`/`RubricResult`/`PromptsEditor`. Review thêm: AI nhận ảnh đề. |
+| 2026-10-30 | 4 | Kiểm tổng: 447 test pass, tenant scope sạch, build qua. Probe Phase 8 232/232, G1 94/94; G0 lệch 8 assert cũ "General ẩn Writing/Speaking" — đúng dự kiến của G5. Gemini thật 1 bài Writing lớp 7: 5,5 s, 7 / 10, tiêu chí 2+2+1,5+1,5 do server cộng, nhận xét tiếng Việt, bắt đúng lỗi; override tổng sai -> 400; publish xong học sinh thấy 7 / 10. Trình duyệt: học sinh 375px, giáo viên desktop: không có Band/IELTS/Task 1-2. Chưa kiểm: Speaking với file ghi âm thật; descriptor rubric cần giáo viên đọc lại (đợt kiểm tổng cuối). |
