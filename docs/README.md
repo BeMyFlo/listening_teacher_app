@@ -22,6 +22,7 @@
 - [PLAN-PHASE12-G1.md](plans/PLAN-PHASE12-G1.md): Phase 12 đợt G1, đủ dạng bài phổ thông (gạch chân, sắp xếp từ, viết lại câu, Accept this answer)
 - [PLAN-PHASE12-G3.md](plans/PLAN-PHASE12-G3.md): Phase 12 đợt G3, AI soạn bài theo dạng đề phổ thông + import đề Word (.docx)
 - [PLAN-PHASE12-G2.md](plans/PLAN-PHASE12-G2.md): Phase 12 đợt G2, đề thi theo khuôn (THPT, vào 10 HCM, kiểm tra trên lớp), chặn xuất bản đề dở, kết quả theo phần
+- [PLAN-PHASE12-G5.md](plans/PLAN-PHASE12-G5.md): Phase 12 đợt G5, Writing/Speaking thang 10 (rubric + AI chấm theo khối lớp)
 
 ## Multi-tenant (`plans/multi-tenant/`)
 
