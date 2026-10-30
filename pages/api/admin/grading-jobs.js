@@ -8,6 +8,7 @@ const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant")
 const GradingJob = require("../../../lib/models/GradingJob");
 const { runAiGrade } = require("../../../lib/grading/runAiGrade");
 const Submission = require("../../../lib/models/Submission");
+const { isGeneralVariant, overallScore } = require("../../../lib/grading/rubric");
 
 // Lưu draft AI vào submission dưới dạng nháp — học sinh CHƯA thấy (gradingStatus
 // "ai_draft"). Chỉ ghi khi bài chưa được chấm để không đè bản của giáo viên.
@@ -19,7 +20,10 @@ async function persistDraft(ws, submissionId, draft) {
   }
   if (Array.isArray(draft.annotations)) s.annotations = draft.annotations;
   if (typeof draft.overallFeedback === "string") s.manualFeedback = draft.overallFeedback;
-  if (Number.isFinite(Number(draft.suggestedOverall))) s.manualScore = Number(draft.suggestedOverall);
+  if (isGeneralVariant(s.rubricVariant)) {
+    // General (thang 10): điểm = tổng 4 tiêu chí tính lại ở server, không tin số AI cộng.
+    s.manualScore = overallScore(s.rubricVariant, s.criteria);
+  } else if (Number.isFinite(Number(draft.suggestedOverall))) s.manualScore = Number(draft.suggestedOverall);
   if (Array.isArray(draft.priorities)) s.priorities = draft.priorities;
   if (Array.isArray(draft.topicVocabulary)) s.topicVocabulary = draft.topicVocabulary;
   if (typeof draft.improvedSample === "string") s.improvedSample = draft.improvedSample;

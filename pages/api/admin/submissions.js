@@ -4,7 +4,7 @@ const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant")
 const Submission = require("../../../lib/models/Submission");
 const Test = require("../../../lib/models/Test");
 const { rebuildDetail } = require("../../../lib/grade");
-const { resolveVariant, getRubric, overallBand, validateCriteria, isToeicVariant, scoreRange, taskScore } = require("../../../lib/grading/rubric");
+const { resolveVariant, getRubric, overallScore, validateCriteria, isToeicVariant, isGeneralVariant, criterionKeys, validGeneralCriterionScore, scoreRange, taskScore } = require("../../../lib/grading/rubric");
 const { validateAnnotations, reconcileAnnotations } = require("../../../lib/grading/annotate");
 const { notifyStudentGraded } = require("../../../lib/notifications/student");
 const Student = require("../../../lib/models/Student");
@@ -36,6 +36,13 @@ function validToeicScore(variant, v) {
   const n = Number(v);
   const { min, max } = scoreRange(variant);
   return Number.isInteger(n) && n >= min && n <= max;
+}
+
+// General (thang 10): điểm tổng phải nằm trong 0–10.
+const GENERAL_TOTAL_MAX = 10;
+function inGeneralTotalRange(v) {
+  const n = Number(v);
+  return v !== "" && Number.isFinite(n) && n >= 0 && n <= GENERAL_TOTAL_MAX;
 }
 
 async function handler(req, res) {
@@ -170,7 +177,14 @@ async function handler(req, res) {
       let variant = req.body.rubricVariant || submission.rubricVariant;
       // Bài TOEIC luôn chấm theo đúng dạng đề đã nộp, client không đổi sang rubric khác.
       if (isToeicVariant(submission.rubricVariant)) variant = submission.rubricVariant;
-      if (!variant) variant = resolveVariant(submission.kind); // speaking / writing.task2 mặc định
+      // Bài General (thang 10) cũng khoá theo rubric đã chốt lúc nộp; và ngược lại client không được
+      // đẩy rubric General vào bài IELTS/TOEIC (sẽ lưu điểm 0–10 vào chỗ band 0–9).
+      const generalSub = isGeneralVariant(submission.rubricVariant);
+      if (generalSub) variant = submission.rubricVariant;
+      else if (isGeneralVariant(variant)) {
+        return res.status(400).json({ ok: false, error: "This rubric does not match the submission" });
+      }
+      if (!variant) variant = resolveVariant(submission.kind, undefined, submission.program); // speaking / writing.task2 mặc định
       if (!getRubric(variant)) {
         return res.status(400).json({ ok: false, error: "Unknown grading rubric" });
       }
@@ -181,6 +195,7 @@ async function handler(req, res) {
       }
 
       const toeic = isToeicVariant(variant);
+      const general = isGeneralVariant(variant);
       const clean = criteria.map((c) => ({
         key: c.key,
         band: c.band == null || c.band === "" ? null : Number(c.band),
@@ -191,8 +206,26 @@ async function handler(req, res) {
         const bad = clean.find((c) => c.band != null && (c.key !== "score" || !validToeicScore(variant, c.band)));
         if (bad) return res.status(400).json({ ok: false, error: validateCriteria(variant, [bad]) || "Invalid score" });
       }
-      const auto = toeic ? taskScore(variant, clean) : overallBand(clean);
-      const overall = !toeic && validOverride(manualScore) ? Number(manualScore) : auto;
+      if (general) {
+        // Bản nháp vẫn không cho điểm ngoài thang (chỉ cho để trống).
+        const keys = criterionKeys(variant);
+        const bad = clean.find((c) => c.band != null && (!keys.includes(c.key) || !validGeneralCriterionScore(c.band)));
+        if (bad) {
+          const msg = keys.includes(bad.key) ? `${bad.key}: score must be from 0 to ${scoreRange(variant).max} in steps of 0.25.` : "Invalid criterion: " + bad.key;
+          return res.status(400).json({ ok: false, error: msg });
+        }
+      }
+      const auto = overallScore(variant, clean);
+      if (general && manualScore != null && manualScore !== "") {
+        // Tổng = tổng 4 tiêu chí, không ghi đè. Client có thể gửi lại đúng tổng; số khác bị chặn.
+        if (!inGeneralTotalRange(manualScore)) {
+          return res.status(400).json({ ok: false, error: `Score must be from 0 to ${GENERAL_TOTAL_MAX}` });
+        }
+        if (auto != null && Number(manualScore) !== auto) {
+          return res.status(400).json({ ok: false, error: "The total must equal the sum of the criteria scores" });
+        }
+      }
+      const overall = !toeic && !general && validOverride(manualScore) ? Number(manualScore) : auto;
 
       submission.criteria = clean;
       submission.rubricVariant = variant;
@@ -205,6 +238,13 @@ async function handler(req, res) {
       if (hasScore && isToeicVariant(submission.rubricVariant) && !validToeicScore(submission.rubricVariant, manualScore)) {
         const { max } = scoreRange(submission.rubricVariant);
         return res.status(400).json({ ok: false, error: `Score must be a whole number from 0 to ${max}` });
+      }
+      if (hasScore && isGeneralVariant(submission.rubricVariant)) {
+        // General: điểm luôn lấy từ 4 tiêu chí, không có đường nhập 1 số tổng.
+        if (!inGeneralTotalRange(manualScore)) {
+          return res.status(400).json({ ok: false, error: `Score must be from 0 to ${GENERAL_TOTAL_MAX}` });
+        }
+        return res.status(400).json({ ok: false, error: "Please grade with the criteria scores" });
       }
       if (publish && !hasScore) {
         return res.status(400).json({ ok: false, error: "Please enter a valid score" });
