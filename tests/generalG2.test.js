@@ -369,3 +369,18 @@ test("pages/api/admin/tests.js: templateKey + chặn publish đề General dở"
     clearTenantCache();
   }
 });
+
+test("incompleteQuestions: các dạng không có label vẫn coi là xong", () => {
+  const { incompleteQuestions } = require("../lib/generalTemplates");
+  const { GENERAL_LABELS: L } = require("../lib/generalFormats");
+  const fill = (extra) => ({ id: 1, type: "fill", label: "", answers: ["x"], ...extra });
+  const check = (f) => incompleteQuestions({ reading: { sections: [{ passageText: "A real passage.", fields: [f] }] } });
+  assert.deepEqual(check(fill({ formatLabel: L.reorder, tokens: ["a", "b"] })), []);
+  assert.deepEqual(check(fill({ formatLabel: L.ocloze })), []);
+  assert.deepEqual(check(fill({ formatLabel: L.verb, post: "to school every day." })), []);
+  assert.deepEqual(check(fill({ formatLabel: L.rewrite, pre: "I have" })), []);
+  const sign = { id: 1, type: "choice", label: "", formatLabel: L.sign, options: [{ value: "a", label: "A" }], answers: ["a"] };
+  assert.deepEqual(check({ ...sign, imageId: "abc" }), []);
+  assert.equal(check(sign)[0].reason, "the question text is empty");
+  assert.equal(check(fill({ formatLabel: L.verb }))[0].reason, "the question text is empty");
+});
