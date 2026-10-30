@@ -5,7 +5,7 @@
 >
 > **Người thi hành đọc kỹ mục 0 và mục 2 trước khi gõ dòng code đầu tiên.**
 
-Trạng thái: ☐ chưa code · Ngày lập: 2026-10-29
+Trạng thái: ◐ bước 1 xong · Ngày lập: 2026-10-29
 Tiền đề: G3 xong (bước 1–5) trên `phase-12-general-g3`. Branch `phase-12-general-g2` cắt từ `phase-12-general-g3`
 (cùng sửa builder, cắt từ G3 để khỏi xung đột). Xong G2 → PR vào nhánh gom `phase-12-general-g0` (cách gộp nhánh: mục 5
 plan tổng). Kiểm bằng đề thật dồn vào đợt kiểm tổng cuối Phase 12.
@@ -217,3 +217,4 @@ sẵn" dùng `g-phrase`.
 | Ngày | Bước | Ghi chú |
 |---|---|---|
 | 2026-10-29 | Plan | Lập plan + prompt. Phát hiện khi lập plan: lỗi 2.6.1 (G0) và 2.6.2 (G1) — đưa vào G2. |
+| 2026-10-30 | 1 | Sonnet: `implicitProgram` trong registry; tạo Unit + đề mới ở workspace 1 chương trình (≠ IELTS) gửi đúng chương trình; builder đề mới hiện đúng kỹ năng, ô chọn khối khi `fixedLevels`. Thử trên trình duyệt với workspace chỉ có General: Unit + đề lưu `program: general`. 359 test pass. |
