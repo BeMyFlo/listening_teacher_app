@@ -24,6 +24,7 @@ import { incompleteQuestions } from "@/lib/generalTemplates";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
 import { toeicPromptsError } from "@/lib/toeicStandardSet";
 import { findGeneralSectionError } from "@/lib/generalFormats";
+import { collectBankItemIds } from "@/lib/teacher/fillFromBank";
 
 // Đổi chương trình của đề mới: bỏ lớp đã tick (thuộc chương trình cũ) và đổi thời lượng
 // còn nguyên giá trị mặc định của chương trình cũ sang mặc định của chương trình mới.
@@ -111,7 +112,7 @@ function TestBuilderInner() {
   }
 
   // Dùng khuôn: thay các phần hiện có bằng khung dựng sẵn, giờ làm bài + khối theo khuôn.
-  async function useTemplate(template, built) {
+  async function useTemplate(template, built, extra) {
     const hasQuestions = ["listening", "reading"].some((k) => b.skills[k].sections.length > 0);
     if (hasQuestions) {
       const ok = await dialog.confirm({
@@ -120,7 +121,7 @@ function TestBuilderInner() {
         confirmText: "Replace",
         danger: true,
       });
-      if (!ok) return;
+      if (!ok) return false;
     }
     setB((p) => {
       const skills = { ...p.skills };
@@ -130,11 +131,12 @@ function TestBuilderInner() {
           ? { ...skills[k], sections: built1.sections, durationMinutes: built.durations[k] }
           : { ...skills[k], sections: [] };
       }
-      return { ...p, level: template.defaultGrade, skills };
+      return { ...p, level: (extra && extra.grade) || template.defaultGrade, skills };
     });
     setTemplateKey(template.key);
     setActive(built.skills.reading ? "reading" : "listening");
     dialog.toast("Template applied — fill in the content, then save.");
+    return true;
   }
 
   function setField(k, v) {
@@ -404,6 +406,7 @@ function TestBuilderInner() {
                 program={b.program || undefined}
                 firstId={b.program === "toeic" && activeKey === "reading" ? 101 : 1}
                 media={media}
+                bankExcludeIds={collectBankItemIds(b.skills)}
                 onMediaChanged={media?.reload}
                 aiContext={{
                   testId: b._id,

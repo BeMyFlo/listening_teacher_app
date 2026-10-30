@@ -23,6 +23,7 @@ import SpreadsheetImport from "./SpreadsheetImport";
 import AiExerciseDialog from "./AiExerciseDialog";
 import WordImport from "./WordImport";
 import SaveToBankDialog from "./SaveToBankDialog";
+import { SwapButton } from "./SwapQuestionDialog";
 import { questionFormatsFor } from "@/lib/teacher/questionFormats";
 import { LETTERS, letterOptions, isLetterEditorField } from "@/lib/letterQuestion";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
@@ -178,6 +179,7 @@ export default function SectionsEditor({
   firstId = 1,
   aiContext,
   onMediaChanged,
+  bankExcludeIds,
 }) {
   const [importing, setImporting] = useState(false);
   const [aiExerciseOpen, setAiExerciseOpen] = useState(false);
@@ -262,7 +264,7 @@ export default function SectionsEditor({
           program={program}
           firstId={firstId}
           patch={patch}
-          bank={canBank ? { program: prog, aiContext } : null}
+          bank={canBank ? { program: prog, aiContext, swap: { program: prog, level: Number(aiContext && aiContext.level) || 0, excludeIds: bankExcludeIds || [] } } : null}
         />
       ))}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
@@ -544,7 +546,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
               </div>
               <div className="fields-wrap">
                 {standaloneEntries.map(({ f, fi }) => (
-                  <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} program={program} media={media} patch={patch} />
+                  <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} program={program} media={media} patch={patch} swap={bank && bank.swap} allSections={allSections} />
                 ))}
               </div>
             </>
@@ -829,7 +831,11 @@ function NoteBlocksEditor({ sec, si, allSections, subject, program, media, patch
   );
 }
 
-function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
+function FieldRow({ f, fi, si, sec, subject, program, media, patch, swap = null, allSections = null }) {
+  // Swap: thay câu/nhóm lấy từ ngân hàng bằng mục khác (G4 bước 3)
+  const swapBtn = swap && allSections ? (
+    <SwapButton swap={swap} sections={allSections} si={si} fi={fi} onApply={(next) => patch((d) => d.splice(0, d.length, ...next))} />
+  ) : null;
   const setF = (k, v) => patch((d) => (d[si].fields[fi][k] = v));
   const formats = questionFormatsFor(subject, program);
 
@@ -934,6 +940,7 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
     const wantsImage = !!(fmt && fmt.needsFieldImage);
     return (
       <div className={"question-row letter-row" + (f.aiFlag ? " flagged" : "")}>
+        {swapBtn}
         {f.aiFlag && (
           <div className="question-flag-bar">
             <span className="flag-reason">⚠ {f.aiFlag}</span>
@@ -1019,6 +1026,7 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
 
   return (
     <div className={"question-row" + (f.aiFlag ? " flagged" : "")}>
+      {swapBtn}
       {f.aiFlag && (
         <div className="question-flag-bar">
           <span className="flag-reason">⚠ {f.aiFlag}</span>
