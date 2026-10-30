@@ -5,7 +5,7 @@
 >
 > **Người thi hành đọc kỹ mục 0 và mục 2 trước khi gõ dòng code đầu tiên.**
 
-Trạng thái: ◐ bước 1 xong · Ngày lập: 2026-10-29
+Trạng thái: ◐ bước 1–3 xong · Ngày lập: 2026-10-29
 Tiền đề: G3 xong (bước 1–5) trên `phase-12-general-g3`. Branch `phase-12-general-g2` cắt từ `phase-12-general-g3`
 (cùng sửa builder, cắt từ G3 để khỏi xung đột). Xong G2 → PR vào nhánh gom `phase-12-general-g0` (cách gộp nhánh: mục 5
 plan tổng). Kiểm bằng đề thật dồn vào đợt kiểm tổng cuối Phase 12.
@@ -218,3 +218,5 @@ sẵn" dùng `g-phrase`.
 |---|---|---|
 | 2026-10-29 | Plan | Lập plan + prompt. Phát hiện khi lập plan: lỗi 2.6.1 (G0) và 2.6.2 (G1) — đưa vào G2. |
 | 2026-10-30 | 1 | Sonnet: `implicitProgram` trong registry; tạo Unit + đề mới ở workspace 1 chương trình (≠ IELTS) gửi đúng chương trình; builder đề mới hiện đúng kỹ năng, ô chọn khối khi `fixedLevels`. Thử trên trình duyệt với workspace chỉ có General: Unit + đề lưu `program: general`. 359 test pass. |
+| 2026-10-30 | 2 | Sonnet: registry 4 key, `lib/generalTemplates.js`, `fieldRangeLabel`/`partBreakdown`, `Test.templateKey`, chặn publish ở server. Review sửa: dạng không có label (sắp xếp từ, open cloze, biển báo có ảnh, chỗ trống đầu câu) không bị coi là dở. |
+| 2026-10-30 | 3 | Sonnet: `applyFormat`/`applyFormatBasics`, `templateSkeleton.js`, `TemplatePicker.js`, nút ở danh sách, chặn publish ở client. Lệch plan đã duyệt: phần không có đoạn văn lấy `instruction` làm `passageText` (đề giấy cũng in dòng này; không phải nới luật server); Arrange có 4 ô trống; phần Listening của School test phải chọn audio mới lưu được (luật cũ). Trình duyệt: THPT 40 câu 1→40, 50 phút, khối 12; HCM 4+12+6+6+6+2+4; publish bị chặn đúng từng câu; nháp lưu được. 391 test pass. Lưu ý: đổi schema Mongoose phải khởi động lại dev server. |
