@@ -125,7 +125,8 @@ test("D7: dạng không trộn lựa chọn (Error identification, True/False, T
     const f = mcq(1, "Q", ["one", "two", "three", "four"], 2, fmt);
     for (const code of [1, 2, 3, 4]) {
       const ex = shuffleExam({ reading: { sections: [{ name: "P", fields: [f] }] } }, { seed: "d7", code });
-      assert.deepEqual(optionLabels(ex.parts[0].questions[0]), ["one", "two", "three", "four"], fmt);
+      // Error identification không in dòng lựa chọn (chữ in ngay sau phần gạch chân).
+      assert.deepEqual(optionLabels(ex.parts[0].questions[0]), fmt === GENERAL_LABELS.error ? [] : ["one", "two", "three", "four"], fmt);
       assert.equal(ex.answers[0].answer, "C");
     }
   }
@@ -507,3 +508,52 @@ test("route: đề có Writing hiện như phần cuối không lựa chọn; Li
     assert.ok(text.includes("Task 1"));
     assert.ok(text.includes("Listening: audio not included"));
   }));
+
+// ---------------------------------------------------------------- lỗi sai + dòng hướng dẫn
+
+function errField(id) {
+  const f = mcq(id, "She __go__ to __school__ and __play__ ball.", ["A", "B", "C"], 0, GENERAL_LABELS.error);
+  f.options = ["A", "B", "C"].map((l) => ({ value: l, label: l }));
+  f.answers = ["B"];
+  return f;
+}
+
+test("Error identification: chữ cái in ngay sau phần gạch chân, không có dòng lựa chọn, đáp án vẫn là chữ", () => {
+  const skills = { reading: { sections: [{ name: "P", passageText: "", fields: [errField(1)] }] } };
+  const ex = shuffleExam(skills, { seed: "e", code: 1 });
+  const q = ex.parts[0].questions[0];
+  assert.equal(q.errorLetters, true);
+  assert.deepEqual(q.options, []);
+  assert.equal(ex.answers[0].answer, "B");
+  const out = readDocx(renderExamDocx(ex, { title: "T" }, {})).text;
+  assert.ok(out.includes("<u>go</u> (A)"), out);
+  assert.ok(out.includes("<u>school</u> (B)") && out.includes("<u>play</u> (C)"), out);
+  assert.ok(!/^\s*A\.\s*$/m.test(out), out);
+  // trang in dùng cùng dữ liệu
+  const src = fs.readFileSync(path.join(__dirname, "..", "app/teacher/tests/[testId]/print/page.js"), "utf8");
+  assert.ok(src.includes("q.errorLetters"));
+});
+
+const INSTR = "Choose the best option to complete each sentence.";
+const sameOrder = (a, b) => a.every((x, i) => x === b[i]);
+
+test("phần khuôn chỉ có dòng hướng dẫn: câu được trộn; đoạn thật (kể cả ngắn có chỗ trống đánh số) giữ thứ tự", () => {
+  const mk = (passageText, n = 8) => ({ reading: { sections: [{ name: "P", passageText, fields: Array.from({ length: n }, (_, i) => mcq(i + 1, "Q" + (i + 1), ["a", "b", "c", "d"], 0)) }] } });
+  const ids = (sk) => shuffleExam(sk, { seed: "s", code: 2 }).parts[0].questions.map((q) => q.label);
+  const orig = Array.from({ length: 8 }, (_, i) => "Q" + (i + 1));
+  const a = shuffleExam(mk(INSTR), { seed: "s", code: 2 });
+  assert.ok(!sameOrder(ids(mk(INSTR)), orig));
+  assert.equal(a.parts[0].passageText, "");
+  assert.equal(a.parts[0].instruction, INSTR);
+  // câu lạ ngắn không có chỗ trống cũng là hướng dẫn
+  assert.ok(!sameOrder(ids(mk("Do this task.")), orig));
+  // đoạn ngắn có chỗ trống đánh số
+  assert.ok(sameOrder(ids(mk("He (1) home and (2) a cake, then (3) it, (4) it, (5) it, (6) it, (7) it, (8) it.")), orig));
+  // đoạn 60 từ không có chỗ trống
+  const long = Array.from({ length: 60 }, (_, i) => "word" + i).join(" ");
+  assert.ok(sameOrder(ids(mk(long)), orig));
+  assert.equal(shuffleExam(mk(long), { seed: "s", code: 2 }).parts[0].passageText, long);
+  // word doc: dòng hướng dẫn là dòng thường
+  const text = readDocx(renderExamDocx(a, { title: "T" }, {})).text;
+  assert.ok(text.includes(INSTR));
+});

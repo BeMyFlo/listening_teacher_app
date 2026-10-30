@@ -21,13 +21,32 @@ function U({ text, on }) {
   );
 }
 
+// Error identification: chữ (A), (B)... ngay sau từng phần gạch chân.
+function ErrorLabel({ text }) {
+  const t = String(text || "").replace(/<u>(.*?)<\/u>/gi, "__$1__");
+  let k = 0;
+  return (
+    <>
+      {parseUnderline(t).map((s, i) =>
+        s.u ? (
+          <span key={i}>
+            <u>{s.text}</u> ({String.fromCharCode(65 + k++)})
+          </span>
+        ) : (
+          <span key={i}>{s.text}</span>
+        )
+      )}
+    </>
+  );
+}
+
 function Question({ q }) {
   const mode = underlineModeOf(q.formatLabel);
   const blank = /_{3,}|\.{4,}|…/.test(q.label + q.pre + q.post);
   return (
     <div className="pq">
       <div>
-        <b>{q.numberEnd ? `${q.number}-${q.numberEnd}.` : `${q.number}.`}</b> <U text={q.label} on={mode === "label"} />
+        <b>{q.numberEnd ? `${q.number}-${q.numberEnd}.` : `${q.number}.`}</b> {q.errorLetters ? <ErrorLabel text={q.label} /> : <U text={q.label} on={mode === "label"} />}
       </div>
       {q.imageUrl && <img src={q.imageUrl} alt="" className="pimg" />}
       {q.type === "fill" && (q.pre || q.post) && (
@@ -141,6 +160,7 @@ function PrintInner() {
             {p.name && <h2>{p.name}</h2>}
             {p.skill === "listening" && <div className="pnote">Listening: audio not included</div>}
             {p.imageUrl && <img src={p.imageUrl} alt="" className="pimg" />}
+            {p.instruction && <div className="pnote" style={{ margin: "6px 0" }}>{p.instruction}</div>}
             {p.passageText && <div className="ppass"><U text={p.passageText} on /></div>}
             {(p.matchOptions || []).map((o) => (
               <div key={o.letter} className="pind">{o.letter}. {o.label}</div>

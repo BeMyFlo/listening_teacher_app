@@ -361,3 +361,15 @@ test("PUT nhiều mục: chỉ 4 nhãn được đặt; nội dung / workspace /
     assert.equal((await put("uA", { ids: [hex(1)], set: { difficulty: "" } })).status, 200);
     assert.equal(store[0].difficulty, "");
   }));
+
+test("dòng hướng dẫn của khuôn không thành nhóm / đoạn văn thật", () => {
+  const instr = "Choose the best option to complete each sentence.";
+  const sec = section([mcq(1), mcq(2)], { passageText: instr });
+  assert.equal(sectionBankInfo(sec, "reading").passage, "");
+  assert.equal(sectionBankInfo(sec, "reading").hasMedia, false);
+  const r = sectionToBankItems(sec, { ...L, subject: "reading", keepPassage: true });
+  assert.ok(r.items.every((it) => it.kind === "single" && !it.passageText));
+  // đoạn có chỗ trống đánh số vẫn là đoạn văn thật
+  const real = section([cloze(1)], { passageText: "He (1) to school." });
+  assert.equal(sectionBankInfo(real, "reading").passage, "He (1) to school.");
+});
