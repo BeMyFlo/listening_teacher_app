@@ -79,6 +79,7 @@ export default function AiVocabDialog({ context, existingWords, onAdd, onClose }
   const [form, setForm] = useState({
     level: context && context.level ? `${levelWordOf(context.program)} ${context.level}` : "",
     unitName: (context && context.unitName) || "",
+    textbook: (context && context.textbook) || "",
     topics: "",
     // Mặc định = tên level của Unit (nếu có); giáo viên sửa tự do.
     studentLevel: (context && context.levelName) || "",

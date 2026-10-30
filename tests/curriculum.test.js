@@ -22,11 +22,17 @@ test("registry: ielts, toeic và general đúng như plan", () => {
   assert.deepEqual(PROGRAMS.ielts.testSkills, ["listening", "reading", "writing", "speaking"]);
   assert.deepEqual(PROGRAMS.ielts.defaultDurations, { listening: 30, reading: 60, writing: 60, speaking: 14 });
   assert.equal(PROGRAMS.ielts.scoring, "ielts-band");
+  assert.equal(PROGRAMS.ielts.aiExercise, false);
+  assert.equal(PROGRAMS.ielts.wordImport, false);
+  assert.equal(PROGRAMS.ielts.textbook, false);
 
   assert.deepEqual(PROGRAMS.toeic.lessonSkills, ["grammar", "vocabulary", "listening", "reading", "writing", "speaking"]);
   assert.deepEqual(PROGRAMS.toeic.testSkills, ["listening", "reading", "writing", "speaking"]);
   assert.deepEqual(PROGRAMS.toeic.defaultDurations, { listening: 45, reading: 75, writing: 60, speaking: 20 });
   assert.equal(PROGRAMS.toeic.scoring, "toeic-scaled");
+  assert.equal(PROGRAMS.toeic.aiExercise, false);
+  assert.equal(PROGRAMS.toeic.wordImport, false);
+  assert.equal(PROGRAMS.toeic.textbook, false);
 
   assert.equal(PROGRAMS.general.label, "General English");
   assert.deepEqual(PROGRAMS.general.lessonSkills, ["grammar", "vocabulary", "listening", "reading"]);
@@ -38,6 +44,9 @@ test("registry: ielts, toeic và general đúng như plan", () => {
   assert.deepEqual(PROGRAMS.general.skillLabels, { vocabulary: "Vocabulary & Pronunciation" });
   assert.deepEqual(PROGRAMS.general.testSkillLabels, { reading: "Written paper" });
   assert.equal(PROGRAMS.general.excelImport, true);
+  assert.equal(PROGRAMS.general.aiExercise, true);
+  assert.equal(PROGRAMS.general.wordImport, true);
+  assert.equal(PROGRAMS.general.textbook, true);
   assert.equal(PROGRAMS.general.legacyFormatGuess, false);
   assert.equal(PROGRAMS.general.formatPlaceholder, "Choose a question type…");
   assert.deepEqual(PROGRAMS.general.aiLevel, {
@@ -264,3 +273,27 @@ test("Schema Class/Unit/Test/Submission nhận program: 'general'", () => {
   );
 });
 
+
+test("formatStatsSkills: IELTS/TOEIC giữ Reading + Listening như cũ, General thêm Grammar/Vocabulary", () => {
+  const { PROGRAMS } = require("../lib/curriculum");
+  assert.deepEqual(PROGRAMS.ielts.formatStatsSkills, ["reading", "listening"]);
+  assert.deepEqual(PROGRAMS.toeic.formatStatsSkills, ["reading", "listening"]);
+  assert.deepEqual(PROGRAMS.general.formatStatsSkills, ["grammar", "vocabulary", "reading", "listening"]);
+});
+
+test("implicitProgram: workspace 1 chương trình khác IELTS -> chương trình đó, còn lại null", () => {
+  const { implicitProgram } = require("../lib/curriculum");
+  assert.equal(implicitProgram(["general"]), "general");
+  assert.equal(implicitProgram(["toeic"]), "toeic");
+  assert.equal(implicitProgram(["ielts"]), null);
+  assert.equal(implicitProgram(["ielts", "general"]), null);
+  assert.equal(implicitProgram([]), null);
+  assert.equal(implicitProgram(["bogus"]), null);
+  assert.equal(implicitProgram(undefined), null);
+});
+
+test("withProgram-level: General với level 1 -> khối hợp lệ đầu tiên (kiểm qua levelAllowed)", () => {
+  const { levelAllowed, PROGRAMS } = require("../lib/curriculum");
+  assert.equal(levelAllowed("general", 1), false);
+  assert.equal(levelAllowed("general", PROGRAMS.general.fixedLevels[0]), true);
+});

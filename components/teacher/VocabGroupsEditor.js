@@ -167,6 +167,7 @@ export default function VocabGroupsEditor({ groups, media, onChange, aiContext, 
                   media={media}
                   subject="vocabulary"
                   program={program}
+                  aiContext={{ ...aiContext, focus: g.name || (aiContext && aiContext.focus) || "" }}
                   onChange={(next) => patch((d) => (d[i].exercises = next))}
                 />
               </>

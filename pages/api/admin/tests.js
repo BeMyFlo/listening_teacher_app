@@ -8,6 +8,7 @@ const { regradeTestSubmissions } = require("../../../lib/teacher/regrade");
 const { isCorrect } = require("../../../lib/grade");
 const audit = require("../../../lib/audit");
 const { PROGRAMS, DEFAULT_PROGRAM, isProgram, programOf, programFilter, levelAllowed } = require("../../../lib/curriculum");
+const { templatesFor, incompleteQuestions } = require("../../../lib/generalTemplates");
 const { programLockReason, resolveProgramChange } = require("../../../lib/curriculumServer");
 
 // Lọc classIds hợp lệ: ObjectId có thật, thuộc workspace, đúng level VÀ đúng
@@ -186,6 +187,11 @@ async function handler(req, res) {
       });
     }
 
+    const rawTemplate = req.body && req.body.templateKey;
+    const templateKey = typeof rawTemplate === "string" && templatesFor(program).some((t) => t.key === rawTemplate)
+      ? rawTemplate
+      : "";
+
     const built = buildSkillsFromBody(req.body || {});
     if (built.error) return res.status(400).json({ ok: false, error: built.error });
     const error = await validateAllSkills(req.ws, built.skills, program);
@@ -200,6 +206,8 @@ async function handler(req, res) {
       unit: String(unit || "").trim(),
       level,
       program,
+      // Khuôn chỉ nhận khi thuộc chương trình; lạ -> bỏ qua. Key mới chỉ thêm khi có khuôn (IELTS/TOEIC giữ payload cũ).
+      ...(templateKey ? { templateKey } : {}),
       status: "draft",
       classIds: await sanitizeClassIds(req.ws, req.body && req.body.classIds, level, program),
       opensAt: schedule.opensAt || null,
@@ -271,6 +279,17 @@ async function handler(req, res) {
             ok: false,
             error: "Requires content in at least 1 skill before publishing."
           });
+        }
+        // Chương trình có publishCheck (General): không xuất bản đề còn câu dở. test.skills đã là
+        // skills hiệu lực (body.skills nếu có đã gán ở trên).
+        if (PROGRAMS[testProgram].publishCheck) {
+          const unfinished = incompleteQuestions(test.skills);
+          if (unfinished.length) {
+            return res.status(400).json({
+              ok: false,
+              error: `Question ${unfinished[0].fieldId} is not finished: ${unfinished[0].reason}`
+            });
+          }
         }
         // classIds rỗng = chưa giao cho lớp nào, không phải "giao cho tất cả" —
         // publish mà không tick lớp thì không học sinh nào thấy bài, chặn luôn.

@@ -15,8 +15,13 @@ import {
   tfngOptions,
   ynngOptions,
   isFixedChoiceShape,
+  appendAiSections,
+  applyFormat,
+  applyFormatBasics,
 } from "@/lib/teacher/sectionTransforms";
 import SpreadsheetImport from "./SpreadsheetImport";
+import AiExerciseDialog from "./AiExerciseDialog";
+import WordImport from "./WordImport";
 import { questionFormatsFor } from "@/lib/teacher/questionFormats";
 import { LETTERS, letterOptions, isLetterEditorField } from "@/lib/letterQuestion";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
@@ -24,9 +29,11 @@ import {
   GENERAL_LABELS,
   underlineModeOf,
   isErrorIdFormat,
+  optionLettersFromUnderlines,
   splitTokens,
   shuffleTokens,
   arrangeOptions,
+  aiFormatsFor,
 } from "@/lib/generalFormats";
 import { parseUnderline, underlinedParts } from "@/lib/underline";
 
@@ -160,9 +167,25 @@ function addNoteBlock(s, id) {
 // program: "ielts" (mặc định) | "toeic" — quyết định danh sách dạng câu hỏi và ẩn
 // nút import spreadsheet với nội dung TOEIC (chưa có template, Phase 8 bước 5.6).
 // firstId: số câu đầu tiên của kỹ năng khi chưa có câu nào (TOEIC Reading = 101).
-export default function SectionsEditor({ sections, subject, media, onChange, showTranscript = false, program, firstId = 1 }) {
+export default function SectionsEditor({
+  sections,
+  subject,
+  media,
+  onChange,
+  showTranscript = false,
+  program,
+  firstId = 1,
+  aiContext,
+  onMediaChanged,
+}) {
   const [importing, setImporting] = useState(false);
-  const canImport = !!PROGRAMS[programOf({ program })]?.excelImport;
+  const [aiExerciseOpen, setAiExerciseOpen] = useState(false);
+  const [wordImportOpen, setWordImportOpen] = useState(false);
+
+  const prog = programOf({ program: program || (aiContext && aiContext.program) });
+  const canImport = !!PROGRAMS[prog]?.excelImport;
+  const canAiExercise = !!PROGRAMS[prog]?.aiExercise && aiFormatsFor(subject).length > 0;
+  const canWordImport = !!PROGRAMS[prog]?.wordImport;
 
   function patch(mut) {
     const draft = structuredClone(sections);
@@ -170,8 +193,58 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
     onChange(draft);
   }
 
+  // Thêm các section sinh từ AI: đánh số tiếp từ nextFieldId và gắn cờ vàng
+  function handleAddAiSections(chosenTopics) {
+    onChange(appendAiSections(sections, chosenTopics, firstId));
+  }
+
+  // Đếm tổng số câu có cờ vàng trong phiên soạn
+  const flaggedCount = sections.reduce(
+    (acc, sec) => acc + (sec.fields || []).filter((f) => !!f.aiFlag).length,
+    0
+  );
+
+  function scrollToNextFlag() {
+    const flagged = document.querySelectorAll(".question-row.flagged");
+    if (!flagged.length) return;
+    let target = Array.from(flagged).find((el) => {
+      const rect = el.getBoundingClientRect();
+      return rect.top > 120;
+    });
+    if (!target) target = flagged[0];
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   return (
     <>
+      {flaggedCount > 0 && (
+        <div
+          className="notice warn builder-flag-notice"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 12,
+          }}
+        >
+          <span>
+            ⚠ {flaggedCount} question{flaggedCount === 1 ? "" : "s"} need checking
+          </span>
+          <button
+            type="button"
+            className="btn secondary sm"
+            style={{
+              borderColor: "currentColor",
+              color: "inherit",
+              padding: "4px 10px",
+              fontSize: ".82rem",
+            }}
+            onClick={scrollToNextFlag}
+          >
+            Next
+          </button>
+        </div>
+      )}
       {sections.length === 0 && (
         <div className="empty-state">No sections added — click &quot;Add Section&quot; to start.</div>
       )}
@@ -198,6 +271,16 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
         >
           <svg className="icon"><use href="#icon-plus" /></svg> Add Section
         </button>
+        {canAiExercise && (
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setAiExerciseOpen(true)}
+          >
+            <svg className="icon"><use href="#icon-sparkles" /></svg> Generate with AI
+          </button>
+        )}
         {canImport && (
           <button
             type="button"
@@ -208,13 +291,45 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
             <svg className="icon"><use href="#icon-upload" /></svg> Import from spreadsheet
           </button>
         )}
+        {canWordImport && (
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setWordImportOpen(true)}
+          >
+            <svg className="icon"><use href="#icon-upload" /></svg> Import from Word
+          </button>
+        )}
       </div>
+
+      {canAiExercise && aiExerciseOpen && (
+        <AiExerciseDialog
+          context={aiContext}
+          subject={subject}
+          onAdd={handleAddAiSections}
+          onClose={() => setAiExerciseOpen(false)}
+        />
+      )}
 
       {canImport && importing && (
         <SpreadsheetImport
           existingSections={sections}
           onImport={(imported) => onChange([...sections, ...imported])}
           onClose={() => setImporting(false)}
+        />
+      )}
+
+      {canWordImport && wordImportOpen && (
+        <WordImport
+          existingSections={sections}
+          subject={subject}
+          program={prog}
+          aiContext={aiContext}
+          firstId={firstId}
+          onMediaChanged={onMediaChanged || media?.reload}
+          onImport={(nextSections) => onChange(nextSections)}
+          onClose={() => setWordImportOpen(false)}
         />
       )}
     </>
@@ -238,20 +353,9 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
     const id = nextFieldId(allSections, firstId);
     patch((d) => {
       const s = d[si];
-      const field = emptyField(id);
       // "letter" (Listen and choose — no printed question) lưu như câu mcq đề trống,
-      // lựa chọn A..D tự tạo — xem lib/letterQuestion.js.
-      field.kind = fmt.kind === "letter" ? "mcq" : fmt.kind;
-      field.formatLabel = fmt.label || "";
-      field.matchMode = fmt.matchMode || "";
-      if (fmt.kind === "reorder") {
-        field.matchMode = "sentence";
-        field.tokens = [];
-      }
-      if (fmt.kind === "tfng") field.options = tfngOptions();
-      if (fmt.kind === "ynng") field.options = ynngOptions();
-      if (fmt.kind === "letter") field.options = editorLetterOptions(fmt.letterOptions);
-      if (fmt.presetOptions) field.options = fmt.presetOptions.map((text) => ({ id: newOptionId(), text }));
+      // lựa chọn A..D tự tạo — xem lib/letterQuestion.js (logic nằm trong applyFormat).
+      const field = applyFormat(emptyField(id), fmt);
       s.fields.push(field);
 
       if (fmt.noteMode) addNoteBlock(s, id);
@@ -751,13 +855,8 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
       const wasTfng = isFixedChoiceShape(ff.options, ["true", "false", "ng"]);
       const wasYnng = isFixedChoiceShape(ff.options, ["yes", "no", "ng"]);
       const wasLetter = isLetterEditorField(ff);
-      ff.kind = fmt.kind === "letter" ? "mcq" : fmt.kind;
-      ff.formatLabel = fmt.label || "";
-      ff.matchMode = fmt.matchMode || "";
-      if (fmt.kind === "reorder") {
-        ff.matchMode = "sentence";
-        if (!Array.isArray(ff.tokens)) ff.tokens = [];
-      }
+      applyFormatBasics(ff, fmt);
+      if (fmt.kind === "reorder" && !Array.isArray(ff.tokens)) ff.tokens = [];
       if (fmt.kind === "tfng" && !wasTfng) {
         ff.options = tfngOptions();
         ff.correctOptionIds = [];
@@ -814,7 +913,22 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
     const fmt = formats ? formats.find((x) => x.label === f.formatLabel) : null;
     const wantsImage = !!(fmt && fmt.needsFieldImage);
     return (
-      <div className="question-row letter-row">
+      <div className={"question-row letter-row" + (f.aiFlag ? " flagged" : "")}>
+        {f.aiFlag && (
+          <div className="question-flag-bar">
+            <span className="flag-reason">⚠ {f.aiFlag}</span>
+            <button
+              type="button"
+              onClick={() =>
+                patch((d) => {
+                  delete d[si].fields[fi].aiFlag;
+                })
+              }
+            >
+              Mark as checked
+            </button>
+          </div>
+        )}
         <div className="letter-row-main">
           <input
             type="text"
@@ -884,7 +998,22 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
   }
 
   return (
-    <div className="question-row">
+    <div className={"question-row" + (f.aiFlag ? " flagged" : "")}>
+      {f.aiFlag && (
+        <div className="question-flag-bar">
+          <span className="flag-reason">⚠ {f.aiFlag}</span>
+          <button
+            type="button"
+            onClick={() =>
+              patch((d) => {
+                delete d[si].fields[fi].aiFlag;
+              })
+            }
+          >
+            Mark as checked
+          </button>
+        </div>
+      )}
       <div className="question-grid-cols">
         <span className="question-drag" title="Reorder by Order number">
           <svg className="icon"><use href="#icon-menu" /></svg>
@@ -1231,7 +1360,7 @@ function QuestionDetail({ f, fi, si, sec, media, patch, currentFormat }) {
                 onClick={() => {
                   const res = arrangeOptions(orderInput);
                   if (res.options.length < 4) {
-                    setArrangeErr("Please enter at least 2 letters (e.g. b-d-a-c-e).");
+                    setArrangeErr("Enter at least 3 letters so there are 4 different orders (e.g. b-d-a-c-e).");
                     return;
                   }
                   setArrangeErr(null);
@@ -1261,18 +1390,17 @@ function QuestionDetail({ f, fi, si, sec, media, patch, currentFormat }) {
               type="button"
               className="btn secondary sm"
               onClick={() => {
-                const parts = underlinedParts(f.label || "");
-                if (parts.length < 2 || parts.length > 4) {
-                  setErrorLettersErr(`Found ${parts.length} underlined parts. Error identification requires 2 to 4 underlined parts.`);
-                  return;
+                try {
+                  const letters = optionLettersFromUnderlines(f.label || "");
+                  setErrorLettersErr(null);
+                  patch((d) => {
+                    const ff = d[si].fields[fi];
+                    ff.options = letters.map((l) => ({ id: newOptionId(), text: l }));
+                    ff.correctOptionIds = [];
+                  });
+                } catch (err) {
+                  setErrorLettersErr(err.message);
                 }
-                setErrorLettersErr(null);
-                const letters = ["A", "B", "C", "D"].slice(0, parts.length);
-                patch((d) => {
-                  const ff = d[si].fields[fi];
-                  ff.options = letters.map((l) => ({ id: newOptionId(), text: l }));
-                  ff.correctOptionIds = [];
-                });
               }}
             >
               <svg className="icon"><use href="#icon-sparkles" /></svg> Build options from underlines

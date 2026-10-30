@@ -8,7 +8,7 @@ import HighlightText, { hashStr, clearHighlights } from "@/components/student/Hi
 import ExamAudioPlayer from "@/components/student/ExamAudioPlayer";
 import { blankIdsFromDoc } from "@/lib/tiptap/doc";
 import { isLetterOnlyField } from "@/lib/letterQuestion";
-import { groupFieldsByPart } from "@/lib/partGroups";
+import { groupFieldsByPart, fieldRangeLabel } from "@/lib/partGroups";
 import UnderlinedText from "@/components/student/UnderlinedText";
 import { underlineModeOf, isErrorIdFormat, chosenTokenIndexes } from "@/lib/generalFormats";
 
@@ -459,10 +459,13 @@ export function SectionBlock({
   audioPhase = "idle",
   onAudioPhase,
   partHeadings = false,
+  sectionRanges = false, // G2: tiêu đề phần kèm "Questions a–b" (chỉ trang Mock Test truyền vào)
 }) {
   const [replays, setReplays] = useState(0);
   const [hlNonce, setHlNonce] = useState(0);
   const isReading = skill === "reading";
+  const rangeText = sectionRanges ? fieldRangeLabel(section.fields) : "";
+  const sectionTitle = rangeText ? `${section.name} · ${rangeText}` : section.name;
 
   // Ngữ cảnh cho ghi chú tạo từ section này.
   const sectionSource = noteSource
@@ -537,7 +540,7 @@ export function SectionBlock({
       <HlSourceContext.Provider value={sectionSource}>
       <div className="reading-layout" style={{ marginBottom: 30 }}>
         <div className="passage-pane">
-          <h3 style={{ color: "var(--navy)", marginTop: 0 }}>{section.name}</h3>
+          <h3 style={{ color: "var(--navy)", marginTop: 0 }}>{sectionTitle}</h3>
           {section.imageUrl && <DiagramImage section={section} />}
           {section.passageText && (
             <ReadingPassage
@@ -559,7 +562,7 @@ export function SectionBlock({
   return (
     <HlSourceContext.Provider value={sectionSource}>
     <div style={{ marginBottom: 30 }}>
-      <div className="section-title">{section.name}</div>
+      <div className="section-title">{sectionTitle}</div>
       {section.audioUrl &&
         (examAudio ? (
           <ExamAudioPlayer

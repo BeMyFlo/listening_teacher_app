@@ -274,6 +274,11 @@ sửa file.
 
 ## 5. Lộ trình — mỗi đợt deploy độc lập được
 
+> **Cách gộp nhánh (chủ dự án chốt 2026-10-27):** cả Phase 12 lên `main` bằng **một** PR — PR #20
+> (`phase-12-general-g0` → `main`), để mở tới khi xong hết các đợt. `phase-12-general-g0` là **nhánh gom**: mỗi đợt
+> cắt nhánh `phase-12-general-gN` từ nhánh gom và mở PR vào nhánh gom (G1 = PR #21, đã merge). `main` có bản vá thì
+> merge `main` vào nhánh gom rồi vào nhánh đợt đang làm.
+
 Bất biến xuyên suốt (như Phase 8 mục 0.2): **workspace IELTS và TOEIC không đổi gì**, mọi thứ mới gắn với
 `program === "general"` qua registry; danh sách format IELTS/TOEIC trả **đúng danh sách cũ**.
 
@@ -347,12 +352,16 @@ Synonym/Antonym. Chỉ bật trong format General → IELTS không đổi.
 
 ### G2 — Đề thi theo khuôn *(~2 ngày)*
 
+> Bản thi hành: [PLAN-PHASE12-G2.md](PLAN-PHASE12-G2.md) (+ prompt: [PLAN-PHASE12-G2-PROMPTS.md](PLAN-PHASE12-G2-PROMPTS.md)).
+
 1. `lib/curriculum/generalTemplates.js` (4.4). Nút "New test from template" trong trang Mock Tests khi lọc General.
 2. Đánh số câu liền mạch qua các section, tiêu đề từng phần, như TOEIC C9.
 3. Giờ làm bài theo khuôn (50 phút THPT, 90 phút vào 10 HCM...).
 4. Kết quả: điểm thang 10 + bảng đúng/sai theo từng phần của đề.
 
 ### G3 — Đưa nội dung vào nhanh: AI + import Word *(~3 ngày)*
+
+> Bản thi hành: [PLAN-PHASE12-G3.md](PLAN-PHASE12-G3.md) (+ prompt: [PLAN-PHASE12-G3-PROMPTS.md](PLAN-PHASE12-G3-PROMPTS.md)).
 
 1. **AI soạn bài General** (`lib/ai/grammarLesson.js`, `vocabLesson.js`, thêm generator bài tập theo format):
    prompt "Vietnamese secondary school English teacher, GDPT 2018 curriculum, Grade {n}, {textbook} Unit {x},
