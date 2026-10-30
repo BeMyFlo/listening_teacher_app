@@ -1,5 +1,6 @@
 "use client";
 
+import TopicStatsTable from "@/components/TopicStatsTable";
 import { Fragment, Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
@@ -649,7 +650,10 @@ function Inner() {
       </div>
 
       {active === "stats" ? (
-        <StatsTab skills={data.skills} />
+        <>
+          <StatsTab skills={data.skills} />
+          <TopicStatsTable topicStats={data.topicStats} />
+        </>
       ) : (
         <div className="card">
           {activeSkill.kind === "auto" ? (

@@ -1,5 +1,6 @@
 "use client";
 
+import TopicStatsTable from "@/components/TopicStatsTable";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
@@ -499,7 +500,10 @@ export default function StudentUnitSubmissionPage() {
       </div>
 
       {active === "stats" ? (
-        <StatsTab categories={categories} />
+        <>
+          <StatsTab categories={categories} />
+          <TopicStatsTable topicStats={data.topicStats} />
+        </>
       ) : (
         categories
           .filter((cat) => cat.key === active)

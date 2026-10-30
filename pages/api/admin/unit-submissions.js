@@ -5,6 +5,7 @@ const Unit = require("../../../lib/models/Unit");
 const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const Submission = require("../../../lib/models/Submission");
+const { topicStatsForUnit } = require("../../../lib/teacher/topicStats");
 const { buildUnitOverview, buildStudentDetail } = require("../../../lib/teacher/unitSubmissions");
 const { collectFieldImageIds, unitSectionLists, loadImageUrls } = require("../../../lib/fieldImages");
 const { classDeadlines } = require("../../../lib/deadlines");
@@ -58,6 +59,7 @@ async function handler(req, res) {
     const dl = cls ? classDeadlines(unit, cls._id) : { unit: null, byCategory: {} };
     // Ảnh riêng của từng câu (Phase 8, 5.4) để trang review hiện cùng câu hỏi.
     const fieldImageUrls = await loadImageUrls(req.ws, collectFieldImageIds(unitSectionLists(unit)));
+    const topicStats = topicStatsForUnit(unit, mine);
     return res.status(200).json({
       ok: true,
       unit: { _id: unit._id, name: unit.name, level: unit.level, program: programOf(unit) },
@@ -69,6 +71,7 @@ async function handler(req, res) {
         deadlineByCategory: dl.byCategory, // hạn đã resolve từng kỹ năng
       },
       categories: buildStudentDetail({ unit, submissions: mine, fieldImageUrls, allSubmissions: submissions }),
+      ...(topicStats ? { topicStats } : {}),
     });
   }
 
@@ -80,6 +83,7 @@ async function handler(req, res) {
   });
 
   const rows = buildUnitOverview({ unit, submissions, students, classById });
+  const topicStats = topicStatsForUnit(unit, submissions);
 
   // Hạn nộp đã resolve theo lớp: { [classId]: { unit, byCategory } }.
   const deadlineByClass = {};
@@ -104,6 +108,7 @@ async function handler(req, res) {
       deadlineByCategory: deadlineByClass[S(c._id)].byCategory,
     })),
     students: rows,
+    ...(topicStats ? { topicStats } : {}),
   });
 }
 

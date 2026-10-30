@@ -1,5 +1,6 @@
 "use client";
 
+import TopicStatsTable from "@/components/TopicStatsTable";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
@@ -240,6 +241,7 @@ function Inner() {
             </tbody>
           </table>
         </div>
+        <TopicStatsTable topicStats={data.topicStats} />
       </div>
     </div>
   );
