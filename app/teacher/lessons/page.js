@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
-import { DEFAULT_PROGRAM, PROGRAMS, programOf, levelWordOf, skillLabel } from "@/lib/curriculum";
+import { DEFAULT_PROGRAM, PROGRAMS, implicitProgram, programOf, levelWordOf, skillLabel } from "@/lib/curriculum";
 import { programParam, usePrograms } from "@/lib/client/program";
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -97,6 +97,8 @@ function LessonsInner() {
       return;
     }
     setStatus(null);
+    // Workspace 1 chương trình (vd chỉ General): gửi chương trình đó, không để server mặc định IELTS.
+    const sendProgram = viewProgram || implicitProgram(programs);
     const targetProgram = viewProgram || labelProgram;
     const hasTextbook = !!PROGRAMS[targetProgram]?.textbook;
     try {
@@ -105,7 +107,7 @@ function LessonsInner() {
         level: Number(formLevel) || 1,
         classIds: formClassIds,
         ...(hasTextbook && formTextbook.trim() ? { textbook: formTextbook.trim() } : {}),
-        ...(viewProgram ? { program: viewProgram } : {}),
+        ...(sendProgram ? { program: sendProgram } : {}),
       });
       router.push("/teacher/lessons/" + d.unit._id);
     } catch (e) {

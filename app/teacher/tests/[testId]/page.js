@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
-import { PROGRAMS, PROGRAM_KEYS, programOf, levelWordOf } from "@/lib/curriculum";
+import { PROGRAMS, PROGRAM_KEYS, implicitProgram, programOf, levelWordOf } from "@/lib/curriculum";
 import { programParam, usePrograms } from "@/lib/client/program";
 import ProgramBadge from "@/components/ProgramBadge";
 import { useMediaLibraries } from "@/lib/teacher/useMediaLibraries";
@@ -32,14 +32,18 @@ function withProgram(prev, k) {
       skills[key] = { ...skills[key], durationMinutes: after[key] || "" };
     }
   });
-  return { ...prev, program: k, classIds: [], skills };
+  // Khối cố định (vd General 6..12): level không nằm trong danh sách -> về khối đầu tiên.
+  const fixed = PROGRAMS[k] && PROGRAMS[k].fixedLevels;
+  const level = Array.isArray(fixed) && !fixed.includes(Number(prev.level)) ? fixed[0] : prev.level;
+  return { ...prev, program: k, level, classIds: [], skills };
 }
 
 function TestBuilderInner() {
   const { testId } = useParams();
   const router = useRouter();
   const search = useSearchParams();
-  const { isMulti, loaded } = usePrograms();
+  const { programs, isMulti, loaded } = usePrograms();
+  const soloProgram = !isMulti ? implicitProgram(programs) : null; // workspace 1 chương trình ≠ IELTS
   const isNew = testId === "new";
   const paramProgram = programParam(search);
   const media = useMediaLibraries();
@@ -66,6 +70,12 @@ function TestBuilderInner() {
     if (!isNew || !loaded || !isMulti || !paramProgram) return;
     setB((p) => (p && !p.program ? withProgram(p, paramProgram) : p));
   }, [isNew, loaded, isMulti, paramProgram]);
+
+  // Workspace chỉ có 1 chương trình khác IELTS: đề mới lấy luôn chương trình đó.
+  useEffect(() => {
+    if (!isNew || !loaded || !soloProgram) return;
+    setB((p) => (p && !p.program ? withProgram(p, soloProgram) : p));
+  }, [isNew, loaded, soloProgram]);
 
   function chooseProgram(k) {
     // Lớp đã tick thuộc chương trình cũ -> bỏ, tránh giao nhầm.
@@ -144,8 +154,8 @@ function TestBuilderInner() {
     setSaveErr("");
     try {
       const payload = builderToPayload(b);
-      // Workspace 1 chương trình: không gửi gì, đề là IELTS như trước.
-      if (isNew && isMulti && b.program) payload.program = b.program;
+      // Workspace IELTS-only: không gửi gì, đề là IELTS như trước.
+      if (isNew && (isMulti || soloProgram) && b.program) payload.program = b.program;
       const saved = isNew ? await api.teacher.createTest(payload) : await api.teacher.updateTest(testId, payload);
       const id = isNew ? saved.test._id : testId;
       await api.teacher.updateTest(id, { status });
@@ -221,14 +231,24 @@ function TestBuilderInner() {
         </div>
         <div className="form-row">
           <label>{levelWordOf(b.program)}</label>
-          <input
-            type="number"
-            min="1"
-            step="1"
-            style={{ width: 120, padding: "11px 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: "1rem" }}
-            value={b.level}
-            onChange={(e) => setField("level", e.target.value)}
-          />
+          {Array.isArray(PROGRAMS[programOf({ program: b.program })].fixedLevels) ? (
+            <select value={b.level} onChange={(e) => setField("level", e.target.value)}>
+              {PROGRAMS[programOf({ program: b.program })].fixedLevels.map((g) => (
+                <option key={g} value={g}>
+                  {levelWordOf(b.program)} {g}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="number"
+              min="1"
+              step="1"
+              style={{ width: 120, padding: "11px 12px", border: "1px solid var(--border)", borderRadius: 8, fontSize: "1rem" }}
+              value={b.level}
+              onChange={(e) => setField("level", e.target.value)}
+            />
+          )}
         </div>
 
         <div className="form-row">

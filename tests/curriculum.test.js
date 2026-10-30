@@ -280,3 +280,20 @@ test("formatStatsSkills: IELTS/TOEIC giữ Reading + Listening như cũ, General
   assert.deepEqual(PROGRAMS.toeic.formatStatsSkills, ["reading", "listening"]);
   assert.deepEqual(PROGRAMS.general.formatStatsSkills, ["grammar", "vocabulary", "reading", "listening"]);
 });
+
+test("implicitProgram: workspace 1 chương trình khác IELTS -> chương trình đó, còn lại null", () => {
+  const { implicitProgram } = require("../lib/curriculum");
+  assert.equal(implicitProgram(["general"]), "general");
+  assert.equal(implicitProgram(["toeic"]), "toeic");
+  assert.equal(implicitProgram(["ielts"]), null);
+  assert.equal(implicitProgram(["ielts", "general"]), null);
+  assert.equal(implicitProgram([]), null);
+  assert.equal(implicitProgram(["bogus"]), null);
+  assert.equal(implicitProgram(undefined), null);
+});
+
+test("withProgram-level: General với level 1 -> khối hợp lệ đầu tiên (kiểm qua levelAllowed)", () => {
+  const { levelAllowed, PROGRAMS } = require("../lib/curriculum");
+  assert.equal(levelAllowed("general", 1), false);
+  assert.equal(levelAllowed("general", PROGRAMS.general.fixedLevels[0]), true);
+});
