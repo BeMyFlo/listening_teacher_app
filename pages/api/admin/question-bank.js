@@ -4,7 +4,8 @@
 //   GET  ?id=                                                    1 mục
 //   POST { program, items: [...] }                               tạo (trần 100/lần)
 //   POST ?action=pick { program, level, rows, excludeIds }       bốc ngẫu nhiên theo ma trận
-//   PUT  { id, ...nhãn/nội dung }    DELETE ?id= | { ids }
+//   PUT  { id, ...nhãn/nội dung }    PUT { ids, set: { topic, difficulty, unitLabel, textbook } } sửa nhãn nhiều mục
+//   DELETE ?id= | { ids }
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
 const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
@@ -122,8 +123,29 @@ async function createItems(req, res, ws) {
   return res.status(201).json({ ok: true, created: created.length, ids: created.map((d) => String(d._id)) });
 }
 
+// Sửa nhãn nhiều mục cùng lúc: chỉ 4 nhãn, không đụng nội dung. Luôn lọc theo workspace (id lạ bị bỏ qua).
+async function updateLabels(req, res, ws) {
+  const body = req.body || {};
+  const ids = body.ids.map(String).filter((x) => OBJECT_ID_RE.test(x)).slice(0, MAX_DELETE_IDS);
+  if (!ids.length) return bad(res, "Send at least one id.");
+  const src = body.set && typeof body.set === "object" ? body.set : {};
+  const set = {};
+  if ("difficulty" in src) {
+    const d = src.difficulty == null ? "" : String(src.difficulty);
+    if (d && !isDifficulty(d)) return bad(res, "Invalid difficulty.");
+    set.difficulty = d;
+  }
+  if ("topic" in src) set.topic = String(src.topic == null ? "" : src.topic).trim().slice(0, 80);
+  if ("unitLabel" in src) set.unitLabel = String(src.unitLabel == null ? "" : src.unitLabel).trim().slice(0, 120);
+  if ("textbook" in src) set.textbook = String(src.textbook == null ? "" : src.textbook).trim().slice(0, 120);
+  if (!Object.keys(set).length) return bad(res, "Choose at least one label to set.");
+  const r = await QuestionItem.updateMany(tenantFilter(ws, { _id: { $in: ids } }), { $set: set });
+  return res.status(200).json({ ok: true, updated: (r && (r.matchedCount != null ? r.matchedCount : r.nModified)) || 0 });
+}
+
 async function updateItem(req, res, ws) {
   const body = req.body || {};
+  if (Array.isArray(body.ids)) return updateLabels(req, res, ws);
   const old = await assertOwned(ws, QuestionItem, body.id, { lean: true, message: "Question not found" });
   const perr = programError(old.program);
   if (perr) return bad(res, perr);
