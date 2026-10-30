@@ -9,6 +9,7 @@ import { useDialog } from "@/components/ui/Dialog";
 import { pollAiGrade } from "@/lib/client/aiGrade";
 import { testSkillsFor } from "@/lib/teacher/testBuilder";
 import { programOf } from "@/lib/curriculum";
+import PartResultsTable from "@/components/PartResultsTable";
 import { usesTenPoint, formatTenPoint } from "@/lib/tenPoint";
 import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
 import UnderlinedText from "@/components/student/UnderlinedText";
@@ -335,6 +336,12 @@ function AutoSkillPanel({ skill, toeic, ten, onAcceptAnswer }) {
           <MiniStat tone="purple" icon="star" label="Accuracy" value={accuracy != null ? accuracy + "%" : "—"} sub={attempted ? `${correctCount} / ${attempted}` : null} />
         </div>
       </div>
+
+      {skill.parts && skill.parts.length > 0 && (
+        <div className="card">
+          <PartResultsTable parts={skill.parts} />
+        </div>
+      )}
 
       {detail.length > 0 && (
         <QuestionReview
