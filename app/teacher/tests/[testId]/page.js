@@ -17,6 +17,10 @@ import {
   defaultDurationsFor,
 } from "@/lib/teacher/testBuilder";
 import SectionsEditor from "@/components/teacher/SectionsEditor";
+import TemplatePicker from "@/components/teacher/TemplatePicker";
+import { useDialog } from "@/components/ui/Dialog";
+import { describeIncomplete } from "@/lib/teacher/templateSkeleton";
+import { incompleteQuestions } from "@/lib/generalTemplates";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
 import { toeicPromptsError } from "@/lib/toeicStandardSet";
 import { findGeneralSectionError } from "@/lib/generalFormats";
@@ -38,7 +42,21 @@ function withProgram(prev, k) {
   return { ...prev, program: k, level, classIds: [], skills };
 }
 
+// Cuộn + focus tới câu có số fieldId (đợi 100ms cho tab kỹ năng render xong).
+function scrollToQuestion(fieldId) {
+  setTimeout(() => {
+    const rows = Array.from(document.querySelectorAll(".question-row"));
+    const target = rows.find((r) => r.querySelector(".f-id")?.value === String(fieldId));
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      const input = target.querySelector(".f-label, .f-answers, input");
+      if (input) input.focus();
+    }
+  }, 100);
+}
+
 function TestBuilderInner() {
+  const dialog = useDialog();
   const { testId } = useParams();
   const router = useRouter();
   const search = useSearchParams();
@@ -54,6 +72,7 @@ function TestBuilderInner() {
   const [saveErr, setSaveErr] = useState("");
   const [saving, setSaving] = useState(false);
   const [classes, setClasses] = useState([]);
+  const [templateKey, setTemplateKey] = useState(""); // khuôn đã dùng để dựng đề mới ("" = không dùng)
 
   useEffect(() => {
     api.teacher.listClasses().then((d) => setClasses(d.rows || [])).catch(() => {});
@@ -89,6 +108,33 @@ function TestBuilderInner() {
       const has = (prev.classIds || []).includes(id);
       return { ...prev, classIds: has ? prev.classIds.filter((x) => x !== id) : [...(prev.classIds || []), id] };
     });
+  }
+
+  // Dùng khuôn: thay các phần hiện có bằng khung dựng sẵn, giờ làm bài + khối theo khuôn.
+  async function useTemplate(template, built) {
+    const hasQuestions = ["listening", "reading"].some((k) => b.skills[k].sections.length > 0);
+    if (hasQuestions) {
+      const ok = await dialog.confirm({
+        title: "Replace existing questions",
+        message: "This test already has questions. Using a template replaces all sections in Listening and Reading. Continue?",
+        confirmText: "Replace",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    setB((p) => {
+      const skills = { ...p.skills };
+      for (const k of ["listening", "reading"]) {
+        const built1 = built.skills[k];
+        skills[k] = built1
+          ? { ...skills[k], sections: built1.sections, durationMinutes: built.durations[k] }
+          : { ...skills[k], sections: [] };
+      }
+      return { ...p, level: template.defaultGrade, skills };
+    });
+    setTemplateKey(template.key);
+    setActive(built.skills.reading ? "reading" : "listening");
+    dialog.toast("Template applied — fill in the content, then save.");
   }
 
   function setField(k, v) {
@@ -133,15 +179,7 @@ function TestBuilderInner() {
         if (err) {
           setActive(key);
           setSaveErr(err.message);
-          setTimeout(() => {
-            const rows = Array.from(document.querySelectorAll(".question-row"));
-            const target = rows.find((r) => r.querySelector(".f-id")?.value === String(err.fieldId));
-            if (target) {
-              target.scrollIntoView({ behavior: "smooth", block: "center" });
-              const input = target.querySelector(".f-label, .f-answers, input");
-              if (input) input.focus();
-            }
-          }, 100);
+          scrollToQuestion(err.fieldId);
           return;
         }
       }
@@ -150,10 +188,26 @@ function TestBuilderInner() {
       setSaveErr("Chọn ít nhất 1 lớp trước khi Publish — không tick lớp nào thì không học sinh nào thấy bài.");
       return;
     }
+    // Chương trình bật publishCheck (General): đề còn câu dở thì không xuất bản (Save Draft vẫn được).
+    if (status === "published" && PROGRAMS[programOf(b)].publishCheck) {
+      const unfinished = describeIncomplete(incompleteQuestions(builderToPayload(b).skills));
+      if (unfinished.total) {
+        const first = unfinished.first;
+        setActive(first.skill);
+        setSaveErr(
+          `Can't publish yet — ${unfinished.total} question${unfinished.total === 1 ? " is" : "s are"} not finished:\n` +
+            unfinished.lines.join("\n")
+        );
+        scrollToQuestion(first.fieldId);
+        return;
+      }
+    }
     setSaving(true);
     setSaveErr("");
     try {
       const payload = builderToPayload(b);
+      // Chỉ gửi khi đề mới được dựng từ khuôn -> payload đề thường (IELTS/TOEIC) giữ nguyên.
+      if (isNew && templateKey) payload.templateKey = templateKey;
       // Workspace IELTS-only: không gửi gì, đề là IELTS như trước.
       if (isNew && (isMulti || soloProgram) && b.program) payload.program = b.program;
       const saved = isNew ? await api.teacher.createTest(payload) : await api.teacher.updateTest(testId, payload);
@@ -219,6 +273,14 @@ function TestBuilderInner() {
               ))}
             </div>
           </div>
+        )}
+
+        {isNew && (
+          <TemplatePicker
+            program={b.program}
+            defaultOpen={search.get("template") === "1"}
+            onUse={useTemplate}
+          />
         )}
 
         <div className="form-row">
@@ -368,7 +430,7 @@ function TestBuilderInner() {
         </div>
 
         {saveErr && (
-          <p className="notice error" style={{ marginTop: 16 }}>
+          <p className="notice error" style={{ marginTop: 16, whiteSpace: "pre-line" }}>
             <svg className="icon"><use href="#icon-warning" /></svg> {saveErr}
           </p>
         )}

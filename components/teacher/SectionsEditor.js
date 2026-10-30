@@ -16,6 +16,8 @@ import {
   ynngOptions,
   isFixedChoiceShape,
   appendAiSections,
+  applyFormat,
+  applyFormatBasics,
 } from "@/lib/teacher/sectionTransforms";
 import SpreadsheetImport from "./SpreadsheetImport";
 import AiExerciseDialog from "./AiExerciseDialog";
@@ -351,20 +353,9 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
     const id = nextFieldId(allSections, firstId);
     patch((d) => {
       const s = d[si];
-      const field = emptyField(id);
       // "letter" (Listen and choose — no printed question) lưu như câu mcq đề trống,
-      // lựa chọn A..D tự tạo — xem lib/letterQuestion.js.
-      field.kind = fmt.kind === "letter" ? "mcq" : fmt.kind;
-      field.formatLabel = fmt.label || "";
-      field.matchMode = fmt.matchMode || "";
-      if (fmt.kind === "reorder") {
-        field.matchMode = "sentence";
-        field.tokens = [];
-      }
-      if (fmt.kind === "tfng") field.options = tfngOptions();
-      if (fmt.kind === "ynng") field.options = ynngOptions();
-      if (fmt.kind === "letter") field.options = editorLetterOptions(fmt.letterOptions);
-      if (fmt.presetOptions) field.options = fmt.presetOptions.map((text) => ({ id: newOptionId(), text }));
+      // lựa chọn A..D tự tạo — xem lib/letterQuestion.js (logic nằm trong applyFormat).
+      const field = applyFormat(emptyField(id), fmt);
       s.fields.push(field);
 
       if (fmt.noteMode) addNoteBlock(s, id);
@@ -864,13 +855,8 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
       const wasTfng = isFixedChoiceShape(ff.options, ["true", "false", "ng"]);
       const wasYnng = isFixedChoiceShape(ff.options, ["yes", "no", "ng"]);
       const wasLetter = isLetterEditorField(ff);
-      ff.kind = fmt.kind === "letter" ? "mcq" : fmt.kind;
-      ff.formatLabel = fmt.label || "";
-      ff.matchMode = fmt.matchMode || "";
-      if (fmt.kind === "reorder") {
-        ff.matchMode = "sentence";
-        if (!Array.isArray(ff.tokens)) ff.tokens = [];
-      }
+      applyFormatBasics(ff, fmt);
+      if (fmt.kind === "reorder" && !Array.isArray(ff.tokens)) ff.tokens = [];
       if (fmt.kind === "tfng" && !wasTfng) {
         ff.options = tfngOptions();
         ff.correctOptionIds = [];
