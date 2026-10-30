@@ -10,6 +10,8 @@ import { programParam, usePrograms } from "@/lib/client/program";
 import ProgramChips, { ProgramEmpty } from "@/components/teacher/ProgramChips";
 import ProgramBadge from "@/components/ProgramBadge";
 import { templatesFor } from "@/lib/generalTemplates";
+import { PROGRAMS } from "@/lib/curriculum";
+import ExamExportPanel from "@/components/teacher/ExamExportPanel";
 
 function TeacherTestsInner() {
   const dialog = useDialog();
@@ -22,6 +24,7 @@ function TeacherTestsInner() {
   const [listErr, setListErr] = useState("");
   const [levelFilter, setLevelFilter] = useState("all");
   const [classFilter, setClassFilter] = useState("all");
+  const [exportOpen, setExportOpen] = useState(null); // id đề đang mở Print / export
 
   function load() {
     Promise.all([api.teacher.listTests(), api.teacher.listClasses().catch(() => ({ rows: [] }))])
@@ -178,6 +181,7 @@ function TeacherTestsInner() {
                     {skills.length ? skills.join(", ") : "none yet"}
                     {sched.length ? " · " + sched.join(" · ") : ""}
                   </p>
+                  {exportOpen === t._id && PROGRAMS[programOf(t)].questionBank && <ExamExportPanel testId={t._id} />}
                 </div>
                 <div className="actions">
                   <button
@@ -188,6 +192,16 @@ function TeacherTestsInner() {
                   >
                     <svg className="icon"><use href="#icon-list" /></svg> Submissions
                   </button>
+                  {PROGRAMS[programOf(t)].questionBank && (
+                    <button
+                      type="button"
+                      className="btn secondary"
+                      style={{ padding: "6px 12px", fontSize: ".8rem" }}
+                      onClick={() => setExportOpen(exportOpen === t._id ? null : t._id)}
+                    >
+                      Print / export
+                    </button>
+                  )}
                   <button type="button" className="icon-btn" title="Edit" onClick={() => router.push("/teacher/tests/" + t._id)}>
                     <svg className="icon"><use href="#icon-edit" /></svg>
                   </button>

@@ -22,6 +22,7 @@ import { useDialog } from "@/components/ui/Dialog";
 import { describeIncomplete } from "@/lib/teacher/templateSkeleton";
 import { incompleteQuestions } from "@/lib/generalTemplates";
 import PromptsEditor from "@/components/teacher/PromptsEditor";
+import ExamExportPanel from "@/components/teacher/ExamExportPanel";
 import { toeicPromptsError } from "@/lib/toeicStandardSet";
 import { findGeneralSectionError } from "@/lib/generalFormats";
 import { collectBankItemIds } from "@/lib/teacher/fillFromBank";
@@ -73,6 +74,7 @@ function TestBuilderInner() {
   const [saveErr, setSaveErr] = useState("");
   const [saving, setSaving] = useState(false);
   const [classes, setClasses] = useState([]);
+  const [showExport, setShowExport] = useState(false); // Print / export (G4 bước 4)
   const [templateKey, setTemplateKey] = useState(""); // khuôn đã dùng để dựng đề mới ("" = không dùng)
 
   useEffect(() => {
@@ -448,7 +450,18 @@ function TestBuilderInner() {
           <button type="button" className="btn secondary" onClick={() => router.push("/teacher/tests")}>
             Cancel
           </button>
+          {!isNew && PROGRAMS[programOf({ program: b.program })].questionBank && (
+            <button type="button" className="btn secondary" onClick={() => setShowExport((v) => !v)}>
+              Print / export
+            </button>
+          )}
         </div>
+        {showExport && !isNew && (
+          <div style={{ marginTop: 12 }}>
+            <p style={{ color: "var(--muted)", fontSize: ".85rem", margin: 0 }}>Exports the last saved version of this test. Save first if you changed anything.</p>
+            <ExamExportPanel testId={testId} />
+          </div>
+        )}
       </div>
     </div>
   );
