@@ -433,3 +433,16 @@ Chủ dự án chốt **toàn bộ Q1–Q10 theo đúng đề xuất** dưới �
 | R5 | AI import Word đọc sai đáp án | Bắt buộc màn xem trước, tô vàng câu không chắc, không cho lưu thẳng |
 | R6 | Khuôn đề tỉnh đổi hằng năm | Khuôn là file code, ghi năm + nguồn trong file; đề đã tạo không bị ảnh hưởng khi khuôn đổi |
 | R7 | Học sinh nhỏ tuổi làm trên điện thoại khó thao tác | `reorder` dạng chip bấm, nút chữ cái to (như C8 của TOEIC), kiểm ở bề rộng 375px |
+
+---
+
+## 8. Đợt kiểm tổng cuối (2026-11-02, nhánh `phase-12-final-check`)
+
+Đã kiểm trên DB dev + trình duyệt: onboarding có ô chọn chương trình (đã sửa); đề THPT 40 câu từ nháp, server chặn publish đề dở, điền đủ,
+publish, học sinh nộp 30/40 = 7,5/10, kết quả 6 phần; ma trận bốc từ ngân hàng 13/28 + báo thiếu từng phần, đổi số chỗ trống đoạn văn; Swap;
+import Word vào ngân hàng bằng Gemini thật; Speaking bằng Gemini thật với file giọng máy (chép lời đúng, 9 / 10); chữ gạch chân + (A)–(D) ở màn
+kết quả; 375px trang ngân hàng, ma trận, builder, onboarding, kết quả. Sửa thêm: cờ nhắc phát âm chặn câu vào ngân hàng từ Word.
+544 test pass, tenant scope sạch, build qua, Phase 8 232/232, G1 94/94. Dữ liệu thử và ảnh Cloudinary thử đã xoá; các `scripts/_*-TMP.js` đã xoá.
+
+**Còn lại, cần chủ dự án:** đề Word thật (`D:\Project\samples-g3\`); mở `.docx` xuất ra bằng Word thật; Safari iOS < 16.4 trên máy thật; giáo viên
+đọc lại mô tả mức điểm rubric G5; khuôn Hà Nội; quyết định nút Accept cho IELTS/TOEIC. Sau đó sửa tiêu đề/mô tả PR #20 rồi merge vào `main`.
