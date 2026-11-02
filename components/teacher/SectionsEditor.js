@@ -22,6 +22,7 @@ import {
 import SpreadsheetImport from "./SpreadsheetImport";
 import AiExerciseDialog from "./AiExerciseDialog";
 import WordImport from "./WordImport";
+import AudioUploadButton from "./AudioUploadButton";
 import SaveToBankDialog from "./SaveToBankDialog";
 import { SwapButton } from "./SwapQuestionDialog";
 import { questionFormatsFor } from "@/lib/teacher/questionFormats";
@@ -456,6 +457,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
               </option>
             ))}
           </select>
+          <AudioUploadButton media={media} onUploaded={(id) => set("audioId", id)} />
           {showTranscript && (
             <>
               <label style={{ marginTop: 10 }}>Transcript (optional — used by AI Vocab Review, hidden from students)</label>

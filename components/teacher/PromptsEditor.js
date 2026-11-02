@@ -7,6 +7,7 @@
 // registry (ảnh, 2 từ bắt buộc, audio, giờ chuẩn bị/nói). IELTS giữ nguyên từng chữ.
 // standardSet: (chỉ Mock Test) hiện nút "Add standard TOEIC set" khi kỹ năng chưa có đề.
 import { useDialog } from "@/components/ui/Dialog";
+import AudioUploadButton from "./AudioUploadButton";
 import { ASPECT_LABELS, toeicTask, tasksForSkill } from "@/lib/toeicTasks";
 import { PROGRAMS, isProgram } from "@/lib/curriculum";
 import { taskDefaults, blankToeicPrompt, standardSet, promptCues } from "@/lib/toeicStandardSet";
@@ -182,6 +183,7 @@ export default function PromptsEditor({ prompts, media, onChange, skill, program
                     </option>
                   ))}
                 </select>
+                <AudioUploadButton media={media} onUploaded={(id) => patch((d) => (d[i].audioId = id))} />
                 <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400, marginTop: 8 }}>
                   <input
                     type="checkbox"
