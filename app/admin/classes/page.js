@@ -94,17 +94,22 @@ export default function AdminClassesPage() {
       {showCreate && (
         <div className="card" style={{ marginBottom: 14 }}>
           <form onSubmit={create} style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
-            <label>Workspace
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label>Workspace</label>
               <select value={form.workspaceId} onChange={(e) => setForm((f) => ({ ...f, workspaceId: e.target.value }))} required>
                 <option value="">— select —</option>
                 {workspaces.map((w) => <option key={w._id} value={w._id}>{w.name}</option>)}
               </select>
-            </label>
-            <label>Class name<input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required /></label>
-            <label>Level
+            </div>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label>Class name</label>
+              <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+            </div>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label>Level</label>
               <input type="number" min="1" step="1" value={form.level} onChange={(e) => setForm((f) => ({ ...f, level: e.target.value }))} required />
-            </label>
-            <div style={{ display: "flex", alignItems: "end", gap: 8 }}>
+            </div>
+            <div style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
               <button type="submit" className="btn">Create</button>
               <button type="button" className="btn secondary" onClick={() => setShowCreate(false)}>Cancel</button>
             </div>

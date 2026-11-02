@@ -135,10 +135,30 @@ textarea, select {
   font-family: inherit;
   background: var(--card);
   color: var(--ink);
+  max-width: 100%;
 }
 input[type=text]:focus, input[type=password]:focus, input[type=number]:focus,
 input[type=email]:focus, input[type=date]:focus, input[type=datetime-local]:focus,
 input[type=search]:focus, textarea:focus, select:focus {
+  outline: 2px solid var(--blue);
+  outline-offset: -1px;
+  border-color: var(--blue);
+}
+
+/* Lưới an toàn cho input quên khai báo type: vẫn có style nền thay vì giao diện
+   mặc định của trình duyệt. :where() giữ specificity 0 để mọi class riêng vẫn
+   thắng; tách rule riêng vì trình duyệt cũ không hiểu :where() sẽ bỏ cả rule. */
+:where(input:not([type])) {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: .92rem;
+  font-family: inherit;
+  background: var(--card);
+  color: var(--ink);
+  max-width: 100%;
+}
+:where(input:not([type])):focus {
   outline: 2px solid var(--blue);
   outline-offset: -1px;
   border-color: var(--blue);
@@ -158,6 +178,7 @@ input[type=search]:focus, textarea:focus, select:focus {
 .form-row { margin-bottom: 16px; }
 .form-row label { display: block; font-weight: 600; margin-bottom: 6px; font-size: .92rem; color: var(--ink); }
 .form-row input[type=text], .form-row input[type=password], .form-row input[type=number],
+.form-row input[type=email], .form-row input:not([type]),
 .form-row input[type=date], .form-row input[type=datetime-local], .form-row select {
   width: 100%;
   font-size: 1rem;
@@ -175,6 +196,9 @@ input[type=search]:focus, textarea:focus, select:focus {
   cursor: pointer;
   text-decoration: none;
   transition: filter .15s ease, box-shadow .15s ease, background .15s ease;
+  /* .card đặt overflow-wrap:anywhere và rule này thừa kế xuống: chữ trên nút
+     không được gãy giữa từ ("Creat/e"). */
+  overflow-wrap: normal;
 }
 .btn:hover { background: linear-gradient(100deg, color-mix(in srgb, var(--pink) 85%, #000) 0%, var(--navy) 100%); }
 .btn.secondary { background: var(--card); color: var(--blue); border: 1px solid var(--blue); }

@@ -134,39 +134,55 @@ export default function AdminUsersPage() {
       {showCreate && (
         <div className="card" style={{ marginBottom: 14 }}>
           <form onSubmit={create} style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
-            <label>Role
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label>Role</label>
               <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}>
                 <option value="student">Student</option>
                 <option value="teacher">Teacher</option>
                 <option value="admin">Admin</option>
               </select>
-            </label>
-            <label>Full name<input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required /></label>
-            <label>Username<input value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} required /></label>
-            <label>Password<input type="text" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required /></label>
-            <label>Email (optional)<input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
+            </div>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label>Full name</label>
+              <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+            </div>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label>Username</label>
+              <input type="text" value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} required />
+            </div>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label>Password</label>
+              <input type="text" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required />
+            </div>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label>Email (optional)</label>
+              <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+            </div>
             {form.role === "teacher" && (
-              <label>Workspace name (optional)
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <label>Workspace name (optional)</label>
                 <input type="text" placeholder="Defaults to the teacher's name" value={form.workspaceName} onChange={(e) => setForm((f) => ({ ...f, workspaceName: e.target.value }))} />
-              </label>
+              </div>
             )}
             {form.role === "teacher" && (
-              <label>Workspace address (optional)
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <label>Workspace address (optional)</label>
                 <input type="text" placeholder="e.g. msnhi" value={form.slug} maxLength={40} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value.toLowerCase() }))} />
                 <span style={{ fontSize: ".78rem", color: "var(--muted)" }}>
                   {(form.slug || "your-address") + "." + (baseDomain() || "your-domain")} — 3-40 letters, numbers or hyphens. Leave empty to generate one.
                 </span>
-              </label>
+              </div>
             )}
             {form.role === "student" && (
-              <label>Class
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <label>Class</label>
                 <select value={form.classId} onChange={(e) => setForm((f) => ({ ...f, classId: e.target.value }))} required>
                   <option value="">— select —</option>
                   {classes.map((c) => <option key={c._id} value={c._id}>{`${c.name} (L${c.level}) · ${c.workspaceName || "—"}`}</option>)}
                 </select>
-              </label>
+              </div>
             )}
-            <div style={{ display: "flex", alignItems: "end", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
               <button type="submit" className="btn">Create</button>
               <button type="button" className="btn secondary" onClick={() => setShowCreate(false)}>Cancel</button>
             </div>
