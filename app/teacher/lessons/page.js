@@ -5,10 +5,25 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
-import { DEFAULT_PROGRAM, PROGRAMS, programOf } from "@/lib/curriculum";
+import { DEFAULT_PROGRAM, PROGRAMS, implicitProgram, programOf, levelWordOf, skillLabel } from "@/lib/curriculum";
 import { programParam, usePrograms } from "@/lib/client/program";
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// Gợi ý bộ sách giáo khoa cho chương trình General English (D10)
+const TEXTBOOK_SUGGESTIONS = [
+  "Global Success 6",
+  "Global Success 7",
+  "Global Success 8",
+  "Global Success 9",
+  "Global Success 10",
+  "Global Success 11",
+  "Global Success 12",
+  "Friends Plus",
+  "i-Learn Smart World",
+  "Bright",
+  "English Discovery",
+];
 
 function LessonsInner() {
   const dialog = useDialog();
@@ -33,6 +48,7 @@ function LessonsInner() {
   // create form
   const [name, setName] = useState("");
   const [formLevel, setFormLevel] = useState(1);
+  const [formTextbook, setFormTextbook] = useState("");
   const [formClassIds, setFormClassIds] = useState([]);
   const [status, setStatus] = useState(null);
 
@@ -53,6 +69,12 @@ function LessonsInner() {
     setFormClassIds([]);
     setClassFilter("all");
   }, [level, viewProgram]);
+
+  // Chương trình có khối cố định (vd General 6..12): level phải nằm trong danh sách
+  const targetFixed = PROGRAMS[viewProgram || labelProgram]?.fixedLevels;
+  useEffect(() => {
+    if (Array.isArray(targetFixed) && !targetFixed.includes(Number(formLevel))) setFormLevel(targetFixed[0]);
+  }, [targetFixed, formLevel]);
 
   const classById = useMemo(() => Object.fromEntries(classes.map((c) => [String(c._id), c])), [classes]);
 
@@ -75,12 +97,17 @@ function LessonsInner() {
       return;
     }
     setStatus(null);
+    // Workspace 1 chương trình (vd chỉ General): gửi chương trình đó, không để server mặc định IELTS.
+    const sendProgram = viewProgram || implicitProgram(programs);
+    const targetProgram = viewProgram || labelProgram;
+    const hasTextbook = !!PROGRAMS[targetProgram]?.textbook;
     try {
       const d = await api.teacher.createUnit({
         name: name.trim(),
         level: Number(formLevel) || 1,
         classIds: formClassIds,
-        ...(viewProgram ? { program: viewProgram } : {}),
+        ...(hasTextbook && formTextbook.trim() ? { textbook: formTextbook.trim() } : {}),
+        ...(sendProgram ? { program: sendProgram } : {}),
       });
       router.push("/teacher/lessons/" + d.unit._id);
     } catch (e) {
@@ -189,7 +216,7 @@ function LessonsInner() {
                   <div className="program-section-head">
                     <div>
                       <h2>{PROGRAMS[k].label}</h2>
-                      <p>{PROGRAMS[k].lessonSkills.map(cap).join(", ")}</p>
+                      <p>{PROGRAMS[k].lessonSkills.map((key) => skillLabel(k, key, cap(key))).join(", ")}</p>
                     </div>
                     <button
                       type="button"
@@ -240,14 +267,42 @@ function LessonsInner() {
           <input type="text" placeholder="e.g. UNIT 1" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="form-row">
-          <label>Level</label>
-          <input type="number" min="1" step="1" value={formLevel} onChange={(e) => setFormLevel(e.target.value)} />
+          <label>{levelWordOf(labelProgram)}</label>
+          {Array.isArray(targetFixed) ? (
+            <select value={formLevel} onChange={(e) => setFormLevel(e.target.value)}>
+              {targetFixed.map((g) => (
+                <option key={g} value={g}>
+                  {levelWordOf(viewProgram || labelProgram)} {g}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input type="number" min="1" step="1" value={formLevel} onChange={(e) => setFormLevel(e.target.value)} />
+          )}
         </div>
+        {PROGRAMS[viewProgram || labelProgram]?.textbook && (
+          <div className="form-row">
+            <label>Textbook (optional)</label>
+            <input
+              type="text"
+              list="new-unit-textbook-suggestions"
+              placeholder="e.g. Global Success 8"
+              maxLength={80}
+              value={formTextbook}
+              onChange={(e) => setFormTextbook(e.target.value)}
+            />
+            <datalist id="new-unit-textbook-suggestions">
+              {TEXTBOOK_SUGGESTIONS.map((v) => (
+                <option key={v} value={v} />
+              ))}
+            </datalist>
+          </div>
+        )}
         <div className="form-row">
           <label>Assign to classes (required for publishing — không tick lớp nào thì không học sinh nào thấy Unit này)</label>
           {classesAtLevel(Number(formLevel)).length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: ".85rem", margin: 0 }}>
-              No classes at Level {formLevel} yet.
+              No classes at {levelWordOf(labelProgram)} {formLevel} yet.
             </p>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
@@ -312,7 +367,7 @@ function LessonsInner() {
                     {u.name} <span className={"status-pill " + u.status}>{u.status === "published" ? "Published" : "Draft"}</span>
                   </h4>
                   <p>
-                    {assigned.length ? "Classes: " + assigned.join(", ") : "All students at Level " + u.level} · {ex}{" "}
+                    {assigned.length ? "Classes: " + assigned.join(", ") : `All students at ${levelWordOf(programOf(u))} ${u.level}`} · {ex}{" "}
                     exercises · {pr} prompts
                   </p>
                 </div>

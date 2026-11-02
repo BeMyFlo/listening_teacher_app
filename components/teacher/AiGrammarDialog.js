@@ -3,15 +3,8 @@
 import { useState } from "react";
 import { api } from "@/lib/client/api";
 import { sectionsToEditor } from "@/lib/teacher/sectionTransforms";
-
-// Chỉ là gợi ý khi bấm vào ô — giáo viên gõ gì cũng được (vd "6.5", "B2").
-const LEVEL_SUGGESTIONS = [
-  "3.0", "3.5", "4.0", "4.5", "5.0", "5.5", "6.0", "6.5", "7.0", "7.5", "8.0",
-  "A1", "A2", "B1", "B2", "C1",
-];
-
-// Gợi ý trình độ cho chương trình TOEIC (điểm Listening + Reading).
-const TOEIC_LEVEL_SUGGESTIONS = ["300", "400", "450", "500", "550", "600", "650", "700", "750", "800", "850"];
+import { PROGRAMS, programOf, levelWordOf } from "@/lib/curriculum";
+import QuestionPreview from "./AiQuestionPreview";
 
 const LANGUAGES = [
   ["vi", "Vietnamese explanations, English examples"],
@@ -43,33 +36,14 @@ function Check({ checked, onChange, children }) {
   );
 }
 
-// Xem trước 1 câu hỏi (section theo shape server).
-function QuestionPreview({ f }) {
-  const correct = f.type === "choice" ? (f.options.find((o) => o.value === f.answers[0]) || {}).label : f.answers.join(" / ");
-  const sentence =
-    f.type === "choice" ? f.label : `${f.label} ${f.hint ? f.hint + " " : ""}___ ${f.post}`.replace(/\s+/g, " ").trim();
-  return (
-    <li style={{ marginBottom: 6 }}>
-      <div>{sentence}</div>
-      {f.type === "choice" && (
-        <div style={{ color: "var(--muted)", fontSize: ".8rem" }}>
-          {f.options.map((o) => o.label).join(" · ")}
-        </div>
-      )}
-      <div style={{ fontSize: ".8rem" }}>
-        <b style={{ color: "var(--green)" }}>✓ {correct}</b>
-        {f.explanation && <span style={{ color: "var(--muted)" }}> — {f.explanation}</span>}
-      </div>
-    </li>
-  );
-}
-
 // Giáo viên mô tả lớp + chủ đề + tick các phần cần soạn -> AI soạn -> xem
 // trước, chọn chủ đề muốn giữ -> thêm vào bài (chưa lưu, vẫn phải bấm Save).
 export default function AiGrammarDialog({ context, onAdd, onClose }) {
+  const aiLevel = PROGRAMS[programOf(context)].aiLevel;
   const [form, setForm] = useState({
-    level: context && context.level ? `Level ${context.level}` : "",
+    level: context && context.level ? `${levelWordOf(context.program)} ${context.level}` : "",
     unitName: (context && context.unitName) || "",
+    textbook: (context && context.textbook) || "",
     topics: "",
     // Mặc định = tên level của Unit (nếu có); giáo viên sửa tự do.
     studentLevel: (context && context.levelName) || "",
@@ -170,16 +144,16 @@ export default function AiGrammarDialog({ context, onAdd, onClose }) {
               </div>
               <div className="builder-2col" style={{ marginBottom: 12 }}>
                 <div className="form-row" style={{ marginBottom: 0 }}>
-                  <label>{context && context.program === "toeic" ? "Students' level (TOEIC score)" : "Students' level (IELTS band or CEFR)"}</label>
+                  <label>{aiLevel.label}</label>
                   <input
                     type="text"
                     list="ai-grammar-level-suggestions"
-                    placeholder={context && context.program === "toeic" ? "e.g. 550, 450–600, 750+" : "e.g. 6.5, 5.0–5.5, B1"}
+                    placeholder={aiLevel.placeholder}
                     value={form.studentLevel}
                     onChange={set("studentLevel")}
                   />
                   <datalist id="ai-grammar-level-suggestions">
-                    {(context && context.program === "toeic" ? TOEIC_LEVEL_SUGGESTIONS : LEVEL_SUGGESTIONS).map((v) => (
+                    {aiLevel.suggestions.map((v) => (
                       <option key={v} value={v} />
                     ))}
                   </datalist>

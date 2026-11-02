@@ -8,6 +8,7 @@
 
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { usesTenPoint, tenPoint, formatTenPoint } from "@/lib/tenPoint";
 
 const TZ = "Asia/Ho_Chi_Minh";
 
@@ -81,6 +82,7 @@ export default function SubmissionResultModal({
   isLate = false,
   score,
   total,
+  program,
 }) {
   useEffect(() => {
     if (!open) return;
@@ -127,10 +129,19 @@ export default function SubmissionResultModal({
 
         {isExercise ? (
           <div className="srm-score">
-            <span className="srm-score-num">
-              {typeof score === "number" ? `${score}/${total}` : "Submitted"}
-            </span>
-            <span className="srm-score-cap">correct</span>
+            {typeof score === "number" && usesTenPoint(program) && tenPoint(score, total) != null ? (
+              <>
+                <span className="srm-score-num">{formatTenPoint(score, total)}</span>
+                <span className="srm-score-cap">{score}/{total} correct</span>
+              </>
+            ) : (
+              <>
+                <span className="srm-score-num">
+                  {typeof score === "number" ? `${score}/${total}` : "Submitted"}
+                </span>
+                <span className="srm-score-cap">correct</span>
+              </>
+            )}
             {isLate && <span className="pill pill-danger" style={{ marginTop: 8 }}>Late</span>}
           </div>
         ) : (

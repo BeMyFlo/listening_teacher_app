@@ -188,6 +188,7 @@ test("parseProgramParam: trống / all / thiếu = không lọc", () => {
 test("parseProgramParam: program hợp lệ", () => {
   assert.deepEqual(parseProgramParam("ielts"), { program: "ielts" });
   assert.deepEqual(parseProgramParam("toeic"), { program: "toeic" });
+  assert.deepEqual(parseProgramParam("general"), { program: "general" });
 });
 
 test("parseProgramParam: sai -> error (route trả 400)", () => {
@@ -350,4 +351,239 @@ test("activeProgramsByWorkspace: gom (workspace, program) từ 3 collection, nul
     agg([]),
   ]);
   assert.deepEqual(r, { w1: ["ielts", "toeic"], w2: ["ielts"] });
+});
+
+// ----------------------------------------- Phase 12 G0: levelAllowed ở route admin
+
+const { signUserToken } = require("../lib/auth");
+const { clearTenantCache } = require("../lib/tenant");
+const WorkspaceMember = require("../lib/models/WorkspaceMember");
+const Workspace = require("../lib/models/Workspace");
+const ClassModel = require("../lib/models/Class");
+const UnitModel = require("../lib/models/Unit");
+const TestModel = require("../lib/models/Test");
+const SubmissionModel = require("../lib/models/Submission");
+const AuditLog = require("../lib/models/AuditLog");
+const classesRoute = require("../pages/api/admin/classes");
+const unitsRoute = require("../pages/api/admin/units");
+const testsRoute = require("../pages/api/admin/tests");
+
+async function callAdminRoute(route, { method, query = {}, body = {}, docs = {} }) {
+  const prevSecret = process.env.JWT_SECRET;
+  const prevConn = global._mongooseConn.conn;
+  process.env.JWT_SECRET = "test-secret-g0";
+  global._mongooseConn.conn = {};
+
+  const orig = {
+    wmFindOne: WorkspaceMember.findOne,
+    wsFindById: Workspace.findById,
+    cCreate: ClassModel.create,
+    cFindOne: ClassModel.findOne,
+    uCreate: UnitModel.create,
+    uFindOne: UnitModel.findOne,
+    uExists: UnitModel.exists,
+    tCreate: TestModel.create,
+    tFindOne: TestModel.findOne,
+    tExists: TestModel.exists,
+    sExists: SubmissionModel.exists,
+    aCreate: AuditLog.create,
+  };
+
+  WorkspaceMember.findOne = () => ({ select: () => ({ lean: async () => ({ workspaceId: "ws1", role: "owner" }) }) });
+  Workspace.findById = () => ({ select: () => ({ lean: async () => ({ _id: "ws1", status: "active", settings: {} }) }) });
+  ClassModel.create = async (d) => ({ _id: "c-new", ...d });
+  ClassModel.findOne = async () => docs.cls || null;
+  UnitModel.create = async (d) => ({ _id: "u-new", ...d });
+  UnitModel.findOne = async () => docs.unit || null;
+  UnitModel.exists = async () => null;
+  TestModel.create = async (d) => ({ _id: "t-new", ...d });
+  TestModel.findOne = async () => docs.test || null;
+  TestModel.exists = async () => null;
+  SubmissionModel.exists = async () => null;
+  AuditLog.create = async () => ({});
+  clearTenantCache();
+
+  const token = signUserToken({ _id: "u1", role: "teacher", name: "T" });
+  const req = {
+    method,
+    query,
+    body,
+    headers: { authorization: "Bearer " + token },
+    url: "/api/admin/test",
+  };
+  let statusCode = 200;
+  let payload = null;
+  const res = {
+    statusCode: 200,
+    setHeader() {},
+    status(c) {
+      statusCode = c;
+      this.statusCode = c;
+      return this;
+    },
+    json(p) {
+      payload = p;
+      return this;
+    },
+  };
+
+  try {
+    await route(req, res);
+    return { status: statusCode, body: payload };
+  } finally {
+    WorkspaceMember.findOne = orig.wmFindOne;
+    Workspace.findById = orig.wsFindById;
+    ClassModel.create = orig.cCreate;
+    ClassModel.findOne = orig.cFindOne;
+    UnitModel.create = orig.uCreate;
+    UnitModel.findOne = orig.uFindOne;
+    UnitModel.exists = orig.uExists;
+    TestModel.create = orig.tCreate;
+    TestModel.findOne = orig.tFindOne;
+    TestModel.exists = orig.tExists;
+    SubmissionModel.exists = orig.sExists;
+    AuditLog.create = orig.aCreate;
+    clearTenantCache();
+    global._mongooseConn.conn = prevConn;
+    if (prevSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = prevSecret;
+  }
+}
+
+test("POST tạo lớp / unit / test: general level 7 -> OK; level 3 -> 400; ielts level 3 -> OK", async () => {
+  // Class
+  const cOk = await callAdminRoute(classesRoute, {
+    method: "POST",
+    body: { name: "7A", program: "general", level: 7 },
+  });
+  assert.equal(cOk.status, 201);
+  assert.equal(cOk.body.class.program, "general");
+  assert.equal(cOk.body.class.level, 7);
+
+  const cBad = await callAdminRoute(classesRoute, {
+    method: "POST",
+    body: { name: "3A", program: "general", level: 3 },
+  });
+  assert.equal(cBad.status, 400);
+  assert.equal(cBad.body.error, "Choose a grade from 6 to 12.");
+
+  const cIelts = await callAdminRoute(classesRoute, {
+    method: "POST",
+    body: { name: "IELTS 3", program: "ielts", level: 3 },
+  });
+  assert.equal(cIelts.status, 201);
+  assert.equal(cIelts.body.class.level, 3);
+
+  const cIeltsBad = await callAdminRoute(classesRoute, {
+    method: "POST",
+    body: { name: "IELTS 0", program: "ielts", level: 0 },
+  });
+  assert.equal(cIeltsBad.status, 400);
+  assert.equal(cIeltsBad.body.error, "Please select a valid level");
+
+  // Unit
+  const uOk = await callAdminRoute(unitsRoute, {
+    method: "POST",
+    body: { name: "Unit 1", program: "general", level: 7 },
+  });
+  assert.equal(uOk.status, 201);
+  assert.equal(uOk.body.unit.program, "general");
+  assert.equal(uOk.body.unit.level, 7);
+
+  const uBad = await callAdminRoute(unitsRoute, {
+    method: "POST",
+    body: { name: "Unit 1", program: "general", level: 3 },
+  });
+  assert.equal(uBad.status, 400);
+  assert.equal(uBad.body.error, "Choose a grade from 6 to 12.");
+
+  const uIelts = await callAdminRoute(unitsRoute, {
+    method: "POST",
+    body: { name: "Unit 1", program: "ielts", level: 3 },
+  });
+  assert.equal(uIelts.status, 201);
+
+  // Test
+  const tOk = await callAdminRoute(testsRoute, {
+    method: "POST",
+    body: { title: "Midterm 7", program: "general", level: 7 },
+  });
+  assert.equal(tOk.status, 201);
+  assert.equal(tOk.body.test.program, "general");
+  assert.equal(tOk.body.test.level, 7);
+
+  const tBad = await callAdminRoute(testsRoute, {
+    method: "POST",
+    body: { title: "Midterm 3", program: "general", level: 3 },
+  });
+  assert.equal(tBad.status, 400);
+  assert.equal(tBad.body.error, "Choose a grade from 6 to 12.");
+
+  const tIelts = await callAdminRoute(testsRoute, {
+    method: "POST",
+    body: { title: "Mock 3", program: "ielts", level: 3 },
+  });
+  assert.equal(tIelts.status, 201);
+});
+
+test("PUT đổi program từ ielts level 1 sang general mà không kèm grade 6..12 -> 400; kèm grade 7 -> 200", async () => {
+  const clsDoc = () => ({ _id: "c1", name: "C1", level: 1, program: "ielts", async save() {} });
+  const cBad = await callAdminRoute(classesRoute, {
+    method: "PUT",
+    query: { id: "c1" },
+    body: { program: "general" },
+    docs: { cls: clsDoc() },
+  });
+  assert.equal(cBad.status, 400);
+  assert.equal(cBad.body.error, "Choose a grade from 6 to 12.");
+
+  const cOk = await callAdminRoute(classesRoute, {
+    method: "PUT",
+    query: { id: "c1" },
+    body: { program: "general", level: 7 },
+    docs: { cls: clsDoc() },
+  });
+  assert.equal(cOk.status, 200);
+  assert.equal(cOk.body.class.program, "general");
+  assert.equal(cOk.body.class.level, 7);
+
+  const unitDoc = () => ({
+    _id: "u1",
+    name: "U1",
+    level: 1,
+    program: "ielts",
+    status: "draft",
+    classIds: [],
+    deadlines: [],
+    skillLocks: [],
+    categories: [],
+    async save() {},
+  });
+  const uBad = await callAdminRoute(unitsRoute, {
+    method: "PUT",
+    query: { id: "u1" },
+    body: { program: "general" },
+    docs: { unit: unitDoc() },
+  });
+  assert.equal(uBad.status, 400);
+  assert.equal(uBad.body.error, "Choose a grade from 6 to 12.");
+
+  const testDoc = () => ({
+    _id: "t1",
+    title: "T1",
+    level: 1,
+    program: "ielts",
+    status: "draft",
+    classIds: [],
+    skills: {},
+    async save() {},
+  });
+  const tBad = await callAdminRoute(testsRoute, {
+    method: "PUT",
+    query: { id: "t1" },
+    body: { program: "general" },
+    docs: { test: testDoc() },
+  });
+  assert.equal(tBad.status, 400);
+  assert.equal(tBad.body.error, "Choose a grade from 6 to 12.");
 });

@@ -5,11 +5,17 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { LESSON_CATS } from "@/lib/student/constants";
-import { PROGRAMS, programOf } from "@/lib/curriculum";
+import { PROGRAMS, programOf, skillLabel, levelWordOf } from "@/lib/curriculum";
 import { unitProgress } from "@/lib/student/submissions";
 
 // Kỹ năng hiển thị của 1 Unit theo chương trình (IELTS: đủ 6 như cũ; số kỹ năng theo lessonSkills của chương trình).
-const catsOf = (unit) => LESSON_CATS.filter((c) => PROGRAMS[programOf(unit)].lessonSkills.includes(c.key));
+const catsOf = (unit) => {
+  const p = programOf(unit);
+  return LESSON_CATS.filter((c) => PROGRAMS[p].lessonSkills.includes(c.key)).map((c) => ({
+    ...c,
+    label: skillLabel(p, c.key, c.label),
+  }));
+};
 
 // Chip hạn nộp cho lesson list. null nếu Unit không có hạn hoặc đã làm xong.
 function DeadlineChip({ dueAt, pct }) {
@@ -69,7 +75,7 @@ export default function LessonsPage() {
 
   // Chỉ hiện khi giáo viên đã đặt tên cho level này; chưa đặt thì giữ nguyên chữ cũ.
   const first = units && units[0];
-  const levelText = first && first.levelName ? `Level ${first.level} · ${first.levelName}` : "";
+  const levelText = first && first.levelName ? `${levelWordOf(first.program)} ${first.level} · ${first.levelName}` : "";
   // Danh sách kỹ năng ở phụ đề theo chương trình của học sinh (lấy từ Unit đầu tiên).
   const skillsText = catsOf(first || {}).map((c) => c.label).join(", ");
 

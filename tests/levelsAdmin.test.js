@@ -104,3 +104,72 @@ test("cleanName / formatLevelLabel", () => {
   assert.equal(formatLevelLabel(2, ""), "Level 2");
   assert.equal(formatLevelLabel(2, "Band 5"), "Level 2 · Band 5");
 });
+
+// ------------------------------------------------ Phase 12 G0: fixedLevels (general)
+
+test("mergeLevels general: luôn trả đủ khối 6..12 (name '' nếu chưa đặt) + level đang dùng ngoài danh sách", () => {
+  assert.deepEqual(mergeLevels([], "general", noUse), [
+    { level: 6, name: "", classCount: 0, inUse: false },
+    { level: 7, name: "", classCount: 0, inUse: false },
+    { level: 8, name: "", classCount: 0, inUse: false },
+    { level: 9, name: "", classCount: 0, inUse: false },
+    { level: 10, name: "", classCount: 0, inUse: false },
+    { level: 11, name: "", classCount: 0, inUse: false },
+    { level: 12, name: "", classCount: 0, inUse: false },
+  ]);
+
+  const gNames = [...names, { program: "general", level: 9, name: "Entrance prep" }];
+  const usage = { classCounts: { 7: 2, 3: 1 }, unitLevels: [9], testLevels: [] };
+  const merged = mergeLevels(gNames, "general", usage);
+  assert.deepEqual(merged.map((r) => r.level), [3, 6, 7, 8, 9, 10, 11, 12]);
+  assert.deepEqual(merged.find((r) => r.level === 3), { level: 3, name: "", classCount: 1, inUse: true });
+  assert.deepEqual(merged.find((r) => r.level === 7), { level: 7, name: "", classCount: 2, inUse: true });
+  assert.deepEqual(merged.find((r) => r.level === 9), { level: 9, name: "Entrance prep", classCount: 0, inUse: true });
+  // IELTS và TOEIC không bị ảnh hưởng.
+  assert.equal(mergeLevels(gNames, "ielts", noUse).length, 2);
+  assert.equal(mergeLevels(gNames, "toeic", noUse).length, 1);
+});
+
+test("planCreate general: trả 400 không cho tạo level mới", () => {
+  const r = planCreate(names, "general", "Grade 7", noUse);
+  assert.equal(r.status, 400);
+  assert.equal(r.error, "General English uses grades 6–12; rename a grade instead.");
+  assert.equal(planCreate([], "general", "", noUse).status, 400);
+});
+
+test("planDelete general: khối cố định 6..12 -> 400; level ngoài danh sách giữ luật cũ", () => {
+  for (const g of [6, 7, 8, 9, 10, 11, 12]) {
+    const r = planDelete(names, "general", g, noUse);
+    assert.equal(r.status, 400);
+    assert.equal(r.error, "Grades can't be deleted.");
+  }
+  // Đang dùng cũng báo không được xoá khối cố định.
+  const inUseGrade = planDelete(names, "general", 7, { classCounts: { 7: 1 }, unitLevels: [], testLevels: [] });
+  assert.equal(inUseGrade.status, 400);
+  assert.equal(inUseGrade.error, "Grades can't be deleted.");
+
+  // Level ngoài 6..12: không có -> 404; đang dùng -> 409; có tên không dùng -> 200.
+  assert.equal(planDelete(names, "general", 3, noUse).status, 404);
+  assert.equal(planDelete(names, "general", 3, { classCounts: { 3: 1 }, unitLevels: [], testLevels: [] }).status, 409);
+  const strayNamed = [...names, { program: "general", level: 3, name: "Stray" }];
+  const delStray = planDelete(strayNamed, "general", 3, noUse);
+  assert.equal(delStray.status, 200);
+  assert.ok(!delStray.levelNames.some((x) => x.program === "general" && x.level === 3));
+});
+
+test("planRename general: đổi tên khối 6..12 OK dù chưa có tên hay chưa có lớp; ngoài 6..12 -> 404", () => {
+  const r1 = planRename(names, "general", 9, "  Entrance prep ", noUse);
+  assert.equal(r1.status, 200);
+  assert.equal(r1.level, 9);
+  assert.equal(r1.name, "Entrance prep");
+  assert.deepEqual(
+    r1.levelNames.find((x) => x.program === "general" && x.level === 9),
+    { program: "general", level: 9, name: "Entrance prep" }
+  );
+
+  const r2 = planRename(r1.levelNames, "general", 9, "Grade 10 entrance", noUse);
+  assert.equal(r2.status, 200);
+  assert.equal(r2.name, "Grade 10 entrance");
+
+  assert.equal(planRename(names, "general", 3, "Nope", noUse).status, 404);
+});

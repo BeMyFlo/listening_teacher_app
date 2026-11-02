@@ -15,13 +15,57 @@ import {
   tfngOptions,
   ynngOptions,
   isFixedChoiceShape,
+  appendAiSections,
+  applyFormat,
+  applyFormatBasics,
 } from "@/lib/teacher/sectionTransforms";
 import SpreadsheetImport from "./SpreadsheetImport";
+import AiExerciseDialog from "./AiExerciseDialog";
+import WordImport from "./WordImport";
+import SaveToBankDialog from "./SaveToBankDialog";
+import { SwapButton } from "./SwapQuestionDialog";
 import { questionFormatsFor } from "@/lib/teacher/questionFormats";
 import { LETTERS, letterOptions, isLetterEditorField } from "@/lib/letterQuestion";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
+import {
+  GENERAL_LABELS,
+  underlineModeOf,
+  isErrorIdFormat,
+  optionLettersFromUnderlines,
+  splitTokens,
+  shuffleTokens,
+  arrangeOptions,
+  aiFormatsFor,
+} from "@/lib/generalFormats";
+import { parseUnderline, underlinedParts } from "@/lib/underline";
+
+// Kiểu câu cơ bản cho danh sách khi không có dạng bài (IELTS/TOEIC Grammar, Vocab): "reorder" chỉ
+// vào qua dạng bài General nên không liệt kê ở đây — builder IELTS/TOEIC giữ nguyên lựa chọn cũ.
+const BASIC_KINDS = QUESTION_KINDS.filter((k) => k !== "reorder");
 
 // letterOptions(n) (dạng server {value,label}) -> dạng editor {id,text}.
 const editorLetterOptions = (n) => letterOptions(n).map((o) => ({ id: o.value, text: o.label }));
+
+// Xem trước văn bản gạch chân (dạng bài General) — an toàn, không dùng dangerouslySetInnerHTML.
+function UnderlinePreview({ text }) {
+  if (!text) return null;
+  const parts = parseUnderline(text);
+  if (!parts.some((p) => p.u)) return null;
+  return (
+    <div className="underline-preview" style={{ fontSize: ".84rem", color: "var(--ink)", marginTop: 3 }}>
+      <span style={{ color: "var(--muted)", marginRight: 6 }}>Preview:</span>
+      {parts.map((p, i) =>
+        p.u ? (
+          <u key={i} style={{ textDecorationThickness: "2px", textUnderlineOffset: "3px", fontWeight: 600 }}>
+            {p.text}
+          </u>
+        ) : (
+          <span key={i}>{p.text}</span>
+        )
+      )}
+    </div>
+  );
+}
 
 // Danh sách khối note/table hiện có của 1 section, để builder SỬA — ưu
 // tiên `noteBlocks` (dữ liệu mới, mỗi khối 1 khung độc lập). Section soạn
@@ -125,9 +169,27 @@ function addNoteBlock(s, id) {
 // program: "ielts" (mặc định) | "toeic" — quyết định danh sách dạng câu hỏi và ẩn
 // nút import spreadsheet với nội dung TOEIC (chưa có template, Phase 8 bước 5.6).
 // firstId: số câu đầu tiên của kỹ năng khi chưa có câu nào (TOEIC Reading = 101).
-export default function SectionsEditor({ sections, subject, media, onChange, showTranscript = false, program, firstId = 1 }) {
+export default function SectionsEditor({
+  sections,
+  subject,
+  media,
+  onChange,
+  showTranscript = false,
+  program,
+  firstId = 1,
+  aiContext,
+  onMediaChanged,
+  bankExcludeIds,
+}) {
   const [importing, setImporting] = useState(false);
-  const canImport = program !== "toeic";
+  const [aiExerciseOpen, setAiExerciseOpen] = useState(false);
+  const [wordImportOpen, setWordImportOpen] = useState(false);
+
+  const prog = programOf({ program: program || (aiContext && aiContext.program) });
+  const canImport = !!PROGRAMS[prog]?.excelImport;
+  const canAiExercise = !!PROGRAMS[prog]?.aiExercise && aiFormatsFor(subject).length > 0;
+  const canWordImport = !!PROGRAMS[prog]?.wordImport;
+  const canBank = !!PROGRAMS[prog]?.questionBank; // ngân hàng câu hỏi (G4): chỉ chương trình bật cờ trong registry
 
   function patch(mut) {
     const draft = structuredClone(sections);
@@ -135,8 +197,58 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
     onChange(draft);
   }
 
+  // Thêm các section sinh từ AI: đánh số tiếp từ nextFieldId và gắn cờ vàng
+  function handleAddAiSections(chosenTopics) {
+    onChange(appendAiSections(sections, chosenTopics, firstId));
+  }
+
+  // Đếm tổng số câu có cờ vàng trong phiên soạn
+  const flaggedCount = sections.reduce(
+    (acc, sec) => acc + (sec.fields || []).filter((f) => !!f.aiFlag).length,
+    0
+  );
+
+  function scrollToNextFlag() {
+    const flagged = document.querySelectorAll(".question-row.flagged");
+    if (!flagged.length) return;
+    let target = Array.from(flagged).find((el) => {
+      const rect = el.getBoundingClientRect();
+      return rect.top > 120;
+    });
+    if (!target) target = flagged[0];
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   return (
     <>
+      {flaggedCount > 0 && (
+        <div
+          className="notice warn builder-flag-notice"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 12,
+          }}
+        >
+          <span>
+            ⚠ {flaggedCount} question{flaggedCount === 1 ? "" : "s"} need checking
+          </span>
+          <button
+            type="button"
+            className="btn secondary sm"
+            style={{
+              borderColor: "currentColor",
+              color: "inherit",
+              padding: "4px 10px",
+              fontSize: ".82rem",
+            }}
+            onClick={scrollToNextFlag}
+          >
+            Next
+          </button>
+        </div>
+      )}
       {sections.length === 0 && (
         <div className="empty-state">No sections added — click &quot;Add Section&quot; to start.</div>
       )}
@@ -152,6 +264,7 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
           program={program}
           firstId={firstId}
           patch={patch}
+          bank={canBank ? { program: prog, aiContext, swap: { program: prog, level: Number(aiContext && aiContext.level) || 0, excludeIds: bankExcludeIds || [] } } : null}
         />
       ))}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
@@ -163,6 +276,16 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
         >
           <svg className="icon"><use href="#icon-plus" /></svg> Add Section
         </button>
+        {canAiExercise && (
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setAiExerciseOpen(true)}
+          >
+            <svg className="icon"><use href="#icon-sparkles" /></svg> Generate with AI
+          </button>
+        )}
         {canImport && (
           <button
             type="button"
@@ -173,7 +296,26 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
             <svg className="icon"><use href="#icon-upload" /></svg> Import from spreadsheet
           </button>
         )}
+        {canWordImport && (
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "8px 14px", fontSize: ".85rem" }}
+            onClick={() => setWordImportOpen(true)}
+          >
+            <svg className="icon"><use href="#icon-upload" /></svg> Import from Word
+          </button>
+        )}
       </div>
+
+      {canAiExercise && aiExerciseOpen && (
+        <AiExerciseDialog
+          context={aiContext}
+          subject={subject}
+          onAdd={handleAddAiSections}
+          onClose={() => setAiExerciseOpen(false)}
+        />
+      )}
 
       {canImport && importing && (
         <SpreadsheetImport
@@ -182,17 +324,31 @@ export default function SectionsEditor({ sections, subject, media, onChange, sho
           onClose={() => setImporting(false)}
         />
       )}
+
+      {canWordImport && wordImportOpen && (
+        <WordImport
+          existingSections={sections}
+          subject={subject}
+          program={prog}
+          aiContext={aiContext}
+          firstId={firstId}
+          onMediaChanged={onMediaChanged || media?.reload}
+          onImport={(nextSections) => onChange(nextSections)}
+          onClose={() => setWordImportOpen(false)}
+        />
+      )}
     </>
   );
 }
 
-function SectionCard({ sec, si, subject, media, allSections, patch, showTranscript, program, firstId = 1 }) {
+function SectionCard({ sec, si, subject, media, allSections, patch, showTranscript, program, firstId = 1, bank = null }) {
   const set = (k, v) => patch((d) => (d[si][k] = v));
   const formats = questionFormatsFor(subject, program);
   // true = đang hiện lưới chọn dạng bài (bấm "+ Add Question" mở ra, chọn
   // xong hoặc Cancel thì đóng lại). Không có state riêng cho "loại nào" vì
   // chọn xong là tạo câu luôn — không có bước "xác nhận" thừa.
   const [pickingFormat, setPickingFormat] = useState(false);
+  const [bankOpen, setBankOpen] = useState(false); // hộp "Save to question bank"
 
   // Tạo câu hỏi mới theo ĐÚNG tên dạng bài IELTS (vd "Table Completion")
   // thay vì bắt giáo viên tự biết chọn cơ chế nền (Fill/Matching/...) rồi tự
@@ -203,15 +359,9 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
     const id = nextFieldId(allSections, firstId);
     patch((d) => {
       const s = d[si];
-      const field = emptyField(id);
       // "letter" (Listen and choose — no printed question) lưu như câu mcq đề trống,
-      // lựa chọn A..D tự tạo — xem lib/letterQuestion.js.
-      field.kind = fmt.kind === "letter" ? "mcq" : fmt.kind;
-      field.formatLabel = fmt.label || "";
-      if (fmt.kind === "tfng") field.options = tfngOptions();
-      if (fmt.kind === "ynng") field.options = ynngOptions();
-      if (fmt.kind === "letter") field.options = editorLetterOptions(fmt.letterOptions);
-      if (fmt.presetOptions) field.options = fmt.presetOptions.map((text) => ({ id: newOptionId(), text }));
+      // lựa chọn A..D tự tạo — xem lib/letterQuestion.js (logic nằm trong applyFormat).
+      const field = applyFormat(emptyField(id), fmt);
       s.fields.push(field);
 
       if (fmt.noteMode) addNoteBlock(s, id);
@@ -273,6 +423,22 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
           <svg className="icon"><use href="#icon-trash" /></svg>
         </button>
       </div>
+
+      {bank && (sec.fields || []).length > 0 && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "5px 12px", fontSize: ".8rem" }}
+            onClick={() => setBankOpen(true)}
+          >
+            <svg className="icon"><use href="#icon-list" /></svg> Save to question bank
+          </button>
+        </div>
+      )}
+      {bankOpen && bank && (
+        <SaveToBankDialog sec={sec} subject={subject} program={bank.program} aiContext={bank.aiContext || {}} onClose={() => setBankOpen(false)} />
+      )}
 
       {subject === "listening" && (
         <div className="form-row" style={{ marginBottom: 10 }}>
@@ -380,7 +546,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
               </div>
               <div className="fields-wrap">
                 {standaloneEntries.map(({ f, fi }) => (
-                  <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} program={program} media={media} patch={patch} />
+                  <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} program={program} media={media} patch={patch} swap={bank && bank.swap} allSections={allSections} />
                 ))}
               </div>
             </>
@@ -413,7 +579,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
                         {f.label}
                       </button>
                     ))
-                  : QUESTION_KINDS.map((k) => (
+                  : BASIC_KINDS.map((k) => (
                       <button
                         key={k}
                         type="button"
@@ -665,7 +831,11 @@ function NoteBlocksEditor({ sec, si, allSections, subject, program, media, patch
   );
 }
 
-function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
+function FieldRow({ f, fi, si, sec, subject, program, media, patch, swap = null, allSections = null }) {
+  // Swap: thay câu/nhóm lấy từ ngân hàng bằng mục khác (G4 bước 3)
+  const swapBtn = swap && allSections ? (
+    <SwapButton swap={swap} sections={allSections} si={si} fi={fi} onApply={(next) => patch((d) => d.splice(0, d.length, ...next))} />
+  ) : null;
   const setF = (k, v) => patch((d) => (d[si].fields[fi][k] = v));
   const formats = questionFormatsFor(subject, program);
 
@@ -675,6 +845,12 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
       const wasTfng = isFixedChoiceShape(ff.options, ["true", "false", "ng"]);
       const wasYnng = isFixedChoiceShape(ff.options, ["yes", "no", "ng"]);
       ff.kind = kind;
+      if (kind === "reorder") {
+        ff.matchMode = "sentence";
+        if (!Array.isArray(ff.tokens)) ff.tokens = [];
+      } else if (kind !== "fill") {
+        ff.matchMode = "";
+      }
       if (kind === "tfng" && !wasTfng) {
         ff.options = tfngOptions();
         ff.correctOptionIds = [];
@@ -705,8 +881,8 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
       const wasTfng = isFixedChoiceShape(ff.options, ["true", "false", "ng"]);
       const wasYnng = isFixedChoiceShape(ff.options, ["yes", "no", "ng"]);
       const wasLetter = isLetterEditorField(ff);
-      ff.kind = fmt.kind === "letter" ? "mcq" : fmt.kind;
-      ff.formatLabel = fmt.label || "";
+      applyFormatBasics(ff, fmt);
+      if (fmt.kind === "reorder" && !Array.isArray(ff.tokens)) ff.tokens = [];
       if (fmt.kind === "tfng" && !wasTfng) {
         ff.options = tfngOptions();
         ff.correctOptionIds = [];
@@ -749,11 +925,13 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
   // thì mới hiện đại diện đầu tiên khớp cơ chế đó.
   // TOEIC: nhiều Part chung 1 cơ chế (mcq) nên KHÔNG đoán theo cơ chế — câu chưa có
   // formatLabel hiện ô "Choose a Part" thay vì nhận bừa Part 3.
+  const progConf = PROGRAMS[programOf({ program })] || PROGRAMS.ielts;
   const currentFormatKey = formats
     ? ((formats.find((x) => x.label === f.formatLabel) ||
-        (program === "toeic" ? null : formats.find((x) => x.kind === f.kind))) || {}).key || ""
+        (progConf.legacyFormatGuess ? formats.find((x) => x.kind === f.kind) : null)) || {}).key || ""
     : "";
   const currentFormat = formats ? formats.find((x) => x.key === currentFormatKey) : null;
+  const underlineMode = (currentFormat && currentFormat.underline) || underlineModeOf(f.formatLabel);
 
   // Câu "Listen and choose — no printed question": chỉ còn số câu + đáp án đúng A/B/C(/D)
   // (+ ảnh của câu cho Part 1). Không có ô đề, không có ô nhập lựa chọn.
@@ -761,7 +939,23 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
     const fmt = formats ? formats.find((x) => x.label === f.formatLabel) : null;
     const wantsImage = !!(fmt && fmt.needsFieldImage);
     return (
-      <div className="question-row letter-row">
+      <div className={"question-row letter-row" + (f.aiFlag ? " flagged" : "")}>
+        {swapBtn}
+        {f.aiFlag && (
+          <div className="question-flag-bar">
+            <span className="flag-reason">⚠ {f.aiFlag}</span>
+            <button
+              type="button"
+              onClick={() =>
+                patch((d) => {
+                  delete d[si].fields[fi].aiFlag;
+                })
+              }
+            >
+              Mark as checked
+            </button>
+          </div>
+        )}
         <div className="letter-row-main">
           <input
             type="text"
@@ -831,7 +1025,23 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
   }
 
   return (
-    <div className="question-row">
+    <div className={"question-row" + (f.aiFlag ? " flagged" : "")}>
+      {swapBtn}
+      {f.aiFlag && (
+        <div className="question-flag-bar">
+          <span className="flag-reason">⚠ {f.aiFlag}</span>
+          <button
+            type="button"
+            onClick={() =>
+              patch((d) => {
+                delete d[si].fields[fi].aiFlag;
+              })
+            }
+          >
+            Mark as checked
+          </button>
+        </div>
+      )}
       <div className="question-grid-cols">
         <span className="question-drag" title="Reorder by Order number">
           <svg className="icon"><use href="#icon-menu" /></svg>
@@ -853,7 +1063,9 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
               if (fmt) changeFormat(fmt);
             }}
           >
-            {program === "toeic" && !currentFormatKey && <option value="" disabled>Choose a Part…</option>}
+            {progConf.formatPlaceholder != null && !currentFormatKey && (
+              <option value="" disabled>{progConf.formatPlaceholder}</option>
+            )}
             {formats.map((fmt) => (
               <option key={fmt.key} value={fmt.key}>
                 {fmt.label}
@@ -862,7 +1074,7 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
           </select>
         ) : (
           <select className="f-kind" value={f.kind} onChange={(e) => changeKind(e.target.value)}>
-            {QUESTION_KINDS.map((k) => (
+            {(f.kind === "reorder" ? QUESTION_KINDS : BASIC_KINDS).map((k) => (
               <option key={k} value={k}>
                 {QUESTION_KIND_LABELS[k]}
               </option>
@@ -893,6 +1105,14 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
           <svg className="icon"><use href="#icon-trash" /></svg>
         </button>
       </div>
+      {underlineMode === "label" && (
+        <div className="question-hint-row" style={{ marginTop: 4, marginBottom: 4 }}>
+          <div style={{ fontSize: ".8rem", color: "var(--muted)" }}>
+            Wrap underlined text in double underscores: <code>h__ea__d</code>
+          </div>
+          <UnderlinePreview text={f.label} />
+        </div>
+      )}
       <div className="question-hint-row">
         <input
           type="text"
@@ -922,7 +1142,7 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
         />
       )}
       <div className="question-detail">
-        <QuestionDetail f={f} fi={fi} si={si} sec={sec} media={media} patch={patch} />
+        <QuestionDetail f={f} fi={fi} si={si} sec={sec} media={media} patch={patch} currentFormat={currentFormat} />
       </div>
     </div>
   );
@@ -968,8 +1188,132 @@ function FieldImagePicker({ f, fi, si, media, patch, defaultOpen }) {
   );
 }
 
-function QuestionDetail({ f, fi, si, sec, media, patch }) {
+function QuestionDetail({ f, fi, si, sec, media, patch, currentFormat }) {
   const setF = (k, v) => patch((d) => (d[si].fields[fi][k] = v));
+  const [errorLettersErr, setErrorLettersErr] = useState(null);
+  const [orderInput, setOrderInput] = useState("");
+  const [arrangeErr, setArrangeErr] = useState(null);
+
+  if (f.kind === "reorder") {
+    const tokens = Array.isArray(f.tokens) ? f.tokens : [];
+    return (
+      <div className="reorder-builder">
+        <div className="f-group" style={{ marginBottom: 10 }}>
+          <label>Correct sentence(s) — one per line (each line is an accepted answer)</label>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+            <textarea
+              className="f-answers"
+              rows={2}
+              placeholder={"She / always / gets up / early.\nShe always gets up early."}
+              style={{ flex: 1, minWidth: 260 }}
+              value={f.answersText || ""}
+              onChange={(e) => setF("answersText", e.target.value)}
+            />
+            <button
+              type="button"
+              className="btn secondary"
+              style={{ whiteSpace: "nowrap", padding: "8px 12px", fontSize: ".85rem" }}
+              title="Split first sentence into pieces and shuffle"
+              onClick={() => {
+                const first = String(f.answersText || "").split("\n").map((s) => s.trim()).filter(Boolean)[0] || "";
+                if (!first) return;
+                const pieces = splitTokens(first);
+                const shuffled = shuffleTokens(pieces);
+                patch((d) => {
+                  const ff = d[si].fields[fi];
+                  ff.tokens = shuffled;
+                  ff.matchMode = "sentence";
+                });
+              }}
+            >
+              <svg className="icon"><use href="#icon-sparkles" /></svg> Split into pieces
+            </button>
+          </div>
+        </div>
+
+        <div className="f-group">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
+            <label style={{ margin: 0 }}>Pieces for students to arrange ({tokens.length}) — stored in scrambled order</label>
+            {tokens.length > 1 && (
+              <button
+                type="button"
+                className="btn secondary sm"
+                style={{ fontSize: ".78rem", padding: "3px 8px" }}
+                onClick={() => {
+                  const shuffled = shuffleTokens(tokens);
+                  patch((d) => (d[si].fields[fi].tokens = shuffled));
+                }}
+              >
+                Shuffle again
+              </button>
+            )}
+          </div>
+
+          {tokens.length === 0 ? (
+            <div className="kind-hint warn">
+              No pieces yet. Enter the correct sentence above and click &quot;Split into pieces&quot;, or add pieces manually.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+              {tokens.map((token, ti) => (
+                <div
+                  key={ti}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    padding: "3px 6px",
+                  }}
+                >
+                  <input
+                    type="text"
+                    style={{
+                      width: Math.max(50, Math.min(220, (token.length + 2) * 9)) + "px",
+                      border: "none",
+                      background: "transparent",
+                      padding: "2px 4px",
+                      fontSize: ".88rem",
+                      fontFamily: "inherit",
+                    }}
+                    value={token}
+                    onChange={(e) =>
+                      patch((d) => {
+                        d[si].fields[fi].tokens[ti] = e.target.value;
+                      })
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="icon-btn danger"
+                    style={{ width: 20, height: 20, padding: 0 }}
+                    title="Delete piece"
+                    onClick={() =>
+                      patch((d) => {
+                        d[si].fields[fi].tokens.splice(ti, 1);
+                      })
+                    }
+                  >
+                    <svg className="icon" style={{ width: 12, height: 12 }}><use href="#icon-cross" /></svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="option-add-btn"
+            onClick={() => patch((d) => d[si].fields[fi].tokens.push(""))}
+          >
+            <svg className="icon"><use href="#icon-plus" /></svg> Add piece
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (f.kind === "fill") {
     return (
@@ -1021,44 +1365,166 @@ function QuestionDetail({ f, fi, si, sec, media, patch }) {
   }
 
   if (f.kind === "mcq") {
+    const underlineMode = (currentFormat && currentFormat.underline) || underlineModeOf(f.formatLabel);
+    const isErrorLetters = !!(currentFormat && currentFormat.errorLetters) || isErrorIdFormat(f.formatLabel);
+    const isArrange = !!(currentFormat && currentFormat.arrange) || f.formatLabel === GENERAL_LABELS.arrange;
+
     return (
       <>
-        <div className="question-detail-inner">
-          {(f.options || []).map((o, oi) => (
-            <div className="option-row" key={oi}>
-              <input
-                type="checkbox"
-                title="Mark as correct answer"
-                checked={f.correctOptionIds.includes(o.id)}
-                onChange={(e) =>
-                  patch((d) => {
-                    const ff = d[si].fields[fi];
-                    ff.correctOptionIds = e.target.checked
-                      ? [...ff.correctOptionIds, o.id]
-                      : ff.correctOptionIds.filter((x) => x !== o.id);
-                  })
-                }
-              />
+        {isArrange && (
+          <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", marginBottom: 10 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <label style={{ fontSize: ".84rem", fontWeight: 600, margin: 0 }}>Correct order:</label>
               <input
                 type="text"
-                placeholder={"Option " + (oi + 1) + " text"}
-                value={o.text}
-                onChange={(e) => patch((d) => (d[si].fields[fi].options[oi].text = e.target.value))}
+                placeholder="e.g. b-d-a-c-e"
+                style={{ width: 140, padding: "4px 8px", fontSize: ".85rem" }}
+                value={orderInput}
+                onChange={(e) => setOrderInput(e.target.value)}
               />
               <button
                 type="button"
-                className="icon-btn danger option-remove"
-                title="Remove option"
-                onClick={() =>
+                className="btn secondary sm"
+                onClick={() => {
+                  const res = arrangeOptions(orderInput);
+                  if (res.options.length < 4) {
+                    setArrangeErr("Enter at least 3 letters so there are 4 different orders (e.g. b-d-a-c-e).");
+                    return;
+                  }
+                  setArrangeErr(null);
+                  const newOpts = res.options.map((optText) => ({ id: newOptionId(), text: optText }));
+                  const correctOpt = newOpts[res.correctIndex];
                   patch((d) => {
                     const ff = d[si].fields[fi];
-                    const [rm] = ff.options.splice(oi, 1);
-                    ff.correctOptionIds = ff.correctOptionIds.filter((x) => x !== rm.id);
-                  })
-                }
+                    ff.options = newOpts;
+                    ff.correctOptionIds = correctOpt ? [correctOpt.id] : [];
+                  });
+                }}
               >
-                <svg className="icon"><use href="#icon-trash" /></svg>
+                <svg className="icon"><use href="#icon-sparkles" /></svg> Generate options
               </button>
+            </div>
+            {arrangeErr && (
+              <p className="notice error" style={{ marginTop: 6, padding: "4px 8px", fontSize: ".8rem" }}>
+                {arrangeErr}
+              </p>
+            )}
+          </div>
+        )}
+
+        {isErrorLetters && (
+          <div style={{ marginBottom: 10 }}>
+            <button
+              type="button"
+              className="btn secondary sm"
+              onClick={() => {
+                try {
+                  const letters = optionLettersFromUnderlines(f.label || "");
+                  setErrorLettersErr(null);
+                  patch((d) => {
+                    const ff = d[si].fields[fi];
+                    ff.options = letters.map((l) => ({ id: newOptionId(), text: l }));
+                    ff.correctOptionIds = [];
+                  });
+                } catch (err) {
+                  setErrorLettersErr(err.message);
+                }
+              }}
+            >
+              <svg className="icon"><use href="#icon-sparkles" /></svg> Build options from underlines
+            </button>
+            {errorLettersErr && (
+              <p className="notice error" style={{ marginTop: 6, padding: "6px 10px", fontSize: ".82rem" }}>
+                {errorLettersErr}
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="question-detail-inner">
+          {(f.options || []).map((o, oi) => (
+            <div key={oi} className={underlineMode === "options" ? "option-item" : "option-row"}>
+              {underlineMode === "options" ? (
+                <>
+                  <div className="option-row" style={{ marginBottom: 4 }}>
+                    <input
+                      type="checkbox"
+                      title="Mark as correct answer"
+                      checked={f.correctOptionIds.includes(o.id)}
+                      onChange={(e) =>
+                        patch((d) => {
+                          const ff = d[si].fields[fi];
+                          ff.correctOptionIds = e.target.checked
+                            ? [...ff.correctOptionIds, o.id]
+                            : ff.correctOptionIds.filter((x) => x !== o.id);
+                        })
+                      }
+                    />
+                    <input
+                      type="text"
+                      placeholder={"Option " + (oi + 1) + " text"}
+                      value={o.text}
+                      onChange={(e) => patch((d) => (d[si].fields[fi].options[oi].text = e.target.value))}
+                    />
+                    <button
+                      type="button"
+                      className="icon-btn danger option-remove"
+                      title="Remove option"
+                      onClick={() =>
+                        patch((d) => {
+                          const ff = d[si].fields[fi];
+                          const [rm] = ff.options.splice(oi, 1);
+                          ff.correctOptionIds = ff.correctOptionIds.filter((x) => x !== rm.id);
+                        })
+                      }
+                    >
+                      <svg className="icon"><use href="#icon-trash" /></svg>
+                    </button>
+                  </div>
+                  <div style={{ marginLeft: 30, marginBottom: 8 }}>
+                    <div style={{ fontSize: ".76rem", color: "var(--muted)" }}>
+                      Wrap underlined text in double underscores: <code>h__ea__d</code>
+                    </div>
+                    <UnderlinePreview text={o.text} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="checkbox"
+                    title="Mark as correct answer"
+                    checked={f.correctOptionIds.includes(o.id)}
+                    onChange={(e) =>
+                      patch((d) => {
+                        const ff = d[si].fields[fi];
+                        ff.correctOptionIds = e.target.checked
+                          ? [...ff.correctOptionIds, o.id]
+                          : ff.correctOptionIds.filter((x) => x !== o.id);
+                      })
+                    }
+                  />
+                  <input
+                    type="text"
+                    placeholder={"Option " + (oi + 1) + " text"}
+                    value={o.text}
+                    onChange={(e) => patch((d) => (d[si].fields[fi].options[oi].text = e.target.value))}
+                  />
+                  <button
+                    type="button"
+                    className="icon-btn danger option-remove"
+                    title="Remove option"
+                    onClick={() =>
+                      patch((d) => {
+                        const ff = d[si].fields[fi];
+                        const [rm] = ff.options.splice(oi, 1);
+                        ff.correctOptionIds = ff.correctOptionIds.filter((x) => x !== rm.id);
+                      })
+                    }
+                  >
+                    <svg className="icon"><use href="#icon-trash" /></svg>
+                  </button>
+                </>
+              )}
             </div>
           ))}
         </div>

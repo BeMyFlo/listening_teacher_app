@@ -5,10 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { TEST_SKILLS } from "@/lib/teacher/testBuilder";
 import { useDialog } from "@/components/ui/Dialog";
-import { programOf } from "@/lib/curriculum";
+import { programOf, levelWordOf } from "@/lib/curriculum";
 import { programParam, usePrograms } from "@/lib/client/program";
 import ProgramChips, { ProgramEmpty } from "@/components/teacher/ProgramChips";
 import ProgramBadge from "@/components/ProgramBadge";
+import { templatesFor } from "@/lib/generalTemplates";
+import { PROGRAMS } from "@/lib/curriculum";
+import ExamExportPanel from "@/components/teacher/ExamExportPanel";
 
 function TeacherTestsInner() {
   const dialog = useDialog();
@@ -21,6 +24,7 @@ function TeacherTestsInner() {
   const [listErr, setListErr] = useState("");
   const [levelFilter, setLevelFilter] = useState("all");
   const [classFilter, setClassFilter] = useState("all");
+  const [exportOpen, setExportOpen] = useState(null); // id đề đang mở Print / export
 
   function load() {
     Promise.all([api.teacher.listTests(), api.teacher.listClasses().catch(() => ({ rows: [] }))])
@@ -57,7 +61,9 @@ function TeacherTestsInner() {
   // Nhãn level ở bộ lọc: theo chip đang chọn, hoặc chương trình duy nhất. Chip All + nhiều
   // chương trình: một số level chung cho cả hai chương trình -> giữ "Level N" như cũ.
   const labelProgram = program || (isMulti ? null : programs[0]);
-  const filterLabel = (l) => (labelProgram ? levelLabel(labelProgram, l) : "Level " + l);
+  // Nút "New test from template": chương trình đang xem (chip) hoặc chương trình duy nhất, nếu có khuôn.
+  const templateProgram = labelProgram && templatesFor(labelProgram).length ? labelProgram : null;
+  const filterLabel = (l) => (labelProgram ? levelLabel(labelProgram, l) : `${levelWordOf(labelProgram)} ${l}`);
 
   const filtered = progRows.filter((t) => {
     if (levelFilter !== "all" && t.level !== Number(levelFilter)) return false;
@@ -96,13 +102,24 @@ function TeacherTestsInner() {
             <p className="page-sub">Create and publish mock tests by level — 1 to 4 skills each</p>
           </div>
         </div>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => router.push("/teacher/tests/new" + (program ? "?program=" + program : ""))}
-        >
-          <svg className="icon"><use href="#icon-plus" /></svg> Create Test
-        </button>
+        <div className="page-head-actions">
+          {templateProgram && (
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() => router.push("/teacher/tests/new?program=" + templateProgram + "&template=1")}
+            >
+              <svg className="icon"><use href="#icon-clipboard" /></svg> New test from template
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn"
+            onClick={() => router.push("/teacher/tests/new" + (program ? "?program=" + program : ""))}
+          >
+            <svg className="icon"><use href="#icon-plus" /></svg> Create Test
+          </button>
+        </div>
       </div>
 
       <ProgramChips />
@@ -164,6 +181,7 @@ function TeacherTestsInner() {
                     {skills.length ? skills.join(", ") : "none yet"}
                     {sched.length ? " · " + sched.join(" · ") : ""}
                   </p>
+                  {exportOpen === t._id && PROGRAMS[programOf(t)].questionBank && <ExamExportPanel testId={t._id} />}
                 </div>
                 <div className="actions">
                   <button
@@ -174,6 +192,16 @@ function TeacherTestsInner() {
                   >
                     <svg className="icon"><use href="#icon-list" /></svg> Submissions
                   </button>
+                  {PROGRAMS[programOf(t)].questionBank && (
+                    <button
+                      type="button"
+                      className="btn secondary"
+                      style={{ padding: "6px 12px", fontSize: ".8rem" }}
+                      onClick={() => setExportOpen(exportOpen === t._id ? null : t._id)}
+                    >
+                      Print / export
+                    </button>
+                  )}
                   <button type="button" className="icon-btn" title="Edit" onClick={() => router.push("/teacher/tests/" + t._id)}>
                     <svg className="icon"><use href="#icon-edit" /></svg>
                   </button>

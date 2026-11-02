@@ -1,7 +1,7 @@
 "use client";
 
-import { getRubric, isToeicVariant, scoreRange, annotationCriteria } from "@/lib/grading/rubric";
-import { ASPECT_LABELS } from "@/lib/toeicTasks";
+import { getRubric, isToeicVariant, isGeneralVariant, scoreRange, annotationCriteria } from "@/lib/grading/rubric";
+import { criterionLabel, descriptorLevel, generalHeader } from "@/lib/grading/generalUi";
 import AnnotatedEssay from "@/components/AnnotatedEssay";
 import SuggestedActionsBox from "@/components/SuggestedActionsBox";
 
@@ -40,6 +40,9 @@ export default function RubricResult({
   // TOEIC: 1 dòng "Score" (x/max) thay cho bảng 4 tiêu chí band; tag lỗi theo khía cạnh của dạng đề.
   const toeic = isToeicVariant(rubricVariant);
   const toeicMax = toeic ? scoreRange(rubricVariant).max : null;
+  // General (thang 10): "Score x / 10", tiêu chí 0–2.5, không "Band".
+  const general = isGeneralVariant(rubricVariant);
+  const gHeader = generalHeader(rubricVariant, manualScore);
   const byKey = {};
   (rubric?.criteria || []).forEach((c) => (byKey[c.key] = c));
 
@@ -47,13 +50,15 @@ export default function RubricResult({
   // vào ô của tiêu chí tương ứng trong bảng, không tách thành khung riêng.
   const mergeIntoTable = !!audioUrl && !showTranscript;
   const KNOWN_CRIT = annotationCriteria(rubricVariant) || ["FC", "LR", "GRA", "PR"];
+  // Chú thích không gán tiêu chí được dồn vào tiêu chí "ngữ pháp/ngôn ngữ" (IELTS: GRA; General: tiêu chí cuối = GR/LU).
+  const FALLBACK = general ? KNOWN_CRIT[KNOWN_CRIT.length - 1] : "GRA";
   const critAnns = (key) =>
     mergeIntoTable && Array.isArray(annotations)
-      ? annotations.filter((a) => toeic || (key === "GRA" ? a.criterion === "GRA" || !KNOWN_CRIT.includes(a.criterion) : a.criterion === key)) // TOEIC: 1 dòng "score" gom hết
+      ? annotations.filter((a) => toeic || (key === FALLBACK ? a.criterion === FALLBACK || !KNOWN_CRIT.includes(a.criterion) : a.criterion === key)) // TOEIC: 1 dòng "score" gom hết
       : [];
   const critNotes = (key) =>
     mergeIntoTable && Array.isArray(speakingNotes)
-      ? speakingNotes.filter((n) => toeic || (key === "GRA" ? n.criterion === "GRA" || !KNOWN_CRIT.includes(n.criterion) : n.criterion === key))
+      ? speakingNotes.filter((n) => toeic || (key === FALLBACK ? n.criterion === FALLBACK || !KNOWN_CRIT.includes(n.criterion) : n.criterion === key))
       : [];
 
   return (
@@ -80,7 +85,7 @@ export default function RubricResult({
             <ul className="ea-readlist">
               {speakingNotes.map((n, i) => (
                 <li key={i}>
-                  <span className="pill pill-info">{ASPECT_LABELS[n.criterion] || n.criterion || CAT_LABEL[n.category] || n.category}</span>{" "}
+                  <span className="pill pill-info">{criterionLabel(rubricVariant, n.criterion) || CAT_LABEL[n.category] || n.category}</span>{" "}
                   {n.atSeconds != null ? <b>{fmtT(n.atSeconds)} · </b> : null}
                   {n.comment}
                 </li>
@@ -91,7 +96,7 @@ export default function RubricResult({
       )}
       {showBandHeader && (
         <div className="rubric-result-band">
-          {toeic ? "Score" : "Band"} <span>{manualScore != null ? (toeic ? `${manualScore}/${toeicMax}` : manualScore) : "—"}</span>
+          {general ? gHeader.title : toeic ? "Score" : "Band"} <span>{general ? gHeader.value : manualScore != null ? (toeic ? `${manualScore}/${toeicMax}` : manualScore) : "—"}</span>
           {rubric && <small>{rubric.label}</small>}
         </div>
       )}
@@ -101,13 +106,13 @@ export default function RubricResult({
           <tbody>
             {!showBandHeader && (
               <tr className="rubric-overall-row">
-                <td className="b">{manualScore != null ? manualScore : "—"}</td>
-                <td><div className="crit">{toeic ? "Score" : "Overall band"}</div></td>
+                <td className="b">{general ? gHeader.value : manualScore != null ? manualScore : "—"}</td>
+                <td><div className="crit">{toeic || general ? "Score" : "Overall band"}</div></td>
               </tr>
             )}
             {criteria.map((c) => {
               const meta = byKey[c.key];
-              const bd = meta && meta.bands ? meta.bands[String(c.band)] : null;
+              const bd = meta && meta.bands ? meta.bands[String(general ? descriptorLevel(c.band) : c.band)] : null;
               return (
                 <tr key={c.key}>
                   <td className="b">{c.band}</td>

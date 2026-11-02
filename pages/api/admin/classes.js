@@ -7,7 +7,7 @@ const Teacher = require("../../../lib/models/Teacher");
 const Unit = require("../../../lib/models/Unit");
 const Test = require("../../../lib/models/Test");
 const { teacherScope, canAccessClass } = require("../../../lib/teacherScope");
-const { DEFAULT_PROGRAM, isProgram, programOf } = require("../../../lib/curriculum");
+const { PROGRAMS, DEFAULT_PROGRAM, isProgram, programOf, levelAllowed } = require("../../../lib/curriculum");
 const { programLockReason, resolveProgramChange, referencedClassIds } = require("../../../lib/curriculumServer");
 
 async function handler(req, res) {
@@ -47,13 +47,16 @@ async function handler(req, res) {
     const name = String((req.body && req.body.name) || "").trim();
     const level = Number(req.body && req.body.level);
     if (!name) return res.status(400).json({ ok: false, error: "Missing class name" });
-    if (!Number.isInteger(level) || level < 1) {
-      return res.status(400).json({ ok: false, error: "Please select a valid level" });
-    }
     // Không gửi program -> IELTS (client cũ giữ hành vi cũ); gửi giá trị lạ -> 400.
     const rawProgram = req.body && req.body.program;
     const program = rawProgram == null ? DEFAULT_PROGRAM : rawProgram;
     if (!isProgram(program)) return res.status(400).json({ ok: false, error: "Invalid program" });
+    if (!levelAllowed(program, level)) {
+      return res.status(400).json({
+        ok: false,
+        error: PROGRAMS[program].fixedLevels ? "Choose a grade from 6 to 12." : "Please select a valid level",
+      });
+    }
     const cls = await Class.create({ name, level, program, workspaceId: req.ws.workspaceId });
     // Giáo viên đang bị teacherScope giới hạn (classIds không rỗng) tự tạo
     // lớp mới -> PHẢI tự động thêm lớp đó vào classIds của chính họ, nếu
@@ -101,12 +104,15 @@ async function handler(req, res) {
       if (!String(name).trim()) return res.status(400).json({ ok: false, error: "Class name cannot be empty" });
       cls.name = String(name).trim();
     }
-    if (level != null) {
-      const lvl = Number(level);
-      if (!Number.isInteger(lvl) || lvl < 1) return res.status(400).json({ ok: false, error: "Invalid level" });
-      cls.level = lvl;
-    }
+    if (level != null) cls.level = Number(level);
     if (change.changed) cls.program = program;
+    const clsProgram = programOf(cls);
+    if (!levelAllowed(clsProgram, cls.level)) {
+      return res.status(400).json({
+        ok: false,
+        error: PROGRAMS[clsProgram].fixedLevels ? "Choose a grade from 6 to 12." : "Invalid level",
+      });
+    }
     await cls.save();
     return res.status(200).json({ ok: true, class: cls });
   }

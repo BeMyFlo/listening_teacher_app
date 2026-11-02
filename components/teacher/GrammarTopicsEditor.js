@@ -5,6 +5,7 @@ import SectionsEditor from "./SectionsEditor";
 import LessonImport from "./LessonImport";
 import AiGrammarDialog from "./AiGrammarDialog";
 import { useDialog } from "@/components/ui/Dialog";
+import { PROGRAMS, programOf } from "@/lib/curriculum";
 
 function emptyTopic() {
   return {
@@ -24,8 +25,8 @@ const LESSON_FIELDS = [
 
 export default function GrammarTopicsEditor({ topics, media, onChange, aiContext, program }) {
   const dialog = useDialog();
-  // Template import (Excel) chưa có cho TOEIC -> ẩn các nút import (Phase 8, 5.6).
-  const canImport = program !== "toeic";
+  // Template import (Excel): kiểm tra registry theo chương trình.
+  const canImport = !!PROGRAMS[programOf({ program })]?.excelImport;
   // null = đang đóng; -1 = nút Import chung ở trên; i = nút Import trong chủ đề i.
   const [importTarget, setImportTarget] = useState(null);
   const [aiOpen, setAiOpen] = useState(false);
@@ -199,6 +200,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange, aiContext
                   media={media}
                   subject="grammar"
                   program={program}
+                  aiContext={{ ...aiContext, focus: t.name || (aiContext && aiContext.focus) || "" }}
                   onChange={(next) => patch((d) => (d[i].exercises = next))}
                 />
               </>
@@ -236,7 +238,7 @@ export default function GrammarTopicsEditor({ topics, media, onChange, aiContext
 }
 
 // Bài tập của 1 topic/group — mỗi exercise có title + _sections (SectionsEditor).
-export function TopicExercises({ exercises, media, subject, program, onChange }) {
+export function TopicExercises({ exercises, media, subject, program, onChange, aiContext }) {
   const dialog = useDialog();
   function patch(mut) {
     const draft = structuredClone(exercises);
@@ -273,6 +275,8 @@ export function TopicExercises({ exercises, media, subject, program, onChange })
               subject={subject}
               program={program}
               media={media}
+              onMediaChanged={media?.reload}
+              aiContext={aiContext}
               onChange={(next) => patch((d) => (d[i]._sections = next))}
             />
           </div>

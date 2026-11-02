@@ -7,7 +7,7 @@
 //
 // Dùng useSearchParams nên trang chứa nó phải bọc trong <Suspense>.
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { PROGRAMS, PROGRAM_KEYS } from "@/lib/curriculum";
+import { PROGRAMS } from "@/lib/curriculum";
 import { programParam, usePrograms } from "@/lib/client/program";
 
 // Đổi/xoá ?program= nhưng giữ nguyên các tham số khác.
@@ -25,12 +25,12 @@ function useSetProgram() {
 }
 
 export default function ProgramChips() {
-  const { isMulti } = usePrograms();
+  const { isMulti, programs } = usePrograms();
   const search = useSearchParams();
   const setProgram = useSetProgram();
   if (!isMulti) return null;
   const current = programParam(search);
-  const chips = [{ key: null, label: "All" }, ...PROGRAM_KEYS.map((k) => ({ key: k, label: PROGRAMS[k].label }))];
+  const chips = [{ key: null, label: "All" }, ...programs.map((k) => ({ key: k, label: (PROGRAMS[k] || {}).label || k }))];
   return (
     <div className="program-chips" role="group" aria-label="Filter by program">
       {chips.map((c) => (

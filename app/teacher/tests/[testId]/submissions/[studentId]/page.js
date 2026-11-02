@@ -1,5 +1,6 @@
 "use client";
 
+import TopicStatsTable from "@/components/TopicStatsTable";
 import { Fragment, Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/client/api";
@@ -9,7 +10,11 @@ import { useDialog } from "@/components/ui/Dialog";
 import { pollAiGrade } from "@/lib/client/aiGrade";
 import { testSkillsFor } from "@/lib/teacher/testBuilder";
 import { programOf } from "@/lib/curriculum";
+import PartResultsTable from "@/components/PartResultsTable";
+import { usesTenPoint, formatTenPoint } from "@/lib/tenPoint";
 import { usesToeicScale, toeicResultLine, formatToeicTotalFromSubs } from "@/lib/toeicScale";
+import UnderlinedText from "@/components/student/UnderlinedText";
+import { isErrorIdFormat } from "@/lib/generalFormats";
 
 function pct(score, total) {
   if (!total) return null;
@@ -86,7 +91,7 @@ function bucketOf(d) {
   return d.correct ? "correct" : "incorrect";
 }
 
-function QuestionReview({ detail }) {
+function QuestionReview({ detail, onAccept }) {
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -172,6 +177,7 @@ function QuestionReview({ detail }) {
             {pageRows.map((d) => {
               const bucket = bucketOf(d);
               const open = openId === d.id;
+              const canAccept = !d.correct && d.type === "fill" && bucket !== "skipped" && onAccept;
               return (
                 <Fragment key={d.id}>
                   <tr>
@@ -180,10 +186,26 @@ function QuestionReview({ detail }) {
                       {d.imageUrl && (
                         <img src={d.imageUrl} alt={"Image for question " + d.id} style={{ display: "block", maxWidth: 180, maxHeight: 110, borderRadius: 6, marginBottom: d.label ? 6 : 0 }} />
                       )}
-                      {d.label}
+                      <UnderlinedText text={d.label} errorLetters={isErrorIdFormat(d.formatLabel)} />
                     </td>
-                    <td><span className={"answer-pill " + (bucket === "skipped" ? "blank" : bucket === "correct" ? "correct" : "wrong")}>{d.submittedText}</span></td>
-                    <td><span className="answer-pill correct">{d.answerText}</span></td>
+                    <td>
+                      <span className={"answer-pill " + (bucket === "skipped" ? "blank" : bucket === "correct" ? "correct" : "wrong")}>
+                        <UnderlinedText text={d.submittedText} />
+                      </span>
+                      {canAccept && (
+                        <div style={{ marginTop: 4 }}>
+                          <button
+                            type="button"
+                            className="btn secondary"
+                            style={{ padding: "2px 8px", fontSize: ".72rem", lineHeight: 1.4 }}
+                            onClick={() => onAccept(d)}
+                          >
+                            Accept this answer
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                    <td><span className="answer-pill correct"><UnderlinedText text={d.answerText} /></span></td>
                     <td style={{ color: "var(--muted)" }}>{d.explanation ? "…" : "—"}</td>
                     <td>
                       <span className={"pill " + (bucket === "correct" ? "pill-ok" : bucket === "skipped" ? "pill-muted" : "pill-danger")}>
@@ -266,7 +288,7 @@ function FormatStatsPanel({ stats }) {
   );
 }
 
-function AutoSkillPanel({ skill, toeic }) {
+function AutoSkillPanel({ skill, toeic, ten, onAcceptAnswer }) {
   if (!skill.submissionId) {
     return <div className="empty-state">Student hasn't attempted this skill yet.</div>;
   }
@@ -286,6 +308,11 @@ function AutoSkillPanel({ skill, toeic }) {
           <h2 style={{ margin: "2px 0 8px" }}>
             {skill.score}/{skill.total} <span style={{ color: "var(--muted)", fontWeight: 600, fontSize: "1rem" }}>({pct(skill.score, skill.total)}%)</span>
           </h2>
+          {ten && formatTenPoint(skill.score, skill.total) && (
+            <p style={{ margin: "4px 0", fontWeight: 600 }}>
+              {formatTenPoint(skill.score, skill.total)} ({skill.score}/{skill.total} correct)
+            </p>
+          )}
           {toeic && (
             <p style={{ margin: "4px 0", fontWeight: 600 }}>
               {toeicResultLine(skill.key, skill.score, skill.total)}
@@ -311,7 +338,29 @@ function AutoSkillPanel({ skill, toeic }) {
         </div>
       </div>
 
-      {detail.length > 0 && <QuestionReview detail={detail} />}
+      {skill.parts && skill.parts.length > 0 && (
+        <div className="card">
+          <PartResultsTable parts={skill.parts} />
+        </div>
+      )}
+
+      {detail.length > 0 && (
+        <QuestionReview
+          detail={detail}
+          onAccept={
+            onAcceptAnswer
+              ? (d) =>
+                  onAcceptAnswer({
+                    skill: skill.key,
+                    fieldId: d.id,
+                    questionNum: d.id,
+                    answer: d.submittedText || d.submitted,
+                    count: skill.totalSubmissionsCount || 1,
+                  })
+              : null
+          }
+        />
+      )}
     </div>
   );
 }
@@ -340,7 +389,7 @@ function StatsTab({ skills }) {
   );
 }
 
-function GradeForm({ prompt, submissionId, kind, writingTask, onGraded }) {
+function GradeForm({ prompt, submissionId, kind, writingTask, program, onGraded }) {
   const dialog = useDialog();
   const graded = prompt.gradingStatus === "graded";
   const [editing, setEditing] = useState(!graded);
@@ -402,6 +451,7 @@ function GradeForm({ prompt, submissionId, kind, writingTask, onGraded }) {
           submissionId,
           rubricVariant: prompt.rubricVariant,
           writingTask,
+          program,
           gradingStatus: prompt.gradingStatus,
           criteria: prompt.criteria,
           manualScore: prompt.manualScore,
@@ -459,6 +509,7 @@ function PromptRow({ prompt, onGraded }) {
             submissionId={prompt.submissionId}
             kind={prompt.kind}
             writingTask={prompt.writingTask}
+            program={program}
             onGraded={onGraded}
           />
         </>
@@ -467,7 +518,7 @@ function PromptRow({ prompt, onGraded }) {
   );
 }
 
-function PromptSkillPanel({ skill, onGraded }) {
+function PromptSkillPanel({ skill, program, onGraded }) {
   if (skill.itemsTotal === 0) return <div className="empty-state">No prompts in this skill.</div>;
   return (
     <div>
@@ -475,7 +526,7 @@ function PromptSkillPanel({ skill, onGraded }) {
         {skill.submitted}/{skill.itemsTotal} submitted
       </p>
       {skill.prompts.map((p) => (
-        <PromptRow key={p._id} prompt={p} onGraded={onGraded} />
+        <PromptRow key={p._id} prompt={p} program={program} onGraded={onGraded} />
       ))}
     </div>
   );
@@ -485,6 +536,7 @@ function Inner() {
   const { testId, studentId } = useParams();
   const router = useRouter();
   const search = useSearchParams();
+  const dialog = useDialog();
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [active, setActive] = useState(search.get("tab") || "stats");
@@ -498,6 +550,29 @@ function Inner() {
   useEffect(() => {
     load();
   }, [testId, studentId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleAcceptAnswer({ skill, fieldId, questionNum, answer, count }) {
+    const trimmed = String(answer || "").trim();
+    if (!trimmed) return;
+    const k = Number(count) || 1;
+    const ok = await dialog.confirm({
+      title: "Accept this answer?",
+      message: `Accept "${trimmed}" as a correct answer for question ${questionNum}? This re-grades every submission of this exercise (${k} submission${k === 1 ? "" : "s"}).`,
+      confirmText: "Accept & re-grade",
+    });
+    if (!ok) return;
+    try {
+      const res = await api.teacher.acceptTestAnswer(testId, {
+        skill,
+        fieldId,
+        answer: trimmed,
+      });
+      await load();
+      dialog.toast(`Accepted — ${res.regradedCount} submission${res.regradedCount === 1 ? "" : "s"} re-graded`);
+    } catch (e) {
+      dialog.alert({ tone: "error", title: "Could not accept answer", message: e.message });
+    }
+  }
 
   const head = (
     <div className="page-head">
@@ -532,6 +607,7 @@ function Inner() {
   const skillByKey = Object.fromEntries(data.skills.map((s) => [s.key, s]));
   const activeSkill = skillByKey[active];
   const toeic = usesToeicScale(programOf(data.test));
+  const ten = usesTenPoint(programOf(data.test));
   const toeicTotal = toeic
     ? formatToeicTotalFromSubs(
         skillByKey.listening && skillByKey.listening.submissionId ? skillByKey.listening : null,
@@ -574,13 +650,21 @@ function Inner() {
       </div>
 
       {active === "stats" ? (
-        <StatsTab skills={data.skills} />
+        <>
+          <StatsTab skills={data.skills} />
+          <TopicStatsTable topicStats={data.topicStats} />
+        </>
       ) : (
         <div className="card">
           {activeSkill.kind === "auto" ? (
-            <AutoSkillPanel skill={activeSkill} toeic={toeic} />
+            <AutoSkillPanel
+              skill={activeSkill}
+              toeic={toeic}
+              ten={ten}
+              onAcceptAnswer={handleAcceptAnswer}
+            />
           ) : (
-            <PromptSkillPanel skill={activeSkill} onGraded={load} />
+            <PromptSkillPanel skill={activeSkill} program={programOf(data.test)} onGraded={load} />
           )}
         </div>
       )}
