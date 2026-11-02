@@ -373,3 +373,17 @@ test("dòng hướng dẫn của khuôn không thành nhóm / đoạn văn thậ
   const real = section([cloze(1)], { passageText: "He (1) to school." });
   assert.equal(sectionBankInfo(real, "reading").passage, "He (1) to school.");
 });
+
+test("Word vào ngân hàng: cờ nhắc phát âm không chặn lưu, cờ đáp án AI vẫn chặn", async () => {
+  const { sectionToBankItems } = await import("../lib/teacher/sectionToBankItems.js");
+  const { GENERAL_LABELS: L } = require("../lib/generalFormats");
+  const f = (id, aiFlag) => ({ id, kind: "mcq", formatLabel: L.pron, label: "", options: ["a", "b", "c", "d"].map((x, i) => ({ id: "o" + i, text: "w__" + x + "__" })), correctOptionIds: ["o0"], aiFlag, score: 1 });
+  const sec = { name: "Phonetics", passageText: "", fields: [
+    f(1, "Pronunciation/stress — please double-check"),
+    f(2, "Answer suggested by AI — not found in the file; Pronunciation/stress — please double-check"),
+  ] };
+  const r = sectionToBankItems(sec, { program: "general", level: 7, subject: "reading", keepPassage: true, skipFlagged: true });
+  assert.equal(r.questionCount, 1);
+  assert.equal(r.skipped.length, 1);
+  assert.equal(r.skipped[0].id, 2);
+});
