@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
+import ProgramField from "@/components/teacher/ProgramField";
+import { DEFAULT_PROGRAM, PROGRAMS, levelWordOf } from "@/lib/curriculum";
 
 const STEPS = ["Name your workspace", "Create your first class", "Add your students"];
 
@@ -15,7 +17,7 @@ export default function OnboardingPage() {
   const [canEdit, setCanEdit] = useState(false);
   const [name, setName] = useState("");
   const [savedName, setSavedName] = useState("");
-  const [cls, setCls] = useState({ name: "", level: "1" });
+  const [cls, setCls] = useState({ name: "", level: "1", program: DEFAULT_PROGRAM });
   const [createdClass, setCreatedClass] = useState(null); // { _id, name }
   const [stu, setStu] = useState({ name: "", username: "", password: "" });
   const [added, setAdded] = useState([]);
@@ -32,6 +34,16 @@ export default function OnboardingPage() {
   }, []);
 
   const finish = () => router.push("/teacher/overview");
+
+  // Đổi chương trình: khối cố định (vd General 6..12) thì level phải nằm trong danh sách.
+  const fixedLevels = PROGRAMS[cls.program].fixedLevels;
+  function chooseProgram(program) {
+    setCls((c) => {
+      const fixed = PROGRAMS[program].fixedLevels;
+      const level = Array.isArray(fixed) && !fixed.includes(Number(c.level)) ? String(fixed[0]) : c.level;
+      return { ...c, program, level };
+    });
+  }
 
   async function run(fn) {
     setBusy(true);
@@ -56,7 +68,7 @@ export default function OnboardingPage() {
   const createClass = (e) => {
     e.preventDefault();
     run(async () => {
-      const r = await api.teacher.createClass({ name: cls.name, level: Number(cls.level) });
+      const r = await api.teacher.createClass({ name: cls.name, level: Number(cls.level), program: cls.program });
       setCreatedClass({ _id: r.class._id, name: r.class.name });
       setStep(2);
     });
@@ -102,13 +114,22 @@ export default function OnboardingPage() {
 
         {step === 1 && (
           <form onSubmit={createClass} style={{ display: "grid", gap: 12 }}>
+            <ProgramField name="onboardingClassProgram" value={cls.program} onChange={chooseProgram} />
             <div className="form-row" style={{ marginBottom: 0 }}>
               <label>Class name</label>
-              <input type="text" value={cls.name} placeholder="e.g. IELTS 6.5 — Evening" required onChange={(e) => setCls((c) => ({ ...c, name: e.target.value }))} />
+              <input type="text" value={cls.name} placeholder={cls.program === DEFAULT_PROGRAM ? "e.g. IELTS 6.5 — Evening" : "e.g. Class 7A"} required onChange={(e) => setCls((c) => ({ ...c, name: e.target.value }))} />
             </div>
             <div className="form-row" style={{ marginBottom: 0 }}>
-              <label>Level</label>
-              <input type="number" min="1" step="1" value={cls.level} required onChange={(e) => setCls((c) => ({ ...c, level: e.target.value }))} />
+              <label>{levelWordOf(cls.program)}</label>
+              {Array.isArray(fixedLevels) ? (
+                <select value={cls.level} onChange={(e) => setCls((c) => ({ ...c, level: e.target.value }))}>
+                  {fixedLevels.map((g) => (
+                    <option key={g} value={g}>{levelWordOf(cls.program)} {g}</option>
+                  ))}
+                </select>
+              ) : (
+                <input type="number" min="1" step="1" value={cls.level} required onChange={(e) => setCls((c) => ({ ...c, level: e.target.value }))} />
+              )}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="submit" className="btn" disabled={busy || !cls.name.trim()}>Create class</button>
