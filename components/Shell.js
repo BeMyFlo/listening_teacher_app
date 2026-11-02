@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { NAV } from "@/lib/nav";
+import { NAV, visibleNavGroups } from "@/lib/nav";
+import { usePrograms } from "@/lib/client/program";
 import { clearSession, clearTeacherToken } from "@/lib/client/session";
 import { useShellBadges } from "@/lib/client/shellBadges";
 import { useBranding } from "@/lib/client/branding";
@@ -13,6 +14,46 @@ import ChangelogModal from "./ChangelogModal";
 function initials(name) {
   const parts = String(name || "?").trim().split(/\s+/);
   return (parts[parts.length - 1] || "?").slice(0, 2);
+}
+
+// Các nhóm mục menu. Tách riêng để giáo viên có thể lọc theo chương trình của workspace.
+function NavGroups({ groups, pathname, badges, onGo }) {
+  return groups.map((group) => (
+    <div className="sidebar-group" key={group.label}>
+      {group.label && <div className="sidebar-group-label">{group.label}</div>}
+      {group.items.map((item) => {
+        const active = item.exact
+          ? pathname === item.href
+          : pathname === item.href || pathname.startsWith(item.href + "/");
+        const badge = badges[item.href];
+        const show = badge && badge.value != null && String(badge.value) !== "" && Number(badge.value) !== 0;
+        return (
+          <button
+            key={item.href}
+            type="button"
+            onClick={() => onGo(item.href)}
+            className={"sidebar-link" + (active ? " active" : "")}
+            data-nav={item.href}
+          >
+            <svg className="icon"><use href={"#icon-" + item.icon} /></svg>
+            <span className="link-label">{item.label}</span>
+            <span
+              className={"sidebar-badge" + (badge && badge.warn ? " warn" : "")}
+              style={show ? undefined : { display: "none" }}
+            >
+              {show ? String(badge.value) : ""}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  ));
+}
+
+// Chỉ vai trò teacher gọi usePrograms (admin/học sinh không tải hồ sơ giáo viên).
+function TeacherNavGroups({ groups, ...rest }) {
+  const { programs } = usePrograms();
+  return <NavGroups groups={visibleNavGroups(groups, programs)} {...rest} />;
 }
 
 export default function Shell({ role, userName, userSub, children }) {
@@ -59,6 +100,11 @@ export default function Shell({ role, userName, userSub, children }) {
     if (isMobileDrawer()) setCollapsed(false);
   }
 
+  function go(href) {
+    router.push(href);
+    onNav();
+  }
+
   return (
     <div className={"app-shell" + (collapsed ? " collapsed" : "")} id="appShell">
       <div className="sidebar-backdrop" onClick={() => setCollapsed(false)} />
@@ -79,39 +125,11 @@ export default function Shell({ role, userName, userSub, children }) {
           </button>
         </div>
 
-        {cfg.groups.map((group) => (
-          <div className="sidebar-group" key={group.label}>
-            {group.label && <div className="sidebar-group-label">{group.label}</div>}
-            {group.items.map((item) => {
-              const active = item.exact
-                ? pathname === item.href
-                : pathname === item.href || pathname.startsWith(item.href + "/");
-              const badge = badges[item.href];
-              const show = badge && badge.value != null && String(badge.value) !== "" && Number(badge.value) !== 0;
-              return (
-                <button
-                  key={item.href}
-                  type="button"
-                  onClick={() => {
-                    router.push(item.href);
-                    onNav();
-                  }}
-                  className={"sidebar-link" + (active ? " active" : "")}
-                  data-nav={item.href}
-                >
-                  <svg className="icon"><use href={"#icon-" + item.icon} /></svg>
-                  <span className="link-label">{item.label}</span>
-                  <span
-                    className={"sidebar-badge" + (badge && badge.warn ? " warn" : "")}
-                    style={show ? undefined : { display: "none" }}
-                  >
-                    {show ? String(badge.value) : ""}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        ))}
+        {role === "teacher" ? (
+          <TeacherNavGroups groups={cfg.groups} pathname={pathname} badges={badges} onGo={go} />
+        ) : (
+          <NavGroups groups={cfg.groups} pathname={pathname} badges={badges} onGo={go} />
+        )}
 
         {cfg.promo && (
           <div className="sidebar-promo">

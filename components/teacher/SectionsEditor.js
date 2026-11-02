@@ -22,6 +22,8 @@ import {
 import SpreadsheetImport from "./SpreadsheetImport";
 import AiExerciseDialog from "./AiExerciseDialog";
 import WordImport from "./WordImport";
+import SaveToBankDialog from "./SaveToBankDialog";
+import { SwapButton } from "./SwapQuestionDialog";
 import { questionFormatsFor } from "@/lib/teacher/questionFormats";
 import { LETTERS, letterOptions, isLetterEditorField } from "@/lib/letterQuestion";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
@@ -177,6 +179,7 @@ export default function SectionsEditor({
   firstId = 1,
   aiContext,
   onMediaChanged,
+  bankExcludeIds,
 }) {
   const [importing, setImporting] = useState(false);
   const [aiExerciseOpen, setAiExerciseOpen] = useState(false);
@@ -186,6 +189,7 @@ export default function SectionsEditor({
   const canImport = !!PROGRAMS[prog]?.excelImport;
   const canAiExercise = !!PROGRAMS[prog]?.aiExercise && aiFormatsFor(subject).length > 0;
   const canWordImport = !!PROGRAMS[prog]?.wordImport;
+  const canBank = !!PROGRAMS[prog]?.questionBank; // ngân hàng câu hỏi (G4): chỉ chương trình bật cờ trong registry
 
   function patch(mut) {
     const draft = structuredClone(sections);
@@ -260,6 +264,7 @@ export default function SectionsEditor({
           program={program}
           firstId={firstId}
           patch={patch}
+          bank={canBank ? { program: prog, aiContext, swap: { program: prog, level: Number(aiContext && aiContext.level) || 0, excludeIds: bankExcludeIds || [] } } : null}
         />
       ))}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
@@ -336,13 +341,14 @@ export default function SectionsEditor({
   );
 }
 
-function SectionCard({ sec, si, subject, media, allSections, patch, showTranscript, program, firstId = 1 }) {
+function SectionCard({ sec, si, subject, media, allSections, patch, showTranscript, program, firstId = 1, bank = null }) {
   const set = (k, v) => patch((d) => (d[si][k] = v));
   const formats = questionFormatsFor(subject, program);
   // true = đang hiện lưới chọn dạng bài (bấm "+ Add Question" mở ra, chọn
   // xong hoặc Cancel thì đóng lại). Không có state riêng cho "loại nào" vì
   // chọn xong là tạo câu luôn — không có bước "xác nhận" thừa.
   const [pickingFormat, setPickingFormat] = useState(false);
+  const [bankOpen, setBankOpen] = useState(false); // hộp "Save to question bank"
 
   // Tạo câu hỏi mới theo ĐÚNG tên dạng bài IELTS (vd "Table Completion")
   // thay vì bắt giáo viên tự biết chọn cơ chế nền (Fill/Matching/...) rồi tự
@@ -417,6 +423,22 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
           <svg className="icon"><use href="#icon-trash" /></svg>
         </button>
       </div>
+
+      {bank && (sec.fields || []).length > 0 && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ padding: "5px 12px", fontSize: ".8rem" }}
+            onClick={() => setBankOpen(true)}
+          >
+            <svg className="icon"><use href="#icon-list" /></svg> Save to question bank
+          </button>
+        </div>
+      )}
+      {bankOpen && bank && (
+        <SaveToBankDialog sec={sec} subject={subject} program={bank.program} aiContext={bank.aiContext || {}} onClose={() => setBankOpen(false)} />
+      )}
 
       {subject === "listening" && (
         <div className="form-row" style={{ marginBottom: 10 }}>
@@ -524,7 +546,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
               </div>
               <div className="fields-wrap">
                 {standaloneEntries.map(({ f, fi }) => (
-                  <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} program={program} media={media} patch={patch} />
+                  <FieldRow key={fi} f={f} fi={fi} si={si} sec={sec} subject={subject} program={program} media={media} patch={patch} swap={bank && bank.swap} allSections={allSections} />
                 ))}
               </div>
             </>
@@ -809,7 +831,11 @@ function NoteBlocksEditor({ sec, si, allSections, subject, program, media, patch
   );
 }
 
-function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
+function FieldRow({ f, fi, si, sec, subject, program, media, patch, swap = null, allSections = null }) {
+  // Swap: thay câu/nhóm lấy từ ngân hàng bằng mục khác (G4 bước 3)
+  const swapBtn = swap && allSections ? (
+    <SwapButton swap={swap} sections={allSections} si={si} fi={fi} onApply={(next) => patch((d) => d.splice(0, d.length, ...next))} />
+  ) : null;
   const setF = (k, v) => patch((d) => (d[si].fields[fi][k] = v));
   const formats = questionFormatsFor(subject, program);
 
@@ -914,6 +940,7 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
     const wantsImage = !!(fmt && fmt.needsFieldImage);
     return (
       <div className={"question-row letter-row" + (f.aiFlag ? " flagged" : "")}>
+        {swapBtn}
         {f.aiFlag && (
           <div className="question-flag-bar">
             <span className="flag-reason">⚠ {f.aiFlag}</span>
@@ -999,6 +1026,7 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch }) {
 
   return (
     <div className={"question-row" + (f.aiFlag ? " flagged" : "")}>
+      {swapBtn}
       {f.aiFlag && (
         <div className="question-flag-bar">
           <span className="flag-reason">⚠ {f.aiFlag}</span>

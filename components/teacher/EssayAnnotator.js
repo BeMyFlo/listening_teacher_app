@@ -31,7 +31,7 @@ import {
 } from "@/lib/grading/annotate";
 
 import { annotationCriteria } from "@/lib/grading/rubric";
-import { ASPECT_LABELS } from "@/lib/toeicTasks";
+import { criterionLabel } from "@/lib/grading/generalUi";
 
 const CRIT_OPTS = { writing: ["TR", "CC", "LR", "GRA"], speaking: ["FC", "LR", "GRA", "PR"] };
 const CAT_LABEL = {
@@ -675,7 +675,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
               </select>
               <select value={form.criterion} onChange={(e) => setForm((f) => ({ ...f, criterion: e.target.value }))}>
                 <option value="">criterion…</option>
-                {crits.map((c) => <option key={c} value={c}>{ASPECT_LABELS[c] || c}</option>)}
+                {crits.map((c) => <option key={c} value={c}>{criterionLabel(variant, c)}</option>)}
               </select>
             </div>
             <input
@@ -709,7 +709,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
           {[...crits, "—"].map((ck) =>
             groups[ck] && groups[ck].length ? (
               <div key={ck} className="ea-list-group">
-                <div className="ea-list-head">{ck === "—" ? "Unassigned" : ASPECT_LABELS[ck] || ck} · {groups[ck].length}</div>
+                <div className="ea-list-head">{ck === "—" ? "Unassigned" : criterionLabel(variant, ck)} · {groups[ck].length}</div>
                 {groups[ck].map((a) => (
                   <div key={a.id} className="ea-list-item">
                     <span className={"pill " + (a.action === "delete" ? "pill-danger" : a.action === "comment" ? "pill-info" : "pill-ok")}>
@@ -726,7 +726,7 @@ export default function EssayAnnotator({ essayText = "", annotations = [], kind 
                       onChange={(e) => patchAnn(a.id, { criterion: e.target.value || null })}
                     >
                       <option value="">—</option>
-                      {crits.map((c) => <option key={c} value={c}>{ASPECT_LABELS[c] || c}</option>)}
+                      {crits.map((c) => <option key={c} value={c}>{criterionLabel(variant, c)}</option>)}
                     </select>
                     <button type="button" className="icon-btn danger" title="Remove" onClick={() => removeAnn(a.id)}>
                       <svg className="icon"><use href="#icon-trash" /></svg>

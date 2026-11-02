@@ -5,6 +5,7 @@ const Test = require("../../../lib/models/Test");
 const Class = require("../../../lib/models/Class");
 const Student = require("../../../lib/models/Student");
 const Submission = require("../../../lib/models/Submission");
+const { topicStatsForTest } = require("../../../lib/teacher/topicStats");
 const { buildTestOverview, buildStudentTestDetail } = require("../../../lib/teacher/testSubmissions");
 const { programOf, programFilter } = require("../../../lib/curriculum");
 const { collectFieldImageIds, testSectionLists, loadImageUrls } = require("../../../lib/fieldImages");
@@ -56,11 +57,13 @@ async function handler(req, res) {
     const cls = student.classId ? classById[S(student.classId)] : null;
     // Ảnh riêng của từng câu (Phase 8, 5.4) để trang review hiện cùng câu hỏi.
     const fieldImageUrls = await loadImageUrls(req.ws, collectFieldImageIds(testSectionLists(test)));
+    const topicStats = topicStatsForTest(test, mine);
     return res.status(200).json({
       ok: true,
       test: { _id: test._id, title: test.title, unit: test.unit, level: test.level, program: programOf(test) },
       student: { _id: student._id, name: student.name, className: cls ? cls.name : null },
       skills: buildStudentTestDetail({ test, submissions: mine, fieldImageUrls, allSubmissions: submissions }),
+      ...(topicStats ? { topicStats } : {}), // chỉ chương trình có questionBank + đề có chủ điểm
     });
   }
 
@@ -72,6 +75,7 @@ async function handler(req, res) {
   });
 
   const rows = buildTestOverview({ test, submissions, students, classById });
+  const topicStats = topicStatsForTest(test, submissions);
 
   return res.status(200).json({
     ok: true,
@@ -93,6 +97,7 @@ async function handler(req, res) {
       studentCount: studentCountByClass[S(c._id)] || 0,
     })),
     students: rows,
+    ...(topicStats ? { topicStats } : {}),
   });
 }
 
