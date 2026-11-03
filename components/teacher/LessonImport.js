@@ -8,16 +8,17 @@ import { toEditorSections } from "@/lib/teacher/importConvert";
 // onImport(items): items = editor-shape topics/groups (extId, name, lesson|words, exercises:[{title,_sections}])
 export default function LessonImport({ mode, existing, onImport, onClose }) {
   const isGrammar = mode === "grammar";
+  // File mẫu gộp 1 file, nằm ở public/templates/ (tạo bằng scripts/make-lesson-templates.js).
+  const templateName = isGrammar ? "Mau_Grammar.xlsx" : "Mau_Vocabulary.xlsx";
   const exRef = useRef(null);
-  const lessonRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [preview, setPreview] = useState(null); // { topics|groups, warnings }
 
   async function upload() {
-    const exFile = exRef.current?.files?.[0];
-    if (!exFile) {
-      setErr("Choose the exercise file first.");
+    const exFiles = [...(exRef.current?.files || [])];
+    if (!exFiles.length) {
+      setErr("Choose your file first.");
       return;
     }
     setBusy(true);
@@ -25,9 +26,7 @@ export default function LessonImport({ mode, existing, onImport, onClose }) {
     try {
       const fd = new FormData();
       fd.append("mode", mode);
-      fd.append("file", exFile);
-      const lf = lessonRef.current?.files?.[0];
-      if (lf) fd.append("lessonFile", lf);
+      exFiles.forEach((f) => fd.append("file", f));
       const data = await api.teacher.importQuestions(fd);
       setPreview(data);
     } catch (e) {
@@ -68,19 +67,29 @@ export default function LessonImport({ mode, existing, onImport, onClose }) {
         <div className="modal-body">
           {!preview ? (
             <>
-              <p style={{ color: "var(--muted)", fontSize: ".86rem", marginTop: 0 }}>
-                Choose an <b>exercise file</b> (required) and a <b>lesson file</b> (optional). The two are matched by{" "}
-                {isGrammar ? "Grammar_ID" : "Unit_ID"}.
+              <p style={{ fontSize: ".86rem", marginTop: 0 }}>
+                1. Download the template:{" "}
+                <a href={`/templates/${templateName}`} download>
+                  {templateName}
+                </a>
+                <br />
+                2. Fill in the{" "}
+                {isGrammar ? (
+                  <>
+                    <i>Lý thuyết</i> (theory)
+                  </>
+                ) : (
+                  <>
+                    <i>Từ vựng</i> (word list)
+                  </>
+                )}{" "}
+                and <i>Bài tập</i> (exercises) tabs — the <i>Hướng dẫn</i> tab explains how.
+                <br />
+                3. Choose the file below.
               </p>
-              <div className="form-row" style={{ marginBottom: 12 }}>
-                <label>Exercise file ({isGrammar ? "IELTS_Grammar_BaiTap.xlsx" : "IELTS_Vocab_BaiTap.xlsx"})</label>
-                <input ref={exRef} type="file" accept=".xlsx" />
-              </div>
               <div className="form-row" style={{ marginBottom: 0 }}>
-                <label>
-                  Lesson file ({isGrammar ? "IELTS_Grammar_BaiHoc.xlsx" : "IELTS_Vocab_BaiHoc.xlsx"}) — optional
-                </label>
-                <input ref={lessonRef} type="file" accept=".xlsx" />
+                <label>{isGrammar ? "Grammar" : "Vocabulary"} file (.xlsx)</label>
+                <input ref={exRef} type="file" accept=".xlsx" multiple />
               </div>
               {err && (
                 <div className="notice error" style={{ marginTop: 14 }}>

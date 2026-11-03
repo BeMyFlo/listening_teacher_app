@@ -183,6 +183,9 @@ input[type=search]:focus, textarea:focus, select:focus {
   width: 100%;
   font-size: 1rem;
 }
+/* Cặp "nhãn + ô chọn nhỏ" nằm cùng hàng với checkbox (vd "Questions per topic [8]"). */
+.form-row label.inline-count { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-weight: 400; font-size: .88rem; }
+.form-row label.inline-count select { width: auto; padding: 4px 8px; font-size: .88rem; }
 
 .btn {
   display: inline-block;
