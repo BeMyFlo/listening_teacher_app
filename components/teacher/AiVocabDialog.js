@@ -195,7 +195,7 @@ export default function AiVocabDialog({ context, existingWords, onAdd, onClose }
                     <Check checked={withWords} onChange={toggle(setParts, "words")}>
                       Word list
                     </Check>
-                    <label style={{ fontSize: ".88rem", fontWeight: 400 }}>
+                    <label className="inline-count">
                       Words per topic{" "}
                       <select value={wordCount} onChange={(e) => setWordCount(Number(e.target.value))}>
                         {WORD_COUNTS.map((n) => (
@@ -221,7 +221,7 @@ export default function AiVocabDialog({ context, existingWords, onAdd, onClose }
                           {l}
                         </Check>
                       ))}
-                      <label style={{ fontSize: ".88rem" }}>
+                      <label className="inline-count">
                         Questions per topic{" "}
                         <select value={questionCount} onChange={(e) => setQuestionCount(Number(e.target.value))}>
                           {QUESTION_COUNTS.map((n) => (

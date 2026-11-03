@@ -204,7 +204,7 @@ export default function AiGrammarDialog({ context, onAdd, onClose }) {
                           {l}
                         </Check>
                       ))}
-                      <label style={{ fontSize: ".88rem" }}>
+                      <label className="inline-count">
                         Questions per topic{" "}
                         <select value={questionCount} onChange={(e) => setQuestionCount(Number(e.target.value))}>
                           {QUESTION_COUNTS.map((n) => (
