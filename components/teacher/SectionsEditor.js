@@ -321,6 +321,9 @@ export default function SectionsEditor({
       {canImport && importing && (
         <SpreadsheetImport
           existingSections={sections}
+          subject={subject}
+          program={prog}
+          audios={media && media.audio}
           onImport={(imported) => onChange([...sections, ...imported])}
           onClose={() => setImporting(false)}
         />

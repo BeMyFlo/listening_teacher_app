@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { api } from "@/lib/client/api";
-import { toEditorSections } from "@/lib/teacher/importConvert";
+import { toEditorSections, findAudio } from "@/lib/teacher/importConvert";
 
 const KIND_BADGE = {
   fill: "Fill",
@@ -13,7 +13,15 @@ const KIND_BADGE = {
   labelling: "Labelling",
 };
 
-export default function SpreadsheetImport({ existingSections, onImport, onClose }) {
+export default function SpreadsheetImport({ existingSections, subject, program, audios = [], onImport, onClose }) {
+  const isListening = subject === "listening";
+  // File mẫu gộp (public/templates/, tạo bằng scripts/make-lesson-templates.js).
+  const template =
+    subject === "listening"
+      ? { file: "Mau_Listening.xlsx", contentTab: "Bài nghe", contentHint: "title, audio, transcript", label: "Listening" }
+      : subject === "reading"
+      ? { file: "Mau_Reading.xlsx", contentTab: "Đoạn văn", contentHint: "title, passage", label: "Reading" }
+      : null;
   const fileRef = useRef(null);
   const contentRef = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -44,7 +52,7 @@ export default function SpreadsheetImport({ existingSections, onImport, onClose 
   }
 
   function confirm() {
-    const editorSections = toEditorSections(preview.sections, existingSections);
+    const editorSections = toEditorSections(preview.sections, existingSections, { subject, program, audios });
     onImport(editorSections);
     onClose();
   }
@@ -63,12 +71,26 @@ export default function SpreadsheetImport({ existingSections, onImport, onClose 
         <div className="modal-body">
           {!preview ? (
             <>
-              <p style={{ color: "var(--muted)", fontSize: ".86rem", marginTop: 0 }}>
-                Upload the <b>.xlsx</b> template (tabs <i>Cau hoi</i> + <i>Doan van</i>) — both tabs are read automatically. Or a{" "}
-                <b>.csv</b> exported separately.
-              </p>
+              {template ? (
+                <p style={{ fontSize: ".86rem", marginTop: 0 }}>
+                  1. Download the template:{" "}
+                  <a href={`/templates/${template.file}`} download>
+                    {template.file}
+                  </a>
+                  <br />
+                  2. Fill in the <i>{template.contentTab}</i> tab (one row per Section — {template.contentHint}) and the{" "}
+                  <i>Câu hỏi</i> tab (questions). The <i>Hướng dẫn</i> tab explains how.
+                  <br />
+                  3. Choose the file below.
+                </p>
+              ) : (
+                <p style={{ color: "var(--muted)", fontSize: ".86rem", marginTop: 0 }}>
+                  Upload the <b>.xlsx</b> template (tabs <i>Cau hoi</i> + <i>Doan van</i>) — both tabs are read automatically. Or a{" "}
+                  <b>.csv</b> exported separately.
+                </p>
+              )}
               <div className="form-row" style={{ marginBottom: 12 }}>
-                <label>Questions file (.xlsx or .csv)</label>
+                <label>{template ? `${template.label} file (.xlsx)` : "Questions file (.xlsx or .csv)"}</label>
                 <input
                   ref={fileRef}
                   type="file"
@@ -120,7 +142,17 @@ export default function SpreadsheetImport({ existingSections, onImport, onClose 
                     <div key={si}>
                       <div className="preview-section-title">
                         {s.name || "(untitled)"}{" "}
-                        {s.passageText ? (
+                        {isListening ? (
+                          <>
+                            {s.audioRef &&
+                              (findAudio(s.audioRef, audios) ? (
+                                <span className="pill pill-ok">Audio: {findAudio(s.audioRef, audios).title}</span>
+                              ) : (
+                                <span className="pill pill-warn">Audio &quot;{s.audioRef}&quot; not found in your library — add it after importing</span>
+                              ))}{" "}
+                            {s.transcript && <span className="pill pill-ok">Has transcript</span>}
+                          </>
+                        ) : s.passageText ? (
                           <span className="pill pill-ok">Has passage</span>
                         ) : (
                           <span className="pill pill-warn">No passage</span>
@@ -130,7 +162,7 @@ export default function SpreadsheetImport({ existingSections, onImport, onClose 
                         <div className="preview-q" key={fi}>
                           <div className="pq-label">{f.label}</div>
                           <div className="pq-meta">
-                            <span className="pill pill-info">{KIND_BADGE[f.kind] || f.kind}</span>
+                            <span className="pill pill-info">{f.formatName || KIND_BADGE[f.kind] || f.kind}</span>
                             <span>Score: {f.score}</span>
                           </div>
                         </div>

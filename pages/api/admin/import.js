@@ -63,28 +63,27 @@ async function handler(req, res) {
 
   const mode = String((Array.isArray(fields.mode) ? fields.mode[0] : fields.mode) || "").toLowerCase();
 
-  // ---- Grammar / Vocabulary: file bài tập (file) + file bài học (lessonFile) ----
+  // ---- Grammar / Vocabulary: 1 ô chọn file ----
+  // File gộp Mau_Grammar.xlsx / Mau_Vocabulary.xlsx (tab bài học + tab bài
+  // tập), hoặc chọn cùng lúc 2 file cũ BaiTap + BaiHoc — gộp mọi tab lại thành
+  // 1 workbook rồi tự tìm tab theo cột. lessonFile: client cũ còn gửi riêng.
   if (mode === "grammar" || mode === "vocab") {
-    const readXlsxBuf = (f) => {
+    const toList = (v) => (Array.isArray(v) ? v : v ? [v] : []);
+    // Tổng dung lượng các file đã bị formidable chặn ở maxFileSize (maxTotalFileSize mặc định = maxFileSize).
+    const merged = {};
+    let err = null;
+    for (const f of [...toList(files.file), ...toList(files.lessonFile)]) {
       try {
-        const b = fs.readFileSync(f.filepath);
-        return b.length > 4 * 1024 * 1024 ? { error: "File is too large" } : { wb: readWorkbook(b) };
-      } catch (err) {
-        return { error: "Could not read file: " + err.message };
+        const wb = readWorkbook(fs.readFileSync(f.filepath));
+        for (const [name, rows] of Object.entries(wb)) merged[name in merged ? `${name} (${Object.keys(merged).length})` : name] = rows;
+      } catch (e) {
+        err = err || "Could not read file: " + e.message;
       } finally {
         fs.unlink(f.filepath, () => {});
       }
-    };
-    const exRes = readXlsxBuf(file);
-    const lessonF = Array.isArray(files.lessonFile) ? files.lessonFile[0] : files.lessonFile;
-    const lessonRes = lessonF ? readXlsxBuf(lessonF) : { wb: null };
-    if (exRes.error) return res.status(400).json({ ok: false, error: "Exercise file: " + exRes.error });
-    if (lessonRes.error) return res.status(400).json({ ok: false, error: "Lesson file: " + lessonRes.error });
-
-    const out =
-      mode === "grammar"
-        ? workbookToGrammar(exRes.wb, lessonRes.wb)
-        : workbookToVocab(exRes.wb, lessonRes.wb);
+    }
+    if (err) return res.status(400).json({ ok: false, error: err });
+    const out = mode === "grammar" ? workbookToGrammar(merged, null) : workbookToVocab(merged, null);
     return res.status(200).json({ ok: true, ...out });
   }
 
