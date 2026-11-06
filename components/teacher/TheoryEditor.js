@@ -3,6 +3,7 @@
 import RichTextEditor from "./RichTextEditor";
 import { theoryToDoc, docToTheoryMarkdown } from "@/lib/tiptap/theoryConvert";
 import { importTheoryText } from "@/lib/tiptap/importText";
+import ImageUploadButton from "./ImageUploadButton";
 
 // Ô soạn lý thuyết — WYSIWYG (TipTap). Nội dung lưu dưới dạng JSON (theory.doc);
 // theory.html vẫn được ghi lại từ doc để tương thích ngược với bản render cũ.
@@ -73,6 +74,7 @@ export default function TheoryEditor({ theory, media, onChange, catLabel }) {
             </option>
           ))}
         </select>
+        <ImageUploadButton media={media} value={theory.imageId} onChange={(id) => set("imageId", id)} />
       </div>
     </div>
   );

@@ -23,6 +23,7 @@ import SpreadsheetImport from "./SpreadsheetImport";
 import AiExerciseDialog from "./AiExerciseDialog";
 import WordImport from "./WordImport";
 import AudioUploadButton from "./AudioUploadButton";
+import ImageUploadButton from "./ImageUploadButton";
 import SaveToBankDialog from "./SaveToBankDialog";
 import { SwapButton } from "./SwapQuestionDialog";
 import { questionFormatsFor } from "@/lib/teacher/questionFormats";
@@ -528,6 +529,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
                     </option>
                   ))}
                 </select>
+                <ImageUploadButton media={media} value={sec.imageId} onChange={(id) => set("imageId", id)} />
               </div>
               <div className="form-row" style={{ marginBottom: 0 }}>
                 <label>Shared answer bank (for Matching questions)</label>
@@ -1161,7 +1163,6 @@ function FieldImagePicker({ f, fi, si, media, patch, defaultOpen }) {
   useEffect(() => {
     if (defaultOpen) setOpen(true);
   }, [defaultOpen]);
-  const img = f.imageId ? media.images.find((im) => im._id === f.imageId) : null;
   return (
     <div className="field-image-picker">
       <button type="button" className="field-image-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
@@ -1183,10 +1184,7 @@ function FieldImagePicker({ f, fi, si, media, patch, defaultOpen }) {
               </option>
             ))}
           </select>
-          {media.loaded && media.images.length === 0 && (
-            <p className="field-image-hint">No images yet — upload one in the Media library first.</p>
-          )}
-          {img && <img src={img.cloudinaryUrl} alt="" className="field-image-thumb" />}
+          <ImageUploadButton media={media} value={f.imageId} onChange={(id) => patch((d) => (d[si].fields[fi].imageId = id))} />
         </div>
       )}
     </div>
