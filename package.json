@@ -16,6 +16,7 @@
     "review:scan": "ocr scan"
   },
   "dependencies": {
+    "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
     "@tiptap/extension-color": "^2.27.3",
     "@tiptap/extension-highlight": "^2.27.3",
     "@tiptap/extension-link": "^2.27.3",

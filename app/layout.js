@@ -1,16 +1,11 @@
-import { Plus_Jakarta_Sans } from "next/font/google";
+// Font chính của app: Plus Jakarta Sans (variable 200–800, có bộ chữ tiếng
+// Việt). Lấy từ gói npm @fontsource-variable — file font nằm sẵn trong
+// node_modules nên build trên Vercel không phải tải từ Google Fonts (dùng
+// next/font/google từng làm deploy lỗi vì bước tải đó thất bại).
+import "@fontsource-variable/plus-jakarta-sans";
 import "./globals.css";
 import { IconSprite } from "@/components/Icon";
 import { PLATFORM_NAME } from "@/lib/platform";
-
-// Font chính của app — next/font tự tải về lúc build và host cùng app (không
-// gọi Google Fonts lúc chạy). Biến --font-sans dùng trong styles/legacy.css.
-const sans = Plus_Jakarta_Sans({
-  subsets: ["latin", "latin-ext", "vietnamese"],
-  weight: ["400", "500", "600", "700", "800"],
-  display: "swap",
-  variable: "--font-sans",
-});
 
 const TITLE = `${PLATFORM_NAME} – Quản lý lớp học cho giáo viên`;
 const DESCRIPTION =
@@ -26,7 +21,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={sans.variable}>
+    <html lang="en">
       <body>
         <IconSprite />
         {children}
