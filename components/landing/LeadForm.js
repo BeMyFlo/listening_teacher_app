@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/client/api";
+import { POLICY_PATH } from "@/lib/privacy";
 
 // Form xin dùng thử. Không tạo tài khoản: chỉ gửi yêu cầu để admin liên hệ lại.
 export default function LeadForm() {
@@ -21,8 +22,10 @@ export default function LeadForm() {
       organization: val("organization").trim(),
       message: val("message").trim(),
       website: val("website"), // ô bẫy
+      consent: fd.get("consent") === "yes",
     };
     if (body.name.length < 2) { setState("error"); setMsg("Vui lòng nhập họ tên."); return; }
+    if (!body.consent) { setState("error"); setMsg("Vui lòng đánh dấu đồng ý với Chính sách bảo mật để gửi thông tin."); return; }
     if (!/^\S+@\S+\.\S{2,}$/.test(body.email)) { setState("error"); setMsg("Vui lòng nhập email hợp lệ."); return; }
     setState("sending");
     setMsg("");
@@ -77,12 +80,22 @@ export default function LeadForm() {
       <div className="lp-hp" aria-hidden="true">
         <label>Website<input name="website" type="text" tabIndex={-1} autoComplete="off" /></label>
       </div>
+      {/* Không tick sẵn: đồng ý phải là hành động rõ ràng (Luật 91/2025 Đ.9, NĐ 356/2025 Đ.6). */}
+      <div className="lp-field lp-wide lp-consent">
+        <input id="lp-consent" name="consent" type="checkbox" value="yes" required />
+        <label htmlFor="lp-consent">
+          Tôi đồng ý để BeMyFlo dùng các thông tin trên để liên hệ tư vấn và tạo workspace dùng thử, theo{" "}
+          <a href={POLICY_PATH} target="_blank" rel="noopener">Chính sách bảo mật</a>. *
+        </label>
+      </div>
       {state === "error" && <p className="lp-form-error" role="alert">{msg}</p>}
       <div className="lp-wide">
         <button className="lp-btn lp-btn-primary" type="submit" disabled={state === "sending"}>
           {state === "sending" ? "Đang gửi…" : "Đăng ký dùng thử miễn phí"}
         </button>
-        <p className="lp-fineprint">Chúng tôi chỉ dùng thông tin này để liên hệ lại với bạn về BeMyFlo.</p>
+        <p className="lp-fineprint">
+          Chúng tôi chỉ dùng thông tin này để liên hệ lại với bạn về BeMyFlo. Bạn có thể yêu cầu xoá bất cứ lúc nào qua email liên hệ.
+        </p>
       </div>
     </form>
   );

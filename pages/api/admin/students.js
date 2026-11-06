@@ -7,6 +7,7 @@ const Submission = require("../../../lib/models/Submission");
 const Class = require("../../../lib/models/Class");
 const User = require("../../../lib/models/User");
 const users = require("../../../lib/users");
+const { POLICY_VERSION } = require("../../../lib/privacy");
 const { teacherScope, scopeFilter, canAccessClass } = require("../../../lib/teacherScope");
 const { parseProgramParam, programFilter, programOf } = require("../../../lib/curriculum");
 
@@ -66,6 +67,14 @@ async function handler(req, res) {
   if (req.method === "POST") {
     const classId = req.body && req.body.classId;
     if (!classId) return res.status(400).json({ ok: false, error: "Please select a class" });
+    // Trung tâm là bên kiểm soát dữ liệu học viên: giáo viên phải xác nhận đã có sự đồng ý
+    // (Luật 91/2025 Đ.9; Đ.24 với học viên chưa thành niên). Chỉ nhận đúng true.
+    if (!req.body || req.body.consentConfirmed !== true) {
+      return res.status(400).json({
+        ok: false,
+        error: "Please confirm the student (or their parent/guardian if under 16) has agreed to the privacy policy",
+      });
+    }
     let cls;
     try {
       cls = await Class.findOne(tenantFilter(req.ws, { _id: classId }));
@@ -85,6 +94,7 @@ async function handler(req, res) {
         email: (req.body && req.body.email) || "",
         classId: cls._id,
         workspaceId: req.ws.workspaceId,
+        consent: { by: req.auth && req.auth.userId, policyVersion: POLICY_VERSION },
       });
       return res.status(201).json({
         ok: true,

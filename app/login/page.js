@@ -9,6 +9,7 @@ import { PLATFORM_NAME, PLATFORM_LOGO } from "@/lib/platform";
 import { parseHost, baseDomain } from "@/lib/host";
 import { applyTheme } from "@/components/ThemeLoader";
 import { shouldAttemptHandoff } from "@/lib/client/handoffGuard";
+import { POLICY_PATH } from "@/lib/privacy";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -232,7 +233,8 @@ export default function LoginPage() {
             <svg className="icon"><use href="#icon-shield" /></svg>
             <span>
               Each student uses a unique account created by their teacher. Test results are saved and displayed in the
-              teacher dashboard.
+              teacher dashboard.{" "}
+              <a href={POLICY_PATH} target="_blank" rel="noopener">Chính sách bảo mật</a>
             </span>
           </div>
         </form>

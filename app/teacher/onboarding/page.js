@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { useDialog } from "@/components/ui/Dialog";
 import ProgramField from "@/components/teacher/ProgramField";
+import ConsentCheck from "@/components/teacher/ConsentCheck";
 import { DEFAULT_PROGRAM, PROGRAMS, levelWordOf } from "@/lib/curriculum";
 
 const STEPS = ["Name your workspace", "Create your first class", "Add your students"];
@@ -20,6 +21,7 @@ export default function OnboardingPage() {
   const [cls, setCls] = useState({ name: "", level: "1", program: DEFAULT_PROGRAM });
   const [createdClass, setCreatedClass] = useState(null); // { _id, name }
   const [stu, setStu] = useState({ name: "", username: "", password: "" });
+  const [consent, setConsent] = useState(false);
   const [added, setAdded] = useState([]);
 
   useEffect(() => {
@@ -76,10 +78,15 @@ export default function OnboardingPage() {
 
   const addStudent = (e) => {
     e.preventDefault();
+    if (!consent) {
+      dialog.alert({ tone: "error", title: "Consent needed", message: "Please confirm you have the student's (or parent's) consent." });
+      return;
+    }
     run(async () => {
-      const r = await api.teacher.createStudent({ ...stu, classId: createdClass._id });
+      const r = await api.teacher.createStudent({ ...stu, classId: createdClass._id, consentConfirmed: true });
       setAdded((a) => [...a, r.student]);
       setStu({ name: "", username: "", password: "" });
+      setConsent(false);
       dialog.toast("Student added");
     });
   };
@@ -164,6 +171,7 @@ export default function OnboardingPage() {
                     <label>Password (min 4 characters)</label>
                     <input type="text" value={stu.password} required minLength={4} onChange={(e) => setStu((s) => ({ ...s, password: e.target.value }))} />
                   </div>
+                  <ConsentCheck checked={consent} onChange={setConsent} id="onboarding-consent" />
                   <div>
                     <button type="submit" className="btn" disabled={busy}>Add student</button>
                   </div>

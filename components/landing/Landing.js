@@ -7,6 +7,7 @@ import HeroRotator from "./HeroRotator";
 import Testimonials from "./Testimonials";
 import { PLATFORM_NAME, PLATFORM_LOGO } from "@/lib/platform";
 import { siteOrigin } from "@/lib/seo";
+import { POLICY_PATH } from "@/lib/privacy";
 import {
   CONTACT, DEMO, HERO_PREFIX, HERO_ROTATE, HERO_LEAD, TESTIMONIALS, SHOTS, SKILLS_HEAD, SKILLS_DEFAULT, SKILL_TABS, ATTENDANCE_SPOTLIGHT,
   FEATURES, STEPS, FAQ, telHref, zaloHref, demoLoginUrl,
@@ -263,6 +264,7 @@ export default function Landing() {
             <a href="#tinh-nang">Tính năng</a>
             <a href="#dang-ky">Liên hệ</a>
             <a href="/login">Đăng nhập</a>
+            <a href={POLICY_PATH}>Chính sách bảo mật</a>
           </nav>
         </div>
       </footer>

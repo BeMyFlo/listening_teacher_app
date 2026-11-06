@@ -9,6 +9,7 @@ const SignupRequest = require("../../../lib/models/SignupRequest");
 const { validateSignupRequest, escapeHtml } = require("../../../lib/signupRequest");
 const { hit, clientIp } = require("../../../lib/rateLimit");
 const { sendMail } = require("../../../lib/mailer");
+const { POLICY_VERSION } = require("../../../lib/privacy");
 
 const MAX_NEW = 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -55,7 +56,7 @@ module.exports = async (req, res) => {
   const dup = await SignupRequest.exists({ email: value.email, createdAt: { $gte: new Date(Date.now() - DAY_MS) } });
   if (dup) return res.status(200).json({ ok: true });
 
-  const doc = await SignupRequest.create(value);
+  const doc = await SignupRequest.create({ ...value, consentAt: new Date(), policyVersion: POLICY_VERSION });
   try {
     await notifyOwner(doc);
   } catch (err) {

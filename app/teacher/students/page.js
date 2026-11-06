@@ -8,6 +8,7 @@ import { programParam, usePrograms } from "@/lib/client/program";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
 import ProgramChips, { ProgramEmpty } from "@/components/teacher/ProgramChips";
 import ProgramBadge from "@/components/ProgramBadge";
+import ConsentCheck from "@/components/teacher/ConsentCheck";
 
 function StudentsInner() {
   const dialog = useDialog();
@@ -18,6 +19,7 @@ function StudentsInner() {
   const [classes, setClasses] = useState([]);
   const [listErr, setListErr] = useState("");
   const [form, setForm] = useState({ name: "", username: "", password: "", classId: "", email: "" });
+  const [consent, setConsent] = useState(false); // không tick sẵn, bỏ tick sau mỗi lần tạo
   const [status, setStatus] = useState(null);
   const [emailDraft, setEmailDraft] = useState({}); // studentId -> value đang gõ
 
@@ -39,6 +41,10 @@ function StudentsInner() {
       setStatus({ cls: "error", msg: "Please select a class." });
       return;
     }
+    if (!consent) {
+      setStatus({ cls: "error", msg: "Please confirm you have the student's (or parent's) consent." });
+      return;
+    }
     try {
       await api.teacher.createStudent({
         name: form.name.trim(),
@@ -46,9 +52,11 @@ function StudentsInner() {
         password: form.password,
         classId: form.classId,
         email: form.email.trim(),
+        consentConfirmed: true,
       });
       setStatus({ cls: "success", msg: "Student account created successfully." });
       setForm({ name: "", username: "", password: "", classId: "", email: "" });
+      setConsent(false);
       load();
     } catch (e) {
       setStatus({ cls: "error", msg: e.message });
@@ -175,6 +183,7 @@ function StudentsInner() {
             </select>
           </div>
         </div>
+        <ConsentCheck checked={consent} onChange={setConsent} />
         <button type="button" className="btn" style={{ marginTop: 14 }} onClick={create}>
           <svg className="icon"><use href="#icon-user-plus" /></svg> Create Student
         </button>
