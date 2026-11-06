@@ -1,3 +1,8 @@
+// Font chính của app: Plus Jakarta Sans (variable 200–800, có bộ chữ tiếng
+// Việt). Lấy từ gói npm @fontsource-variable — file font nằm sẵn trong
+// node_modules nên build trên Vercel không phải tải từ Google Fonts (dùng
+// next/font/google từng làm deploy lỗi vì bước tải đó thất bại).
+import "@fontsource-variable/plus-jakarta-sans";
 import "./globals.css";
 import { IconSprite } from "@/components/Icon";
 import { PLATFORM_NAME } from "@/lib/platform";

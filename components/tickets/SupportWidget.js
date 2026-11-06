@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import { setBadge } from "@/lib/client/shellBadges";
@@ -8,8 +9,9 @@ import TicketDialog from "./TicketDialog";
 
 const POLL_MS = 60000;
 
-// Nút nổi "Report a problem" (học sinh / giáo viên) + đồng bộ badge sidebar.
-// Với admin: chỉ cập nhật badge số phiếu chưa xem, không có nút nổi.
+// Nút "?" nhỏ trên topbar để báo lỗi / góp ý (học sinh / giáo viên) + đồng bộ
+// badge sidebar. Trước là nút nổi "Help" góc dưới phải — đã nhường chỗ đó cho
+// trợ lý thông báo (components/assistant). Với admin: chỉ cập nhật badge, không có nút.
 export default function SupportWidget({ role }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -58,15 +60,15 @@ export default function SupportWidget({ role }) {
       {!onTicketsPage && (
         <button
           type="button"
-          className="support-fab"
-          title="Report a problem or request a feature"
+          className="icon-btn topbar-help"
+          title="Help — report a problem or request a feature"
+          aria-label="Help"
           onClick={() => setOpen(true)}
         >
-          <svg className="icon"><use href="#icon-inbox" /></svg>
-          <span>Help</span>
+          <svg className="icon"><use href="#icon-help" /></svg>
         </button>
       )}
-      {open && (
+      {open && createPortal(
         <TicketDialog
           role={role}
           pageUrl={pathname}
@@ -76,7 +78,8 @@ export default function SupportWidget({ role }) {
             sync();
             router.push(href + "?id=" + t._id);
           }}
-        />
+        />,
+        document.body
       )}
     </>
   );
