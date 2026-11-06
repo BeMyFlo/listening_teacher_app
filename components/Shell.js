@@ -7,6 +7,7 @@ import { usePrograms } from "@/lib/client/program";
 import { clearSession, clearTeacherToken } from "@/lib/client/session";
 import { useShellBadges } from "@/lib/client/shellBadges";
 import { useBranding } from "@/lib/client/branding";
+import { parseHost, baseDomain } from "@/lib/host";
 import SupportWidget from "./tickets/SupportWidget";
 import AssistantDock from "./assistant/AssistantDock";
 
@@ -88,7 +89,15 @@ export default function Shell({ role, userName, userSub, children }) {
   }, [userMenu]);
 
   function logout() {
+    // Đăng xuất ở subdomain của workspace (vd ieltswithnhi.bemyflo.com) -> về thẳng trang đăng nhập
+    // chung ở domain gốc (bemyflo.com/login). Dev trên localhost thì ở lại /login của host hiện tại.
+    const base = baseDomain();
+    const toRoot = base && base !== "localhost" && parseHost(window.location.host).kind !== "root";
     clearSession();
+    if (toRoot) {
+      window.location.assign(`https://${base}/login`);
+      return;
+    }
     router.replace("/login");
   }
 

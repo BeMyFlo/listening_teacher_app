@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { createVoiceRecorder } from "@/lib/client/useRecorder";
 import { useMySubmissions } from "@/lib/client/useMySubmissions";
 import { promptAttempts } from "@/lib/student/submissions";
 import { LESSON_CATS } from "@/lib/student/constants";
@@ -41,7 +42,7 @@ function ResubmitSpeaking({ prompt, submitContext, parentId, onSubmitted }) {
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
+      const mr = createVoiceRecorder(stream);
       const state = { mr, chunks: [], stream, blob: null };
       recRef.current = state;
       mr.ondataavailable = (e) => e.data?.size && state.chunks.push(e.data);

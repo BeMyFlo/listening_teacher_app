@@ -1,8 +1,10 @@
 const { connectDB } = require("../../../lib/db");
 const { requireAuth } = require("../../../lib/auth");
 const { withTenant, tenantFilter, assertOwned } = require("../../../lib/tenant");
-const { deleteAudioFile } = require("../../../lib/cloudinary");
+const { deleteAudioFile, shrinkAudioFile } = require("../../../lib/cloudinary");
+const { isCloudinaryUrl, publicIdFromUrl } = require("../../../lib/validate");
 const Audio = require("../../../lib/models/Audio");
+const Workspace = require("../../../lib/models/Workspace");
 const Test = require("../../../lib/models/Test");
 const Unit = require("../../../lib/models/Unit");
 
@@ -32,7 +34,27 @@ async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Missing uploaded file information" });
     }
 
-    const audio = await Audio.create({ title, unit, cloudinaryUrl, cloudinaryPublicId, workspaceId: req.ws.workspaceId });
+    // File nặng (mp3 320 kbps, wav...) -> server tự nén về mp3 128 kbps trên Cloudinary.
+    // Chỉ đụng tới file nằm trong thư mục audio của CHÍNH workspace này và vừa tải lên;
+    // lỗi thì giữ nguyên file gốc, không chặn việc lưu.
+    let file = { cloudinaryUrl, cloudinaryPublicId };
+    try {
+      const ws = await Workspace.findById(req.ws.workspaceId).select("slug").lean();
+      const ownFolder = ws && ws.slug ? `workspaces/${ws.slug}/audio/` : null;
+      if (
+        ownFolder &&
+        isCloudinaryUrl(cloudinaryUrl) &&
+        publicIdFromUrl(cloudinaryUrl) === cloudinaryPublicId &&
+        String(cloudinaryPublicId).startsWith(ownFolder)
+      ) {
+        const shrunk = await shrinkAudioFile(cloudinaryPublicId, { uploadedWithinMs: 60 * 60 * 1000 });
+        if (shrunk) file = { cloudinaryUrl: shrunk.cloudinaryUrl, cloudinaryPublicId: shrunk.cloudinaryPublicId };
+      }
+    } catch (err) {
+      console.error("[audio] compress failed, keeping original:", (err && err.message) || err);
+    }
+
+    const audio = await Audio.create({ title, unit, ...file, workspaceId: req.ws.workspaceId });
     return res.status(201).json({ ok: true, audio });
   }
 
@@ -87,3 +109,5 @@ async function handler(req, res) {
 module.exports = requireAuth(withTenant(handler));
 
 module.exports.default = module.exports;
+// Nén audio (lib/cloudinary.js shrinkAudioFile) mất ~15 giây cho file 14 MB.
+module.exports.config = { maxDuration: 60 };
