@@ -7,9 +7,8 @@ import { usePrograms } from "@/lib/client/program";
 import { clearSession, clearTeacherToken } from "@/lib/client/session";
 import { useShellBadges } from "@/lib/client/shellBadges";
 import { useBranding } from "@/lib/client/branding";
-import NotificationBell from "./NotificationBell";
 import SupportWidget from "./tickets/SupportWidget";
-import ChangelogModal from "./ChangelogModal";
+import AssistantDock from "./assistant/AssistantDock";
 
 function initials(name) {
   const parts = String(name || "?").trim().split(/\s+/);
@@ -167,7 +166,8 @@ export default function Shell({ role, userName, userSub, children }) {
             <input type="text" placeholder={cfg.searchPlaceholder || "Search..."} readOnly />
             <span className="kbd-hint">Ctrl K</span>
           </div>
-          <NotificationBell role={role} />
+          <span className="topbar-spacer" />
+          <SupportWidget role={role} />
           <div
             className={"topbar-user" + (userMenu ? " open" : "")}
             data-action="toggle-user-menu"
@@ -200,8 +200,7 @@ export default function Shell({ role, userName, userSub, children }) {
           </div>
         )}
         <main className="content">{children}</main>
-        <SupportWidget role={role} />
-        <ChangelogModal role={role} />
+        <AssistantDock role={role} />
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const { connectDB } = require("../../lib/db");
 const { requireStudent } = require("../../lib/auth");
 const { withTenant, tenantFilter } = require("../../lib/tenant");
@@ -18,6 +19,7 @@ function toPublic(n) {
     dueAt: n.dueAt || null,
     read: !!(n.deliveries && n.deliveries.inapp && n.deliveries.inapp.readAt),
     createdAt: n.createdAt,
+    senderName: n.senderName || "",
   };
 }
 
@@ -38,19 +40,35 @@ async function handler(req, res) {
       console.error("[notifications] generate failed:", err.message);
     }
 
-    const rows = await Notification.find(tenantFilter(req.ws, { studentId: student._id }))
+    const rows = await Notification.find(tenantFilter(req.ws, { studentId: student._id, dismissedAt: null }))
       .sort({ createdAt: -1 })
       .limit(LIMIT)
       .lean();
     const unreadCount = await Notification.countDocuments(tenantFilter(req.ws, {
       studentId: student._id,
+      dismissedAt: null,
       "deliveries.inapp.readAt": null,
     }));
     return res.status(200).json({ ok: true, rows: rows.map(toPublic), unreadCount });
   }
 
   if (req.method === "PUT") {
-    const { markAllRead, ids } = req.body || {};
+    const { markAllRead, ids, dismiss, dismissAll } = req.body || {};
+
+    // Ẩn (×) 1 vài thông báo hoặc tất cả — coi như đã đọc luôn.
+    if (dismiss || dismissAll) {
+      const f = { studentId: student._id, dismissedAt: null };
+      if (!dismissAll) {
+        if (!Array.isArray(ids) || !ids.length) {
+          return res.status(400).json({ ok: false, error: "Nothing to dismiss" });
+        }
+        f._id = { $in: ids.filter((x) => mongoose.Types.ObjectId.isValid(String(x))) };
+      }
+      const now = new Date();
+      await Notification.updateMany(f, { $set: { dismissedAt: now } });
+      await Notification.updateMany({ ...f, dismissedAt: now, "deliveries.inapp.readAt": null }, { $set: { "deliveries.inapp.readAt": now } });
+      return res.status(200).json({ ok: true });
+    }
     const filter = { studentId: student._id, "deliveries.inapp.readAt": null };
     if (!markAllRead) {
       if (!Array.isArray(ids) || !ids.length) {
@@ -61,6 +79,7 @@ async function handler(req, res) {
     await Notification.updateMany(filter, { $set: { "deliveries.inapp.readAt": new Date() } });
     const unreadCount = await Notification.countDocuments(tenantFilter(req.ws, {
       studentId: student._id,
+      dismissedAt: null,
       "deliveries.inapp.readAt": null,
     }));
     return res.status(200).json({ ok: true, unreadCount });
