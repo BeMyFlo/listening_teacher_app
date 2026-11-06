@@ -26,7 +26,7 @@ import AudioUploadButton from "./AudioUploadButton";
 import ImageUploadButton from "./ImageUploadButton";
 import SaveToBankDialog from "./SaveToBankDialog";
 import { SwapButton } from "./SwapQuestionDialog";
-import { questionFormatsFor } from "@/lib/teacher/questionFormats";
+import { questionFormatsFor, groupFormats } from "@/lib/teacher/questionFormats";
 import { LETTERS, letterOptions, isLetterEditorField } from "@/lib/letterQuestion";
 import { PROGRAMS, programOf } from "@/lib/curriculum";
 import {
@@ -349,6 +349,7 @@ export default function SectionsEditor({
 function SectionCard({ sec, si, subject, media, allSections, patch, showTranscript, program, firstId = 1, bank = null }) {
   const set = (k, v) => patch((d) => (d[si][k] = v));
   const formats = questionFormatsFor(subject, program);
+  const formatGroups = groupFormats(formats);
   // true = đang hiện lưới chọn dạng bài (bấm "+ Add Question" mở ra, chọn
   // xong hoặc Cancel thì đóng lại). Không có state riêng cho "loại nào" vì
   // chọn xong là tạo câu luôn — không có bước "xác nhận" thừa.
@@ -579,6 +580,22 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
                   <svg className="icon"><use href="#icon-cross" /></svg>
                 </button>
               </div>
+              {formatGroups ? (
+                <div className="format-pick-groups">
+                  {formatGroups.map((g) => (
+                    <div key={g.key} className="format-pick-group">
+                      <div className="format-pick-group-title">{g.label}</div>
+                      <div className="format-pick-group-items">
+                        {g.formats.map((f) => (
+                          <button key={f.key} type="button" className="format-pick-btn" onClick={() => addQuestionWithFormat(f)}>
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <div className="format-pick-grid">
                 {formats
                   ? formats.map((f) => (
@@ -597,6 +614,7 @@ function SectionCard({ sec, si, subject, media, allSections, patch, showTranscri
                       </button>
                     ))}
               </div>
+              )}
             </div>
           ) : (
             <button
@@ -1073,11 +1091,21 @@ function FieldRow({ f, fi, si, sec, subject, program, media, patch, swap = null,
             {progConf.formatPlaceholder != null && !currentFormatKey && (
               <option value="" disabled>{progConf.formatPlaceholder}</option>
             )}
-            {formats.map((fmt) => (
-              <option key={fmt.key} value={fmt.key}>
-                {fmt.label}
-              </option>
-            ))}
+            {groupFormats(formats)
+              ? groupFormats(formats).map((g) => (
+                  <optgroup key={g.key} label={g.label}>
+                    {g.formats.map((fmt) => (
+                      <option key={fmt.key} value={fmt.key}>
+                        {fmt.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))
+              : formats.map((fmt) => (
+                  <option key={fmt.key} value={fmt.key}>
+                    {fmt.label}
+                  </option>
+                ))}
           </select>
         ) : (
           <select className="f-kind" value={f.kind} onChange={(e) => changeKind(e.target.value)}>

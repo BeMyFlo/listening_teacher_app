@@ -1533,6 +1533,16 @@ tr:hover td { background: var(--pink-wash-2); }
   transition: background .15s, border-color .15s, color .15s;
 }
 .format-pick-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
+.format-pick-groups {
+  display: grid; gap: 14px;
+  padding: 14px;
+}
+.format-pick-group-title {
+  margin-bottom: 6px;
+  font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted);
+}
+.format-pick-group-items { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .question-grid-cols {
   display: grid;
