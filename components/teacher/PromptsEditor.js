@@ -8,6 +8,7 @@
 // standardSet: (chỉ Mock Test) hiện nút "Add standard TOEIC set" khi kỹ năng chưa có đề.
 import { useDialog } from "@/components/ui/Dialog";
 import AudioUploadButton from "./AudioUploadButton";
+import ImageUploadButton from "./ImageUploadButton";
 import { ASPECT_LABELS, toeicTask, tasksForSkill } from "@/lib/toeicTasks";
 import { PROGRAMS, isProgram } from "@/lib/curriculum";
 import { taskDefaults, blankToeicPrompt, standardSet, promptCues } from "@/lib/toeicStandardSet";
@@ -141,6 +142,7 @@ export default function PromptsEditor({ prompts, media, onChange, skill, program
                   </option>
                 ))}
               </select>
+              <ImageUploadButton media={media} value={p.imageId} onChange={(id) => patch((d) => (d[i].imageId = id))} />
             </div>
             {task && task.needsRequiredWords && (
               <div className="form-row" style={{ marginBottom: 10 }}>

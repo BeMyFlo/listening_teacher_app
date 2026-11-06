@@ -5588,3 +5588,15 @@ body:has(.note-fab) .asst-dock {
 @media (max-width: 640px) {
   .page-head h1, .hero-banner-text h2 { font-size: 1.5rem; }
 }
+
+/* Builder: tải ảnh ngay cạnh ô chọn ảnh (ImageUploadButton) — nút + vùng kéo-thả/dán. */
+.image-upload { margin-top: 6px; }
+.image-upload-zone {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 6px 8px; border: 1px dashed var(--border); border-radius: 8px;
+}
+.image-upload-zone:focus, .image-upload-zone.over { outline: none; border-color: var(--teal); background: var(--teal-light); }
+.image-upload-hint { font-size: .78rem; color: var(--muted); }
+.image-upload-preview { position: relative; display: inline-block; margin-top: 8px; }
+.image-upload-preview img { display: block; max-width: 220px; max-height: 140px; border: 1px solid var(--border); border-radius: 8px; }
+.image-upload-preview .icon-btn { position: absolute; top: 4px; right: 4px; background: var(--card); }
